@@ -14,13 +14,21 @@ class HallazgoSeo:
     Parameters
     ----------
     tipo : str
-        Categoría del hallazgo, por ejemplo `indexación` o `contenido`.
+        Categoría del hallazgo.
     severidad : str
-        Nivel de prioridad, normalmente `alta`, `media` o `baja`.
+        Nivel de prioridad operativo.
     descripcion : str
         Explicación breve del problema detectado.
     recomendacion : str
         Acción concreta recomendada para resolver el problema.
+    area : str
+        Área de trabajo principal a la que impacta la incidencia.
+    impacto : str
+        Impacto estimado de negocio o SEO.
+    esfuerzo : str
+        Esfuerzo estimado para resolver la incidencia.
+    prioridad : str
+        Prioridad de ejecución propuesta.
     """
 
     # Guarda la categoría funcional del hallazgo.
@@ -35,39 +43,24 @@ class HallazgoSeo:
     # Guarda la acción recomendada para corregir el problema.
     recomendacion: str
 
+    # Guarda el área propietaria de la incidencia.
+    area: str
+
+    # Guarda la estimación de impacto del hallazgo.
+    impacto: str
+
+    # Guarda la estimación de esfuerzo para resolución.
+    esfuerzo: str
+
+    # Guarda la prioridad recomendada de ejecución.
+    prioridad: str
+
 
 # Define la estructura de datos de una URL auditada.
 @dataclass(slots=True)
 class ResultadoUrl:
     """
     Representa el resultado técnico de analizar una URL.
-
-    Parameters
-    ----------
-    url : str
-        URL auditada.
-    tipo : str
-        Tipo inferido de URL, por ejemplo `page`, `post` o `category`.
-    estado_http : int
-        Código de estado HTTP final observado.
-    redirecciona : bool
-        Indica si la URL respondió con redirección.
-    url_final : str
-        URL final tras seguir redirecciones.
-    title : str
-        Contenido del título HTML si existe.
-    h1 : str
-        Primer H1 detectado si existe.
-    meta_description : str
-        Meta descripción detectada si existe.
-    canonical : str | None
-        Canonical declarada en la página si existe.
-    noindex : bool
-        Indica si la página declara noindex.
-    hallazgos : List[HallazgoSeo]
-        Lista de incidencias detectadas.
-    error : str | None
-        Mensaje controlado de error técnico, sin secretos.
     """
 
     # Guarda la URL original analizada.
@@ -112,17 +105,6 @@ class ResultadoUrl:
 class ResultadoAuditoria:
     """
     Contiene el resultado consolidado de una auditoría SEO.
-
-    Parameters
-    ----------
-    sitemap : str
-        Sitemap origen de la auditoría.
-    total_urls : int
-        Número total de URLs consideradas.
-    resultados : List[ResultadoUrl]
-        Resultados por URL.
-    resumen_ia : str | None
-        Texto opcional enriquecido por IA.
     """
 
     # Guarda el sitemap usado como origen de datos.
@@ -133,6 +115,15 @@ class ResultadoAuditoria:
 
     # Guarda los resultados por URL.
     resultados: List[ResultadoUrl]
+
+    # Guarda el nombre del cliente inferido o definido.
+    cliente: str
+
+    # Guarda la fecha real de ejecución en formato ISO.
+    fecha_ejecucion: str
+
+    # Guarda el gestor responsable del informe.
+    gestor: str
 
     # Guarda el informe narrativo opcional generado por IA.
     resumen_ia: Optional[str] = None

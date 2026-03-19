@@ -19,19 +19,18 @@ from seo_auditor.fetcher import extraer_urls_sitemap
 # Importa los exportadores de salida del proyecto.
 from seo_auditor.reporters import exportar_excel, exportar_json, exportar_markdown_ia, exportar_pdf, exportar_word
 
-# Importa la validación de URL de entrada.
-from seo_auditor.utils import es_url_http_valida
+# Importa utilidades de entrada, fecha y estructura de salida.
+from seo_auditor.utils import es_url_http_valida, fecha_ejecucion_iso, inferir_cliente_desde_slug, slug_dominio_desde_url
+
+
+# Define gestor por defecto para metadatos de informe.
+GESTOR_POR_DEFECTO = "Juan Antonio Sánchez Plaza"
 
 
 # Construye el parser de argumentos del programa.
 def crear_parser() -> argparse.ArgumentParser:
     """
     Crea y configura el parser del CLI.
-
-    Returns
-    -------
-    argparse.ArgumentParser
-        Parser listo para usarse.
     """
 
     # Crea el parser principal con descripción orientada al usuario.
@@ -41,10 +40,16 @@ def crear_parser() -> argparse.ArgumentParser:
     parser.add_argument("--sitemap", required=True, help="URL del sitemap XML a analizar.")
 
     # Añade el argumento obligatorio de la carpeta de salida.
-    parser.add_argument("--output", required=True, help="Carpeta donde se guardarán los informes.")
+    parser.add_argument("--output", required=True, help="Carpeta raíz donde se guardarán los informes.")
 
     # Añade el flag para activar el análisis narrativo con IA.
     parser.add_argument("--usar-ia", action="store_true", help="Activa el enriquecimiento del informe con Gemini.")
+
+    # Añade parámetro para definir gestor de la auditoría.
+    parser.add_argument("--gestor", default=GESTOR_POR_DEFECTO, help="Nombre del gestor responsable del informe.")
+
+    # Añade parámetro para controlar muestras enviadas a IA.
+    parser.add_argument("--max-muestras-ia", type=int, default=15, help="Número máximo de muestras agregadas para la IA.")
 
     # Devuelve el parser ya configurado.
     return parser
@@ -54,11 +59,6 @@ def crear_parser() -> argparse.ArgumentParser:
 def main() -> int:
     """
     Ejecuta el flujo principal de auditoría SEO.
-
-    Returns
-    -------
-    int
-        Código de salida del proceso.
     """
 
     # Construye el parser del programa.
@@ -69,43 +69,59 @@ def main() -> int:
 
     # Valida la URL del sitemap antes de cualquier operación externa.
     if not es_url_http_valida(argumentos.sitemap):
-        # Informa al usuario de una entrada inválida y termina con error controlado.
         print("Error: el parámetro --sitemap debe ser una URL HTTP o HTTPS válida.")
+        return 1
 
-        # Devuelve código de error estándar.
+    # Valida que el límite de muestras sea positivo.
+    if argumentos.max_muestras_ia <= 0:
+        print("Error: --max-muestras-ia debe ser un entero positivo.")
         return 1
 
     # Carga la configuración desde variables de entorno.
     configuracion = cargar_configuracion()
 
-    # Convierte la ruta de salida a objeto Path para trabajar de forma segura.
-    carpeta_salida = Path(argumentos.output)
+    # Genera metadatos reales de ejecución.
+    fecha = fecha_ejecucion_iso()
+
+    # Deriva slug y nombre de cliente desde el sitemap.
+    slug_dominio = slug_dominio_desde_url(argumentos.sitemap)
+    cliente = inferir_cliente_desde_slug(slug_dominio)
+
+    # Construye la ruta de salida profesional por dominio y fecha.
+    carpeta_salida = Path(argumentos.output) / slug_dominio / fecha
+
+    # Informa progreso de obtención de URLs.
+    print("[1/5] Extrayendo URLs del sitemap...")
 
     # Extrae las URLs desde el sitemap indicado por el usuario.
     urls = extraer_urls_sitemap(argumentos.sitemap, configuracion.http_timeout, configuracion.max_urls)
 
     # Comprueba que el sitemap ha devuelto URLs útiles.
     if not urls:
-        # Informa de la ausencia de URLs procesables.
         print("Error: no se han encontrado URLs válidas en el sitemap indicado.")
-
-        # Devuelve código de error estándar.
         return 1
 
+    # Informa progreso de auditoría técnica.
+    print(f"[2/5] Auditando {len(urls)} URLs...")
+
     # Ejecuta la auditoría técnica sobre todas las URLs obtenidas.
-    resultado = auditar_urls(argumentos.sitemap, urls, configuracion.http_timeout)
+    resultado = auditar_urls(argumentos.sitemap, urls, configuracion.http_timeout, cliente, fecha, argumentos.gestor)
 
     # Genera el resumen con IA solo si el usuario lo solicita.
     if argumentos.usar_ia:
-        # Intenta generar el resumen IA sin bloquear la exportación técnica en caso de fallo.
+        print("[3/5] Generando resumen ejecutivo con IA...")
         try:
-            # Genera el texto narrativo del informe con Gemini.
-            resultado.resumen_ia = generar_resumen_ia(resultado, configuracion.gemini_api_key, configuracion.gemini_model)
-
-        # Captura errores de IA de forma controlada y transparente.
+            resultado.resumen_ia = generar_resumen_ia(
+                resultado,
+                configuracion.gemini_api_key,
+                configuracion.gemini_model,
+                argumentos.max_muestras_ia,
+            )
         except Exception as exc:
-            # Conserva el error dentro del resumen para que quede trazado en el informe.
             resultado.resumen_ia = f"No se pudo generar el informe con IA: {exc}"
+
+    # Informa progreso de exportación de entregables.
+    print("[4/5] Exportando entregables profesionales...")
 
     # Exporta el resultado técnico a JSON.
     exportar_json(resultado, carpeta_salida)
@@ -122,8 +138,8 @@ def main() -> int:
     # Exporta el informe IA en Markdown cuando exista.
     exportar_markdown_ia(resultado, carpeta_salida)
 
-    # Informa al usuario de que el proceso ha finalizado correctamente.
-    print(f"Auditoría completada. Archivos generados en: {carpeta_salida.resolve()}")
+    # Finaliza con mensaje de éxito y ruta final.
+    print(f"[5/5] Auditoría completada. Archivos generados en: {carpeta_salida.resolve()}")
 
     # Devuelve éxito al sistema operativo.
     return 0

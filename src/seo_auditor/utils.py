@@ -1,6 +1,9 @@
 # Importa expresiones regulares para validaciones seguras y explícitas.
 import re
 
+# Importa utilidades de fecha para metadatos reales de ejecución.
+from datetime import UTC, datetime
+
 # Importa utilidades de URL estándar del lenguaje.
 from urllib.parse import urlparse
 
@@ -13,20 +16,6 @@ URL_REGEX = re.compile(r"^https?://[^\s/$.?#].[^\s]*$", re.IGNORECASE)
 def es_url_http_valida(url: str) -> bool:
     """
     Valida si una cadena representa una URL HTTP o HTTPS razonable.
-
-    Parameters
-    ----------
-    url : str
-        Valor a validar.
-
-    Returns
-    -------
-    bool
-        `True` si la URL es válida y `False` en caso contrario.
-
-    Security
-    --------
-    La validación reduce el riesgo de procesar entradas no previstas.
     """
 
     # Comprueba primero que la entrada sea texto no vacío.
@@ -53,16 +42,6 @@ def es_url_http_valida(url: str) -> bool:
 def normalizar_url(url: str) -> str:
     """
     Normaliza una URL de forma conservadora para comparación interna.
-
-    Parameters
-    ----------
-    url : str
-        URL a normalizar.
-
-    Returns
-    -------
-    str
-        URL normalizada.
     """
 
     # Elimina espacios externos para estabilizar la entrada.
@@ -76,16 +55,6 @@ def normalizar_url(url: str) -> str:
 def inferir_tipo_url(url: str) -> str:
     """
     Intenta clasificar una URL según su ruta.
-
-    Parameters
-    ----------
-    url : str
-        URL a clasificar.
-
-    Returns
-    -------
-    str
-        Tipo lógico estimado.
     """
 
     # Obtiene solo la parte de ruta para analizarla de forma aislada.
@@ -113,3 +82,51 @@ def inferir_tipo_url(url: str) -> str:
 
     # Devuelve `page` para el resto de casos conocidos.
     return "page"
+
+
+# Genera la fecha real de ejecución en formato ISO.
+def fecha_ejecucion_iso() -> str:
+    """
+    Devuelve la fecha UTC real de ejecución en formato YYYY-MM-DD.
+    """
+
+    # Obtiene la fecha actual en UTC para evitar discrepancias horarias.
+    return datetime.now(UTC).date().isoformat()
+
+
+# Convierte una URL de dominio en un slug estable para carpetas.
+def slug_dominio_desde_url(url: str) -> str:
+    """
+    Construye un slug de dominio limpio sin www ni TLD para rutas de salida.
+    """
+
+    # Extrae el host de la URL con normalización de minúsculas.
+    host = urlparse(url).netloc.lower().strip()
+
+    # Elimina prefijos comunes de subdominio público.
+    host = host[4:] if host.startswith("www.") else host
+
+    # Separa el host en partes para aislar el nombre base.
+    partes = [parte for parte in host.split(".") if parte]
+
+    # Elige el segmento principal del dominio antes del TLD.
+    candidato = partes[-2] if len(partes) >= 2 else (partes[0] if partes else "sitio")
+
+    # Sustituye caracteres no válidos por guiones para un slug seguro.
+    slug = re.sub(r"[^a-z0-9]+", "-", candidato).strip("-")
+
+    # Devuelve un valor de respaldo si tras limpieza queda vacío.
+    return slug or "sitio"
+
+
+# Infiere un nombre de cliente legible a partir del slug del dominio.
+def inferir_cliente_desde_slug(slug: str) -> str:
+    """
+    Convierte un slug en nombre comercial legible.
+    """
+
+    # Sustituye guiones por espacios para visualización.
+    texto = slug.replace("-", " ").strip()
+
+    # Devuelve un valor por defecto si no hay contenido utilizable.
+    return texto.title() if texto else "Cliente"
