@@ -1,5 +1,9 @@
 # version.md
 
+## 0.2.1 - 2026-03-19
+- Se corrige un error en exportación PDF cuando el resumen IA incluye etiquetas HTML no compatibles con ReportLab (ej. `<link rel=...>`).
+- Se añade saneamiento de texto para PDF y test de regresión asociado.
+
 ## 0.2.0 - 2026-03-19
 - Se añade estructura de salida profesional por dominio y fecha real (`<output>/<slug>/<fecha>`).
 - Se incorpora parámetro CLI `--gestor` con valor por defecto `Juan Antonio Sánchez Plaza`.

@@ -7,6 +7,9 @@ from collections import Counter
 # Importa la clase Path para gestionar rutas de forma robusta.
 from pathlib import Path
 
+# Importa escape para sanear texto potencialmente interpretado como etiquetas XML.
+from xml.sax.saxutils import escape
+
 # Importa objetos para construir estilos de Word.
 from docx import Document
 
@@ -230,6 +233,24 @@ def calcular_metricas(resultado: ResultadoAuditoria) -> dict[str, int | float | 
         "urls_noindex": urls_noindex,
         "score": score,
     }
+
+
+
+
+# Sanea un texto libre para que reportlab no lo interprete como marcado inválido.
+def sanear_texto_para_pdf(texto: str) -> str:
+    """
+    Limpia y escapa texto dinámico para render seguro en Paragraph de reportlab.
+    """
+
+    # Normaliza saltos de línea de Windows a formato estándar.
+    texto_normalizado = texto.replace("\r\n", "\n").replace("\r", "\n")
+
+    # Escapa caracteres especiales para evitar errores del parser XML interno.
+    texto_escapado = escape(texto_normalizado)
+
+    # Devuelve texto saneado para inserción segura en PDF.
+    return texto_escapado
 
 
 # Exporta el resultado técnico en formato JSON.
@@ -600,13 +621,21 @@ def exportar_pdf(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
 
     # Añade resumen ejecutivo y bloques solicitados.
     elementos.append(Paragraph("<b>Resumen ejecutivo</b>", estilos["Heading2"]))
-    elementos.append(Paragraph(resultado.resumen_ia or "No se ha generado resumen con IA en esta ejecución.", estilos["Normal"]))
+    # Sanea el texto narrativo para evitar que reportlab interprete etiquetas HTML no válidas.
+    resumen_pdf = sanear_texto_para_pdf(resultado.resumen_ia or "No se ha generado resumen con IA en esta ejecución.")
+
+    # Añade el resumen saneado al PDF.
+    elementos.append(Paragraph(resumen_pdf, estilos["Normal"]))
     elementos.append(Spacer(1, 10))
     elementos.append(Paragraph("<b>Hallazgos críticos</b>", estilos["Heading2"]))
     for item in resultado.resultados:
         for hallazgo in item.hallazgos:
             if hallazgo.severidad in {"crítica", "alta"}:
-                elementos.append(Paragraph(f"• {item.url}: {hallazgo.descripcion}", estilos["Normal"]))
+                # Sanea cada línea crítica antes de crear el párrafo.
+                linea_critica = sanear_texto_para_pdf(f"• {item.url}: {hallazgo.descripcion}")
+
+                # Añade línea crítica ya saneada.
+                elementos.append(Paragraph(linea_critica, estilos["Normal"]))
 
     # Construye el PDF final.
     pdf.build(elementos)
