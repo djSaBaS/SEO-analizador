@@ -7,3 +7,4 @@ Contiene pruebas unitarias y de regresión.
 - Verificar clasificación automática de incidencias.
 - Comprobar estructura tabular de seguimiento para reporting.
 - Validar sanitización de texto para exportación PDF segura con ReportLab.
+- Validar transformación IA→secciones y score SEO ponderado.

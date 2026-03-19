@@ -9,5 +9,5 @@ Contiene el código fuente principal del auditor SEO.
 - `seo_auditor/utils.py`: validación, normalización y utilidades de fecha/slug de dominio.
 - `seo_auditor/fetcher.py`: descarga y parseo de sitemaps y páginas.
 - `seo_auditor/analyzer.py`: análisis SEO y clasificación automática de incidencias.
-- `seo_auditor/reporters.py`: exportación profesional a JSON, Excel, Word, PDF y Markdown IA.
+- `seo_auditor/reporters.py`: exportación profesional a JSON, Excel, Word, PDF y Markdown IA con maquetación corporativa y hoja auxiliar de dashboard.
 - `seo_auditor/gemini_client.py`: generación de resumen IA optimizado en tokens.

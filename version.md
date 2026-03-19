@@ -1,5 +1,14 @@
 # version.md
 
+## 0.3.0 - 2026-03-19
+- Se rehace la maquetación de Word para formato corporativo real: portada con aire visual, tabla KPI, secciones editoriales y anexo técnico separado.
+- Se mejora la exportación PDF para heredar estructura ejecutiva y evitar markdown crudo mediante transformación intermedia IA → secciones.
+- Se añade parser de narrativa IA (`sections = [{titulo, tipo, items}]`) para render limpio en DOCX/PDF.
+- Se corrige y refuerza el dashboard Excel con rejilla fija, gráficos no solapados y hoja auxiliar oculta `AuxDashboard` para cálculos/rangos.
+- Se mejora legibilidad de hoja `Errores` con wrap text, alineación superior, anchos útiles y alturas de fila operativas.
+- Se revisa el score SEO con fórmula ponderada menos punitiva y documentada en métricas.
+- Se actualizan tests de reporters para transformación de secciones y score.
+
 ## 0.2.1 - 2026-03-19
 - Se corrige un error en exportación PDF cuando el resumen IA incluye etiquetas HTML no compatibles con ReportLab (ej. `<link rel=...>`).
 - Se añade saneamiento de texto para PDF y test de regresión asociado.
