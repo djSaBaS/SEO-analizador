@@ -45,7 +45,7 @@ def construir_contexto_ia(resultado: ResultadoAuditoria, max_muestras: int) -> d
     # Ordena URLs por mayor número de incidencias.
     top_urls = sorted(urls_con_problemas, key=lambda item: item[1], reverse=True)
 
-    # Construye un listado de quick wins basado en bajo esfuerzo y alto/medio impacto.
+    # Construye quick wins basados en esfuerzo bajo y mayor impacto.
     quick_wins = []
 
     # Recorre resultados para detectar incidencias de alto potencial.
@@ -57,12 +57,33 @@ def construir_contexto_ia(resultado: ResultadoAuditoria, max_muestras: int) -> d
                 # Añade la incidencia al conjunto de quick wins.
                 quick_wins.append({"url": item.url, "problema": hallazgo.descripcion, "recomendacion": hallazgo.recomendacion})
 
+    # Resume resultados de rendimiento para minimizar tokens.
+    resumen_rendimiento = []
+
+    # Recorre resultados de rendimiento disponibles.
+    for item in resultado.rendimiento[:max_muestras]:
+        # Añade solo métricas necesarias para narrativa ejecutiva.
+        resumen_rendimiento.append(
+            {
+                "url": item.url,
+                "estrategia": item.estrategia,
+                "performance_score": item.performance_score,
+                "seo_score": item.seo_score,
+                "lcp": item.lcp,
+                "cls": item.cls,
+                "inp": item.inp,
+                "oportunidades": [oportunidad.titulo for oportunidad in item.oportunidades[:3]],
+            }
+        )
+
     # Devuelve el contexto agregado y limitado para IA.
     return {
         "cliente": resultado.cliente,
         "sitemap": resultado.sitemap,
         "fecha_ejecucion": resultado.fecha_ejecucion,
         "gestor": resultado.gestor,
+        "fuentes_activas": resultado.fuentes_activas,
+        "fuentes_fallidas": resultado.fuentes_fallidas,
         "total_urls": resultado.total_urls,
         "total_incidencias": sum(contador_problemas.values()),
         "distribucion_severidad": dict(contador_severidad),
@@ -74,12 +95,38 @@ def construir_contexto_ia(resultado: ResultadoAuditoria, max_muestras: int) -> d
                 "estado_http": item.estado_http,
                 "redirecciona": item.redirecciona,
                 "noindex": item.noindex,
-                "hallazgos": [hallazgo.descripcion for hallazgo in item.hallazgos[:3]],
+                "hallazgos": [hallazgo.descripcion for hallazgo in item.hallazgos[:2]],
             }
             for item in resultado.resultados[:max_muestras]
         ],
         "quick_wins": quick_wins[:max_muestras],
+        "rendimiento": resumen_rendimiento,
+        "pagespeed_estado": resultado.pagespeed_estado,
     }
+
+
+# Realiza una llamada mínima para validar conectividad y modelo de IA.
+def probar_conexion_ia(api_key: str, model_name: str) -> str:
+    """
+    Ejecuta una prueba barata de IA y devuelve un mensaje de estado.
+    """
+
+    # Valida la existencia de la clave API antes de iniciar la prueba.
+    if not api_key:
+        # Informa error de configuración de clave.
+        raise ValueError("No se ha configurado GEMINI_API_KEY.")
+
+    # Crea cliente de Gemini con la clave indicada.
+    cliente = genai.Client(api_key=api_key)
+
+    # Lanza una petición mínima para validar credenciales y modelo.
+    respuesta = cliente.models.generate_content(model=model_name, contents="Responde solo con: OK")
+
+    # Obtiene el texto plano de respuesta de forma segura.
+    texto = (getattr(respuesta, "text", "") or "").strip()
+
+    # Devuelve un mensaje claro para CLI.
+    return texto or "Respuesta vacía"
 
 
 # Convierte el resultado técnico en un resumen narrativo con IA.
@@ -99,16 +146,16 @@ def generar_resumen_ia(resultado: ResultadoAuditoria, api_key: str, model_name: 
     # Construye el contexto resumido de IA con límite de muestras.
     datos = construir_contexto_ia(resultado, max_muestras)
 
-    # Define un prompt orientado a negocio y sin relleno.
+    # Define un prompt orientado a negocio y con restricciones de fuentes.
     prompt = (
         "Actúa como consultor SEO senior de agencia. "
         "Redacta un informe en español profesional natural, sin frases vacías ni repeticiones. "
         "Usa solo los datos proporcionados, sin inventar información. "
-        "Usa exactamente la fecha de ejecución y el gestor indicados. "
-        "Estructura obligatoria: 1) Resumen ejecutivo, 2) Hallazgos críticos, 3) Quick wins, "
-        "4) Acciones técnicas, 5) Acciones de contenido, 6) Roadmap priorizado (30/60/90 días). "
-        "Separa claramente resumen ejecutivo y anexo técnico. "
-        "No uses placeholders ni texto genérico de IA. "
+        "No menciones fuentes no activas ni herramientas no conectadas. "
+        "No uses Markdown ni símbolos como **, ### o ---. "
+        "Estructura obligatoria exacta: "
+        "Resumen ejecutivo; Hallazgos críticos; Quick wins; Acciones técnicas; "
+        "Acciones de contenido; Rendimiento y experiencia de usuario; Roadmap. "
         "Datos de auditoría en JSON:\n"
         + json.dumps(datos, ensure_ascii=False)
     )

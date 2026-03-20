@@ -1,25 +1,29 @@
 # Arquitectura del proyecto
 
 ## Resumen
-El sistema sigue una arquitectura modular sencilla y mantenible.
+El sistema sigue una arquitectura modular evolutiva, con separación clara por capas:
 
-1. El CLI recibe un sitemap y una carpeta de salida.
-2. La configuración carga variables de entorno de forma segura.
-3. El módulo `fetcher` descarga el sitemap y obtiene las URLs.
-4. El módulo `analyzer` analiza cada página y detecta problemas.
-5. El módulo `reporters` genera los artefactos finales.
-6. El módulo `gemini_client` redacta una capa consultiva opcional.
+1. `cli.py`: orquestación de flujo y validación de parámetros.
+2. `config.py`: configuración de entorno y límites operativos.
+3. `fetcher.py` + `analyzer.py`: extracción de URLs y auditoría técnica SEO.
+4. `pagespeed.py`: auditoría de rendimiento (laboratorio + campo público).
+5. `gemini_client.py`: narrativa IA opcional con control de tokens y fuentes activas.
+6. `reporters.py`: render profesional a JSON/Excel/Word/PDF.
 
-## Principios aplicados
-- Seguridad por defecto.
-- Dependencias mínimas.
-- Validación explícita de entradas.
-- Trazabilidad del resultado técnico.
-- Escalabilidad por módulos.
+## Flujo actual
+1. Se carga configuración segura desde entorno.
+2. Se extraen URLs del sitemap con límite defensivo.
+3. Se audita SEO técnico por URL.
+4. Se ejecuta PageSpeed:
+   - por defecto solo en HOME
+   - con `--pagepsi` solo URL indicada
+   - con `--pagepsi-list` lista acotada por límite.
+5. Se genera IA solo si `--usar-ia`.
+6. Se exporta documentación final sin markdown crudo en DOCX/PDF.
 
-## Próximas ampliaciones recomendadas
-- Soporte para `robots.txt` y `sitemap_index` con sitemaps anidados complejos.
-- Extracción de canonicals, robots y hreflang con mayor profundidad.
-- Análisis de enlazado interno.
-- Integración con PageSpeed Insights.
-- Modo batch para varios dominios.
+## Decisiones técnicas clave
+- Estructura intermedia IA→secciones para desacoplar texto libre de render final.
+- Jerarquía documental fija para evitar duplicidades narrativas.
+- Anexo técnico siempre construido desde datos estructurados.
+- Fuentes activas explícitas en el resultado para evitar recomendaciones inventadas.
+- Preparación de arquitectura para modo pro sin mezclar fuentes no implementadas.

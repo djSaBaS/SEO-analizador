@@ -1,7 +1,7 @@
 # Importa JSON para exportar datos técnicos trazables.
 import json
 
-# Importa expresiones regulares para parsear texto narrativo con formato mixto.
+# Importa expresiones regulares para limpiar narrativa IA.
 import re
 
 # Importa contador para cálculos agregados.
@@ -13,17 +13,8 @@ from pathlib import Path
 # Importa escape para sanear texto potencialmente interpretado como etiquetas XML.
 from xml.sax.saxutils import escape
 
-# Importa utilidades para crear hipervínculos nativos en Word.
-from docx.oxml import OxmlElement
-
-# Importa utilidades para resolver atributos de XML en Word.
-from docx.oxml.ns import qn
-
 # Importa objetos para construir estilos de Word.
 from docx import Document
-
-# Importa utilidades de estilo de Word.
-from docx.enum.section import WD_SECTION_START
 
 # Importa utilidades de estilo de Word.
 from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -47,10 +38,10 @@ from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, 
 from openpyxl import Workbook
 
 # Importa gráficos de Excel.
-from openpyxl.chart import BarChart, DoughnutChart, PieChart, Reference
+from openpyxl.chart import BarChart, PieChart, Reference
 
 # Importa estilos y colores de openpyxl.
-from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.styles import Alignment, Font, PatternFill
 
 # Importa validaciones de datos para celdas editables.
 from openpyxl.worksheet.datavalidation import DataValidation
@@ -65,22 +56,22 @@ from seo_auditor.models import ResultadoAuditoria
 # Define el orden de severidad para visualización homogénea.
 ORDEN_SEVERIDAD = ["crítica", "alta", "media", "baja", "informativa"]
 
-# Define los títulos objetivo del bloque ejecutivo para render consistente.
-SECCIONES_OBJETIVO = [
+# Define jerarquía fija obligatoria del informe final.
+JERARQUIA_INFORME = [
     "Resumen ejecutivo",
+    "KPIs principales",
     "Hallazgos críticos",
     "Quick wins",
     "Acciones técnicas",
     "Acciones de contenido",
+    "Rendimiento y experiencia de usuario",
     "Roadmap",
 ]
 
 
 # Construye un prefijo de nombre de archivo legible y consistente.
 def construir_prefijo_archivo(resultado: ResultadoAuditoria) -> str:
-    """
-    Genera un prefijo de naming profesional para entregables.
-    """
+    """Genera un prefijo de naming profesional para entregables."""
 
     # Limpia el nombre del cliente para convertirlo en parte de archivo.
     cliente = resultado.cliente.lower().replace(" ", "_")
@@ -91,9 +82,7 @@ def construir_prefijo_archivo(resultado: ResultadoAuditoria) -> str:
 
 # Sanea un texto libre para que reportlab no lo interprete como marcado inválido.
 def sanear_texto_para_pdf(texto: str) -> str:
-    """
-    Limpia y escapa texto dinámico para render seguro en Paragraph de reportlab.
-    """
+    """Limpia y escapa texto dinámico para render seguro en PDF."""
 
     # Normaliza saltos de línea de Windows a formato estándar.
     texto_normalizado = texto.replace("\r\n", "\n").replace("\r", "\n")
@@ -107,169 +96,207 @@ def sanear_texto_para_pdf(texto: str) -> str:
 
 # Limpia marcas markdown para evitar texto crudo en DOCX/PDF.
 def limpiar_markdown_crudo(texto: str) -> str:
-    """
-    Elimina marcas markdown frecuentes y deja texto natural legible.
-    """
+    """Elimina marcas markdown frecuentes y deja texto natural legible."""
 
-    # Elimina separadores de regla horizontal.
+    # Elimina separadores horizontales de markdown.
     texto_limpio = re.sub(r"^\s*---+\s*$", "", texto, flags=re.MULTILINE)
 
-    # Elimina encabezados markdown conservando el título.
+    # Elimina encabezados markdown conservando el contenido.
     texto_limpio = re.sub(r"^\s*#{1,6}\s*", "", texto_limpio, flags=re.MULTILINE)
 
-    # Elimina formato de negrita y cursiva.
+    # Elimina negritas y cursivas markdown.
     texto_limpio = texto_limpio.replace("**", "").replace("__", "")
 
-    # Elimina backticks de código en línea.
+    # Elimina bloques de código en línea.
     texto_limpio = texto_limpio.replace("`", "")
 
-    # Devuelve texto normalizado sin espacios extremos por línea.
+    # Devuelve el texto con limpieza por línea.
     return "\n".join(linea.strip() for linea in texto_limpio.splitlines())
 
 
 # Convierte narrativa IA en secciones internas estructuradas.
 def construir_secciones_desde_ia(texto_ia: str | None) -> list[dict[str, object]]:
-    """
-    Transforma texto narrativo en estructura intermedia `sections` para render estable.
-    """
+    """Transforma texto IA en secciones semánticas sin markdown crudo."""
 
-    # Devuelve colección vacía cuando no exista texto IA.
+    # Devuelve colección vacía cuando no exista contenido IA.
     if not texto_ia:
+        # Retorna una lista vacía para simplificar flujo.
         return []
 
-    # Limpia markdown crudo y normaliza el contenido.
+    # Limpia markdown para evitar arrastre en entregables.
     texto_limpio = limpiar_markdown_crudo(texto_ia)
 
-    # Inicializa lista de secciones resultado.
+    # Inicializa resultado de secciones intermedias.
     secciones: list[dict[str, object]] = []
 
-    # Inicializa la sección activa por defecto.
+    # Inicializa sección por defecto de arranque.
     seccion_actual: dict[str, object] = {"titulo": "Resumen ejecutivo", "tipo": "parrafos", "items": []}
 
-    # Recorre línea a línea el texto limpio.
+    # Recorre líneas del texto limpio.
     for linea in texto_limpio.splitlines():
-        # Omite líneas completamente vacías.
+        # Descarta líneas vacías.
         if not linea.strip():
+            # Continúa con la siguiente línea útil.
             continue
 
-        # Detecta posibles títulos por patrón semántico.
-        es_titulo = bool(re.match(r"^(\d+[\)\.]\s+)?(resumen|hallazgos|quick wins|acciones técnicas|acciones de contenido|roadmap|anexo)", linea.lower()))
-
-        # Crea nueva sección cuando se detecta título.
-        if es_titulo:
-            # Añade sección actual si ya contiene items.
+        # Detecta títulos de sección de forma tolerante.
+        if re.match(r"^(\d+[\).]\s*)?(resumen|kpis|hallazgos|quick wins|acciones técnicas|acciones de contenido|rendimiento|roadmap)", linea.lower()):
+            # Guarda sección previa cuando tenga contenido.
             if seccion_actual["items"]:
+                # Inserta sección construida en la lista final.
                 secciones.append(seccion_actual)
 
-            # Extrae el título limpio eliminando numeración inicial.
-            titulo = re.sub(r"^\d+[\)\.]\s*", "", linea).strip().title()
+            # Limpia numeración inicial del título.
+            titulo = re.sub(r"^\d+[\).]\s*", "", linea).strip().title()
 
-            # Inicializa nueva sección vacía.
+            # Crea nueva sección activa.
             seccion_actual = {"titulo": titulo, "tipo": "parrafos", "items": []}
 
-            # Continúa con la siguiente línea del texto.
+            # Continúa sin añadir la línea como contenido.
             continue
 
-        # Detecta viñetas y ajusta tipo de sección.
+        # Detecta viñetas con prefijos habituales.
         if linea.startswith(("- ", "* ", "• ")):
+            # Cambia tipo de sección a viñetas.
             seccion_actual["tipo"] = "vinetas"
+
+            # Añade item sin el prefijo de viñeta.
             seccion_actual["items"].append(linea[2:].strip())
+
+            # Continúa con la siguiente línea.
             continue
 
-        # Detecta listas numeradas y ajusta tipo de sección.
-        if re.match(r"^\d+[\)\.]\s+", linea):
+        # Detecta listas numeradas y las normaliza.
+        if re.match(r"^\d+[\).]\s+", linea):
+            # Cambia tipo de sección a lista numerada.
             seccion_actual["tipo"] = "numerada"
-            seccion_actual["items"].append(re.sub(r"^\d+[\)\.]\s*", "", linea).strip())
+
+            # Añade item eliminando el prefijo numérico.
+            seccion_actual["items"].append(re.sub(r"^\d+[\).]\s*", "", linea).strip())
+
+            # Continúa con la siguiente línea.
             continue
 
-        # Añade el contenido como párrafo normal.
+        # Añade línea como párrafo normal.
         seccion_actual["items"].append(linea.strip())
 
-    # Añade la última sección pendiente cuando tenga contenido.
+    # Añade última sección pendiente si tiene contenido.
     if seccion_actual["items"]:
+        # Inserta sección final en la colección.
         secciones.append(seccion_actual)
 
-    # Devuelve secciones estructuradas y listas para render.
+    # Devuelve secciones intermedias para renderizado estable.
     return secciones
 
 
 # Convierte el resultado a una estructura tabular cómoda para exportación.
 def construir_filas(resultado: ResultadoAuditoria) -> list[dict]:
-    """
-    Convierte el resultado de auditoría a una lista de filas tabulares.
-    """
+    """Convierte el resultado de auditoría a una lista de filas tabulares."""
 
     # Inicializa la colección de filas tabulares.
     filas: list[dict] = []
 
     # Recorre cada URL auditada para convertirla a filas de incidencias.
     for item in resultado.resultados:
-        # Inserta fila de control cuando no haya hallazgos para mantener trazabilidad.
-        if not item.hallazgos:
-            filas.append(
-                {
-                    "url": item.url,
-                    "url_final": item.url_final,
-                    "tipo": item.tipo,
-                    "estado_http": item.estado_http,
-                    "redirecciona": "Sí" if item.redirecciona else "No",
-                    "title": item.title,
-                    "h1": item.h1,
-                    "meta_description": item.meta_description,
-                    "canonical": item.canonical or "",
-                    "noindex": "Sí" if item.noindex else "No",
-                    "problema": "",
-                    "recomendacion": "",
-                    "severidad": "informativa",
-                    "area": "Calidad",
-                    "impacto": "Bajo",
-                    "esfuerzo": "Bajo",
-                    "prioridad": "P4",
-                    "estado": "Pendiente",
-                    "resuelto": "No",
-                    "responsable": "",
-                    "observaciones": item.error or "Sin incidencias críticas",
-                }
-            )
-            continue
+        # Construye una base común para evitar duplicación de campos.
+        fila_base = {
+            "url": item.url,
+            "url_final": item.url_final,
+            "tipo": item.tipo,
+            "estado_http": item.estado_http,
+            "redirecciona": "Sí" if item.redirecciona else "No",
+            "title": item.title,
+            "h1": item.h1,
+            "meta_description": item.meta_description,
+            "canonical": item.canonical or "",
+            "noindex": "Sí" if item.noindex else "No",
+            "estado": "Pendiente",
+            "resuelto": "No",
+            "responsable": "",
+        }
 
-        # Recorre hallazgos para generar una fila por incidencia.
+        # Inserta fila de control cuando no haya hallazgos.
+        if not item.hallazgos:
+            # Crea copia independiente de la fila base.
+            fila = fila_base.copy()
+
+            # Completa datos por defecto para URL sin incidencias.
+            fila.update({"problema": "", "recomendacion": "", "severidad": "informativa", "area": "Calidad", "impacto": "Bajo", "esfuerzo": "Bajo", "prioridad": "P4", "observaciones": item.error or "Sin incidencias críticas"})
+
+            # Añade fila informativa final a la colección.
+            filas.append(fila)
+
+        # Recorre hallazgos cuando existan para crear filas detalladas.
         for hallazgo in item.hallazgos:
-            filas.append(
-                {
-                    "url": item.url,
-                    "url_final": item.url_final,
-                    "tipo": item.tipo,
-                    "estado_http": item.estado_http,
-                    "redirecciona": "Sí" if item.redirecciona else "No",
-                    "title": item.title,
-                    "h1": item.h1,
-                    "meta_description": item.meta_description,
-                    "canonical": item.canonical or "",
-                    "noindex": "Sí" if item.noindex else "No",
-                    "problema": hallazgo.descripcion,
-                    "recomendacion": hallazgo.recomendacion,
-                    "severidad": hallazgo.severidad,
-                    "area": hallazgo.area,
-                    "impacto": hallazgo.impacto,
-                    "esfuerzo": hallazgo.esfuerzo,
-                    "prioridad": hallazgo.prioridad,
-                    "estado": "Pendiente",
-                    "resuelto": "No",
-                    "responsable": "",
-                    "observaciones": item.error or "",
-                }
-            )
+            # Crea copia independiente de la fila base.
+            fila = fila_base.copy()
+
+            # Completa datos de hallazgo para esta fila.
+            fila.update({"problema": hallazgo.descripcion, "recomendacion": hallazgo.recomendacion, "severidad": hallazgo.severidad, "area": hallazgo.area, "impacto": hallazgo.impacto, "esfuerzo": hallazgo.esfuerzo, "prioridad": hallazgo.prioridad, "observaciones": item.error or ""})
+
+            # Añade una fila por hallazgo detectado.
+            filas.append(fila)
 
     # Devuelve las filas preparadas para cualquier exportador.
     return filas
 
 
+# Convierte resultados de PageSpeed a filas de seguimiento.
+def construir_filas_rendimiento(resultado: ResultadoAuditoria) -> list[dict]:
+    """Construye filas para hoja Rendimiento y anexo técnico de performance."""
+
+    # Inicializa lista de filas de rendimiento.
+    filas: list[dict] = []
+
+    # Recorre cada resultado de PageSpeed disponible.
+    for item in resultado.rendimiento:
+        # Construye una base común para evitar duplicación de campos.
+        fila_base = {
+            "url": item.url,
+            "estrategia": item.estrategia,
+            "performance_score": item.performance_score,
+            "accessibility_score": item.accessibility_score,
+            "best_practices_score": item.best_practices_score,
+            "seo_score": item.seo_score,
+            "lcp": item.lcp,
+            "cls": item.cls,
+            "inp": item.inp,
+            "fcp": item.fcp,
+            "speed_index": item.speed_index,
+            "estado": "Pendiente",
+            "resuelto": "No",
+            "responsable": "",
+        }
+
+        # Crea una fila base cuando no haya oportunidades.
+        if not item.oportunidades:
+            # Crea copia independiente de la fila base.
+            fila = fila_base.copy()
+
+            # Completa datos por defecto para esta ejecución.
+            fila.update({"oportunidad": "", "descripcion": item.error or "Sin oportunidades destacadas", "ahorro_estimado": "", "severidad": "informativa", "recomendacion": "Mantener monitorización continua", "observaciones": item.error or ""})
+
+            # Añade fila base de métricas sin oportunidad concreta.
+            filas.append(fila)
+
+        # Recorre oportunidades para crear filas accionables.
+        for oportunidad in item.oportunidades:
+            # Crea copia independiente de la fila base.
+            fila = fila_base.copy()
+
+            # Completa datos específicos de la oportunidad.
+            fila.update({"oportunidad": oportunidad.titulo, "descripcion": oportunidad.descripcion, "ahorro_estimado": oportunidad.ahorro_estimado, "severidad": oportunidad.severidad, "recomendacion": f"Aplicar mejora: {oportunidad.titulo}", "observaciones": ""})
+
+            # Añade fila por oportunidad detectada.
+            filas.append(fila)
+
+    # Devuelve filas listas para Excel.
+    return filas
+
+
 # Garantiza que la carpeta de salida exista antes de escribir archivos.
 def asegurar_directorio(path_salida: Path) -> None:
-    """
-    Crea la carpeta de salida si no existe.
-    """
+    """Crea la carpeta de salida si no existe."""
 
     # Crea el directorio y sus padres sin fallar si ya existen.
     path_salida.mkdir(parents=True, exist_ok=True)
@@ -277,209 +304,181 @@ def asegurar_directorio(path_salida: Path) -> None:
 
 # Calcula métricas ejecutivas agregadas para informes.
 def calcular_metricas(resultado: ResultadoAuditoria) -> dict[str, int | float | dict[str, int] | str]:
-    """
-    Calcula métricas ejecutivas reutilizables por todos los reportes.
-    """
+    """Calcula métricas ejecutivas reutilizables por todos los reportes."""
 
-    # Inicializa acumuladores básicos.
+    # Inicializa acumuladores principales.
     total_incidencias = 0
-    urls_sanas = 0
-    urls_redireccion = 0
-    urls_error_http = 0
-    urls_sin_title = 0
-    urls_sin_h1 = 0
-    urls_sin_meta = 0
-    urls_sin_canonical = 0
-    urls_noindex = 0
 
-    # Inicializa distribución por severidad, tipo y área.
+    # Inicializa contadores de URLs.
+    urls_sanas = 0
+
+    # Inicializa distribución por severidad.
     severidades: Counter[str] = Counter()
+
+    # Inicializa distribución por tipo.
     tipos: Counter[str] = Counter()
+
+    # Inicializa distribución por área.
     areas: Counter[str] = Counter()
 
-    # Recorre resultados para consolidar valores.
+    # Recorre resultados para consolidar datos.
     for item in resultado.resultados:
+        # Suma incidencias de la URL actual.
         total_incidencias += len(item.hallazgos)
 
-        # Incrementa URLs sanas cuando no hay hallazgos.
+        # Cuenta URL sana cuando no hay hallazgos.
         if not item.hallazgos:
+            # Incrementa contador de URLs sin incidencias.
             urls_sanas += 1
 
-        # Incrementa contador de redirecciones.
-        if item.redirecciona:
-            urls_redireccion += 1
-
-        # Incrementa contador de errores HTTP.
-        if item.estado_http >= 400 or item.estado_http == 0:
-            urls_error_http += 1
-
-        # Incrementa métricas de campos vacíos.
-        if not item.title:
-            urls_sin_title += 1
-        if not item.h1:
-            urls_sin_h1 += 1
-        if not item.meta_description:
-            urls_sin_meta += 1
-        if not item.canonical:
-            urls_sin_canonical += 1
-        if item.noindex:
-            urls_noindex += 1
-
-        # Recorre hallazgos para distribuciones agregadas.
+        # Recorre hallazgos para completar distribuciones.
         for hallazgo in item.hallazgos:
+            # Incrementa la severidad detectada.
             severidades[hallazgo.severidad] += 1
+
+            # Incrementa el tipo detectado.
             tipos[hallazgo.tipo] += 1
+
+            # Incrementa el área detectada.
             areas[hallazgo.area] += 1
 
-    # Define pesos de scoring equilibrado por severidad.
+    # Define pesos de scoring por severidad.
     pesos = {"crítica": 10.0, "alta": 6.0, "media": 3.0, "baja": 1.0, "informativa": 0.5}
 
-    # Calcula penalización acumulada ponderada.
+    # Calcula penalización ponderada total.
     penalizacion = sum(severidades.get(severidad, 0) * peso for severidad, peso in pesos.items())
 
-    # Calcula capacidad máxima teórica de penalización por volumen de URLs.
+    # Calcula máximo teórico por volumen auditado.
     max_penalizacion = max(10.0, float(resultado.total_urls) * 10.0)
 
-    # Calcula score SEO global acotado y razonable.
+    # Calcula score SEO global acotado entre 5 y 100.
     score = round(max(5.0, min(100.0, 100.0 - (penalizacion / max_penalizacion) * 100.0)), 1)
 
-    # Devuelve métrica agregada lista para renderizado.
-    return {
-        "total_urls": resultado.total_urls,
-        "total_incidencias": total_incidencias,
-        "severidades": dict(severidades),
-        "tipos": dict(tipos),
-        "areas": dict(areas),
-        "urls_sanas": urls_sanas,
-        "urls_redireccion": urls_redireccion,
-        "urls_error_http": urls_error_http,
-        "urls_sin_title": urls_sin_title,
-        "urls_sin_h1": urls_sin_h1,
-        "urls_sin_meta": urls_sin_meta,
-        "urls_sin_canonical": urls_sin_canonical,
-        "urls_noindex": urls_noindex,
-        "score": score,
-        "formula_score": "Score = 100 - (penalización_ponderada / (total_urls*10))*100, acotado entre 5 y 100",
-    }
+    # Devuelve métricas calculadas.
+    return {"total_urls": resultado.total_urls, "total_incidencias": total_incidencias, "severidades": dict(severidades), "tipos": dict(tipos), "areas": dict(areas), "urls_sanas": urls_sanas, "score": score, "formula_score": "Score = 100 - (penalización_ponderada/(total_urls*10))*100"}
 
 
-# Añade un enlace clicable nativo dentro de un párrafo de Word.
-def agregar_hipervinculo(parrafo, url: str, texto_visible: str) -> None:
-    """
-    Inserta hipervínculo clicable en python-docx usando XML interno.
-    """
+# Construye la narrativa final sin duplicar secciones.
+def _construir_bloques_narrativos(resultado: ResultadoAuditoria) -> dict[str, list[str]]:
+    """Genera bloques narrativos únicos siguiendo jerarquía editorial obligatoria."""
 
-    # Crea relación externa del documento hacia la URL objetivo.
-    relacion_id = parrafo.part.relate_to(url, "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink", is_external=True)
+    # Construye diccionario base con todas las secciones requeridas.
+    bloques = {titulo: [] for titulo in JERARQUIA_INFORME}
 
-    # Crea nodo XML de hipervínculo.
-    hipervinculo = OxmlElement("w:hyperlink")
+    # Obtiene secciones procesadas desde IA cuando existan.
+    secciones_ia = construir_secciones_desde_ia(resultado.resumen_ia)
 
-    # Asigna relación externa al nodo de hipervínculo.
-    hipervinculo.set(qn("r:id"), relacion_id)
+    # Recorre secciones IA para mapearlas a la jerarquía interna.
+    for seccion in secciones_ia:
+        # Obtiene título normalizado de sección.
+        titulo = str(seccion["titulo"]).strip().lower()
 
-    # Crea nodo de run para texto visible.
-    run = OxmlElement("w:r")
+        # Recorre jerarquía para encontrar destino compatible.
+        for destino in JERARQUIA_INFORME:
+            # Compara por inclusión simple para robustez.
+            if destino.lower() in titulo or titulo in destino.lower():
+                # Inserta solo textos no vacíos en el bloque destino.
+                bloques[destino].extend([str(item).strip() for item in seccion["items"] if str(item).strip()])
 
-    # Crea propiedades del run para estilo de enlace.
-    propiedades_run = OxmlElement("w:rPr")
+    # Construye vistas tabulares para generar fallback de secciones obligatorias.
+    filas = construir_filas(resultado)
 
-    # Crea estilo de run con aspecto de hipervínculo.
-    estilo_run = OxmlElement("w:rStyle")
+    # Construye vista tabular de rendimiento para secciones de UX.
+    filas_rendimiento = construir_filas_rendimiento(resultado)
 
-    # Asigna valor de estilo de hipervínculo del tema Word.
-    estilo_run.set(qn("w:val"), "Hyperlink")
+    # Construye fallback de resumen ejecutivo cuando IA no aporta contenido.
+    if not bloques["Resumen ejecutivo"]:
+        # Añade resumen automático con datos técnicos.
+        bloques["Resumen ejecutivo"].append(f"Se auditaron {resultado.total_urls} URLs con fuentes activas: {', '.join(resultado.fuentes_activas)}.")
 
-    # Inserta estilo dentro de propiedades del run.
-    propiedades_run.append(estilo_run)
+    # Construye fallback de KPIs principales para mantener consistencia de jerarquía.
+    if not bloques["KPIs principales"]:
+        # Añade recordatorio de que los KPIs se muestran en tabla.
+        bloques["KPIs principales"].append("Los indicadores clave se presentan en la tabla KPI de esta sección.")
 
-    # Inserta propiedades dentro del run.
-    run.append(propiedades_run)
+    # Construye fallback de hallazgos críticos cuando no exista IA útil.
+    if not bloques["Hallazgos críticos"]:
+        # Filtra hallazgos críticos para el bloque ejecutivo.
+        hallazgos_criticos = [fila for fila in filas if str(fila.get("severidad", "")).lower() in {"crítica", "alta"} and fila.get("problema")]
 
-    # Crea nodo de texto para el enlace.
-    texto_nodo = OxmlElement("w:t")
+        # Inserta resumen compacto de hallazgos prioritarios.
+        for fila in hallazgos_criticos[:5]:
+            # Añade línea ejecutiva de hallazgo.
+            bloques["Hallazgos críticos"].append(f"[{fila['severidad']}] {fila['problema']} ({fila['url']})")
 
-    # Asigna texto visible al nodo.
-    texto_nodo.text = texto_visible
+    # Construye fallback de quick wins cuando no exista narrativa IA.
+    if not bloques["Quick wins"]:
+        # Filtra acciones de bajo esfuerzo y alto impacto.
+        quick_wins = [fila for fila in filas if fila.get("esfuerzo") == "Bajo" and fila.get("impacto") in {"Muy alto", "Alto", "Medio"} and fila.get("recomendacion")]
 
-    # Añade texto al run.
-    run.append(texto_nodo)
+        # Inserta recomendaciones rápidas priorizadas.
+        for fila in quick_wins[:5]:
+            # Añade quick win concreto.
+            bloques["Quick wins"].append(f"{fila['recomendacion']} ({fila['url']})")
 
-    # Añade run al hipervínculo.
-    hipervinculo.append(run)
+    # Construye fallback de acciones técnicas cuando no haya bloque IA.
+    if not bloques["Acciones técnicas"]:
+        # Filtra recomendaciones técnicas.
+        acciones_tecnicas = [fila for fila in filas if fila.get("area") in {"Infraestructura", "Indexación", "Arquitectura"} and fila.get("recomendacion")]
 
-    # Inserta hipervínculo dentro del párrafo.
-    parrafo._p.append(hipervinculo)
+        # Inserta recomendaciones técnicas de mayor prioridad.
+        for fila in acciones_tecnicas[:5]:
+            # Añade acción técnica priorizada.
+            bloques["Acciones técnicas"].append(f"{fila['prioridad']}: {fila['recomendacion']}")
 
+        # Añade fallback genérico cuando no existan acciones técnicas específicas.
+        if not bloques["Acciones técnicas"]:
+            # Inserta recomendación de revisión técnica base.
+            bloques["Acciones técnicas"].append("Revisar cobertura de rastreo, estado HTTP y canonicals para mantener estabilidad técnica.")
 
-# Aplica formato de legibilidad a una hoja de datos tabulares.
-def formatear_hoja_errores(hoja_errores, total_filas: int, total_columnas: int) -> None:
-    """
-    Mejora legibilidad visual de la hoja de errores para uso operativo real.
-    """
+    # Construye fallback de acciones de contenido cuando no haya bloque IA.
+    if not bloques["Acciones de contenido"]:
+        # Filtra recomendaciones del área de contenido.
+        acciones_contenido = [fila for fila in filas if fila.get("area") == "Contenido" and fila.get("recomendacion")]
 
-    # Define anchos específicos por columna para evitar cortes de contenido.
-    anchos = {
-        "A": 42,
-        "B": 42,
-        "C": 14,
-        "D": 12,
-        "E": 12,
-        "F": 24,
-        "G": 24,
-        "H": 30,
-        "I": 30,
-        "J": 10,
-        "K": 48,
-        "L": 48,
-        "M": 12,
-        "N": 16,
-        "O": 12,
-        "P": 12,
-        "Q": 12,
-        "R": 14,
-        "S": 10,
-        "T": 18,
-        "U": 30,
-    }
+        # Inserta recomendaciones editoriales de mayor prioridad.
+        for fila in acciones_contenido[:5]:
+            # Añade acción de contenido priorizada.
+            bloques["Acciones de contenido"].append(f"{fila['prioridad']}: {fila['recomendacion']}")
 
-    # Aplica anchos definidos.
-    for columna, ancho in anchos.items():
-        hoja_errores.column_dimensions[columna].width = ancho
+    # Construye fallback de rendimiento y experiencia de usuario.
+    if not bloques["Rendimiento y experiencia de usuario"]:
+        # Filtra filas con métricas reales de rendimiento.
+        filas_metricas_validas = [fila for fila in filas_rendimiento if isinstance(fila.get("performance_score"), (int, float))]
 
-    # Define color por severidad con paleta suave profesional.
-    colores_severidad = {
-        "crítica": "FDECEA",
-        "alta": "FCE8E6",
-        "media": "FFF4E5",
-        "baja": "EAF4EC",
-        "informativa": "E8F0FE",
-    }
+        # Inserta resumen de PageSpeed cuando exista información válida.
+        for fila in filas_metricas_validas[:5]:
+            # Añade línea compacta con score y oportunidad.
+            bloques["Rendimiento y experiencia de usuario"].append(f"{fila['url']} [{fila['estrategia']}] score={fila['performance_score']} oportunidad={fila['oportunidad'] or 'sin oportunidad destacada'}")
 
-    # Recorre filas de datos para aplicar estilo de lectura.
-    for fila_excel in range(2, total_filas + 1):
-        # Lee severidad de la fila actual.
-        severidad = str(hoja_errores.cell(row=fila_excel, column=13).value or "").lower()
+        # Añade mensaje profesional cuando no hay datos válidos.
+        if not bloques["Rendimiento y experiencia de usuario"]:
+            # Determina si hubo fallos explícitos de PageSpeed.
+            hubo_fallo_pagespeed = "pagespeed" in resultado.fuentes_fallidas or bool(resultado.pagespeed_estado)
 
-        # Obtiene color asociado a severidad.
-        color = colores_severidad.get(severidad, "FFFFFF")
+            # Inserta mensaje específico según disponibilidad.
+            bloques["Rendimiento y experiencia de usuario"].append(
+                "No se pudieron obtener métricas de PageSpeed en esta ejecución por timeout o error de la API."
+                if hubo_fallo_pagespeed
+                else "No se han recibido datos de PageSpeed en esta ejecución."
+            )
 
-        # Aplica estilo base a todas las celdas de la fila.
-        for columna in range(1, total_columnas + 1):
-            celda = hoja_errores.cell(row=fila_excel, column=columna)
-            celda.fill = PatternFill(fill_type="solid", fgColor=color)
-            celda.alignment = Alignment(vertical="top", wrap_text=True)
+    # Construye fallback de roadmap cuando IA no lo entregue.
+    if not bloques["Roadmap"]:
+        # Añade fase corta de estabilización.
+        bloques["Roadmap"].append("30 días: corregir incidencias críticas y altas de indexación e infraestructura.")
+        # Añade fase media de optimización.
+        bloques["Roadmap"].append("60 días: ejecutar quick wins y completar mejoras on-page.")
+        # Añade fase de consolidación.
+        bloques["Roadmap"].append("90 días: consolidar rendimiento, calidad de contenido y control SEO continuo.")
 
-    # Ajusta altura de filas para texto largo.
-    for fila_excel in range(2, total_filas + 1):
-        hoja_errores.row_dimensions[fila_excel].height = 36
+    # Devuelve bloques listos para render narrativo.
+    return bloques
 
 
 # Exporta el resultado técnico en formato JSON.
 def exportar_json(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
-    """
-    Genera un JSON técnico con todos los resultados y metadatos.
-    """
+    """Genera un JSON técnico con todos los resultados y metadatos."""
 
     # Garantiza la existencia de la carpeta de salida.
     asegurar_directorio(path_salida)
@@ -487,16 +486,20 @@ def exportar_json(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     # Define la ruta del archivo JSON técnico.
     destino = path_salida / f"{construir_prefijo_archivo(resultado)}_tecnico.json"
 
-    # Construye un diccionario serializable con todos los resultados.
+    # Construye contenido serializable completo.
     contenido = {
         "sitemap": resultado.sitemap,
         "cliente": resultado.cliente,
         "gestor": resultado.gestor,
         "fecha_ejecucion": resultado.fecha_ejecucion,
+        "fuentes_activas": resultado.fuentes_activas,
+        "fuentes_fallidas": resultado.fuentes_fallidas,
         "total_urls": resultado.total_urls,
         "resumen_ia": resultado.resumen_ia,
         "metricas": calcular_metricas(resultado),
         "resultados": construir_filas(resultado),
+        "rendimiento": construir_filas_rendimiento(resultado),
+        "pagespeed_estado": resultado.pagespeed_estado,
     }
 
     # Escribe el JSON con codificación UTF-8 legible.
@@ -508,9 +511,7 @@ def exportar_json(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
 
 # Exporta el detalle tabular a Excel.
 def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
-    """
-    Genera un Excel profesional con dashboard legible, hoja auxiliar y gráficos sin solapes.
-    """
+    """Genera un Excel profesional con dashboard, hoja de errores y hoja de rendimiento."""
 
     # Garantiza la existencia de la carpeta de salida.
     asegurar_directorio(path_salida)
@@ -518,517 +519,606 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     # Define la ruta del archivo Excel final.
     destino = path_salida / f"{construir_prefijo_archivo(resultado)}.xlsx"
 
-    # Construye el libro de trabajo vacío.
+    # Crea libro de trabajo.
     libro = Workbook()
 
-    # Selecciona la hoja activa para convertirla en Dashboard.
+    # Prepara hoja dashboard.
     hoja_dashboard = libro.active
 
-    # Renombra la hoja inicial como Dashboard.
+    # Renombra hoja principal.
     hoja_dashboard.title = "Dashboard"
 
-    # Crea la hoja de incidencias como base de datos.
+    # Crea hojas auxiliares de trabajo.
     hoja_errores = libro.create_sheet("Errores")
 
-    # Crea la hoja de roadmap para planificación.
-    hoja_roadmap = libro.create_sheet("Roadmap")
+    # Crea hoja específica de rendimiento.
+    hoja_rendimiento = libro.create_sheet("Rendimiento")
 
-    # Crea la hoja auxiliar de cálculos para dashboard.
+    # Crea hoja auxiliar para KPIs y rangos de gráficos.
     hoja_aux = libro.create_sheet("AuxDashboard")
 
-    # Construye las filas de incidencias.
+    # Construye filas técnicas y de rendimiento.
     filas = construir_filas(resultado)
 
-    # Obtiene los encabezados desde la primera fila o define fallback.
-    encabezados = list(filas[0].keys()) if filas else []
+    # Construye filas de rendimiento.
+    filas_rendimiento = construir_filas_rendimiento(resultado)
 
-    # Escribe encabezados de la tabla de errores.
-    for indice_columna, encabezado in enumerate(encabezados, start=1):
-        hoja_errores.cell(row=1, column=indice_columna, value=encabezado)
+    # Define columnas fijas de la hoja de errores para mantener estructura estable.
+    columnas_errores = ["url", "url_final", "tipo", "estado_http", "redirecciona", "title", "h1", "meta_description", "canonical", "noindex", "problema", "recomendacion", "severidad", "area", "impacto", "esfuerzo", "prioridad", "estado", "resuelto", "responsable", "observaciones"]
 
-    # Escribe cada fila de incidencia en la hoja de errores.
-    for indice_fila, fila in enumerate(filas, start=2):
-        for indice_columna, encabezado in enumerate(encabezados, start=1):
-            hoja_errores.cell(row=indice_fila, column=indice_columna, value=fila[encabezado])
+    # Usa columnas fijas como encabezados para escritura tabular.
+    encabezados = columnas_errores
 
-    # Crea tabla visual si existen filas de datos.
-    if filas:
-        rango_tabla = f"A1:U{len(filas) + 1}"
-        tabla = ExcelTable(displayName="TablaErrores", ref=rango_tabla)
-        estilo = TableStyleInfo(name="TableStyleMedium2", showFirstColumn=False, showLastColumn=False, showRowStripes=True, showColumnStripes=False)
-        tabla.tableStyleInfo = estilo
-        hoja_errores.add_table(tabla)
+    # Recorre encabezados de errores.
+    for columna, encabezado in enumerate(encabezados, start=1):
+        # Escribe cada encabezado.
+        hoja_errores.cell(row=1, column=columna, value=encabezado)
 
-    # Estiliza encabezado de hoja de errores.
+    # Escribe contenido de errores.
+    for fila_indice, fila in enumerate(filas, start=2):
+        # Recorre columnas de la fila.
+        for columna, encabezado in enumerate(encabezados, start=1):
+            # Escribe valor de celda.
+            hoja_errores.cell(row=fila_indice, column=columna, value=fila.get(encabezado, ""))
+
+    # Aplica formato básico de encabezado en errores.
     for celda in hoja_errores[1]:
+        # Define estilo de encabezado.
         celda.font = Font(bold=True, color="FFFFFF")
+
+        # Aplica color corporativo.
         celda.fill = PatternFill(fill_type="solid", fgColor="1F4E78")
-        celda.alignment = Alignment(horizontal="center", vertical="center")
 
-    # Aplica formato operativo de legibilidad.
-    formatear_hoja_errores(hoja_errores, len(filas) + 1, len(encabezados) if encabezados else 21)
+    # Configura ancho de columnas de errores con foco en legibilidad.
+    anchos_errores = {"A": 48, "B": 48, "C": 14, "D": 12, "E": 12, "F": 26, "G": 26, "H": 36, "I": 36, "J": 10, "K": 52, "L": 52, "M": 12, "N": 18, "O": 12, "P": 12, "Q": 12, "R": 14, "S": 10, "T": 20, "U": 36}
 
-    # Congela paneles para facilitar seguimiento.
+    # Recorre anchos definidos y los aplica.
+    for columna, ancho in anchos_errores.items():
+        # Asigna ancho explícito de columna.
+        hoja_errores.column_dimensions[columna].width = ancho
+
+    # Ajusta celdas para legibilidad.
+    for fila in hoja_errores.iter_rows(min_row=2, max_row=max(2, len(filas) + 1), min_col=1, max_col=max(1, len(encabezados))):
+        # Recorre celdas de la fila.
+        for celda in fila:
+            # Activa ajuste automático de texto.
+            celda.alignment = Alignment(wrap_text=True, vertical="top")
+
+    # Ajusta altura de filas para lectura de textos largos.
+    for indice_fila in range(2, max(3, len(filas) + 2)):
+        # Aplica altura moderada para evitar cortes.
+        hoja_errores.row_dimensions[indice_fila].height = 38
+
+    # Aplica color suave por severidad en la hoja de errores.
+    colores_severidad = {"crítica": "FDECEA", "alta": "FCE8E6", "media": "FFF4E5", "baja": "EAF4EC", "informativa": "E8F0FE"}
+
+    # Recorre filas para aplicar color según severidad.
+    for indice_fila in range(2, max(3, len(filas) + 2)):
+        # Calcula índice de columna de severidad de forma estable.
+        indice_columna_severidad = columnas_errores.index("severidad") + 1
+
+        # Obtiene severidad desde su columna real.
+        severidad = str(hoja_errores.cell(row=indice_fila, column=indice_columna_severidad).value or "").lower()
+
+        # Resuelve color asociado a severidad.
+        color = colores_severidad.get(severidad, "FFFFFF")
+
+        # Recorre columnas de la fila para aplicar el color.
+        for indice_columna in range(1, max(1, len(encabezados)) + 1):
+            # Obtiene celda actual para formato.
+            celda = hoja_errores.cell(row=indice_fila, column=indice_columna)
+
+            # Aplica relleno suave según severidad.
+            celda.fill = PatternFill(fill_type="solid", fgColor=color)
+
+    # Aplica validación de datos Sí/No en columna resuelto.
+    validacion_resuelto = DataValidation(type="list", formula1='"Sí,No"', allow_blank=False)
+
+    # Registra validación en hoja.
+    hoja_errores.add_data_validation(validacion_resuelto)
+
+    # Aplica validación al rango de seguimiento.
+    validacion_resuelto.add(f"S2:S{max(2, len(filas) + 1)}")
+
+    # Activa filtros en la hoja de errores.
+    hoja_errores.auto_filter.ref = f"A1:U{max(2, len(filas) + 1)}"
+
+    # Congela paneles para mejorar navegación.
     hoja_errores.freeze_panes = "A2"
 
-    # Activa filtros automáticos para tabla completa.
-    if filas:
-        hoja_errores.auto_filter.ref = f"A1:U{len(filas) + 1}"
+    # Escribe tabla de rendimiento con esquema obligatorio.
+    columnas_rendimiento = ["url", "estrategia", "performance_score", "accessibility_score", "best_practices_score", "seo_score", "lcp", "cls", "inp", "fcp", "speed_index", "oportunidad", "descripcion", "ahorro_estimado", "severidad", "recomendacion", "estado", "resuelto", "responsable", "observaciones"]
 
-    # Añade validación Sí/No para columna resuelto.
-    validacion_resuelto = DataValidation(type="list", formula1='"Sí,No"', allow_blank=False)
-    hoja_errores.add_data_validation(validacion_resuelto)
-    validacion_resuelto.add(f"S2:S{len(filas) + 1}")
+    # Recorre encabezados de rendimiento.
+    for columna, encabezado in enumerate(columnas_rendimiento, start=1):
+        # Escribe encabezado en hoja de rendimiento.
+        hoja_rendimiento.cell(row=1, column=columna, value=encabezado)
 
-    # Calcula métricas de alto nivel.
+    # Recorre filas de rendimiento para poblar hoja.
+    for fila_indice, fila in enumerate(filas_rendimiento, start=2):
+        # Recorre columnas obligatorias.
+        for columna, encabezado in enumerate(columnas_rendimiento, start=1):
+            # Escribe valor de columna o vacío por defecto.
+            hoja_rendimiento.cell(row=fila_indice, column=columna, value=fila.get(encabezado, ""))
+
+    # Estiliza encabezado de rendimiento.
+    for celda in hoja_rendimiento[1]:
+        # Define negrita de encabezado.
+        celda.font = Font(bold=True, color="FFFFFF")
+
+        # Aplica fondo corporativo.
+        celda.fill = PatternFill(fill_type="solid", fgColor="1F4E78")
+
+    # Ajusta lectura de hoja rendimiento.
+    for indice in range(1, len(columnas_rendimiento) + 1):
+        # Asigna ancho homogéneo por columna.
+        hoja_rendimiento.column_dimensions[chr(64 + indice)].width = 22
+
+    # Activa wrap y alineación superior en rendimiento.
+    for fila in hoja_rendimiento.iter_rows(min_row=2, max_row=max(2, len(filas_rendimiento) + 1), min_col=1, max_col=len(columnas_rendimiento)):
+        # Recorre celdas de fila.
+        for celda in fila:
+            # Configura alineación legible.
+            celda.alignment = Alignment(wrap_text=True, vertical="top")
+
+    # Ajusta alturas en rendimiento para mantener legibilidad.
+    for indice_fila in range(2, max(3, len(filas_rendimiento) + 2)):
+        # Aplica altura de lectura a filas.
+        hoja_rendimiento.row_dimensions[indice_fila].height = 34
+
+    # Activa filtros en la hoja de rendimiento solo cuando no exista tabla.
+    if not filas_rendimiento:
+        # Aplica filtro simple sobre el encabezado cuando no hay tabla.
+        hoja_rendimiento.auto_filter.ref = "A1:T1"
+
+    # Congela paneles en rendimiento.
+    hoja_rendimiento.freeze_panes = "A2"
+
+    # Calcula métricas de dashboard.
     metricas = calcular_metricas(resultado)
 
-    # Prepara hoja auxiliar con tablas para fórmulas y gráficas.
-    hoja_aux["A1"] = "Severidad"
+    # Calcula scores medios mobile y desktop desde ejecuciones únicas.
+    scores_mobile = [item.performance_score for item in resultado.rendimiento if item.estrategia == "mobile" and isinstance(item.performance_score, (int, float))]
+
+    # Calcula scores de desktop desde ejecuciones únicas.
+    scores_desktop = [item.performance_score for item in resultado.rendimiento if item.estrategia == "desktop" and isinstance(item.performance_score, (int, float))]
+
+    # Obtiene media mobile segura.
+    score_medio_mobile = round(sum(scores_mobile) / len(scores_mobile), 1) if scores_mobile else 0.0
+
+    # Obtiene media desktop segura.
+    score_medio_desktop = round(sum(scores_desktop) / len(scores_desktop), 1) if scores_desktop else 0.0
+
+    # Define KPIs del dashboard.
+    hoja_dashboard["A1"] = "Dashboard SEO"
+
+    # Aplica estilo de título.
+    hoja_dashboard["A1"].font = Font(size=18, bold=True, color="1F4E78")
+
+    # Escribe tarjeta de URLs.
+    hoja_dashboard["A3"] = "Total URLs"
+
+    # Escribe valor de URLs.
+    hoja_dashboard["B3"] = metricas["total_urls"]
+
+    # Escribe tarjeta de incidencias.
+    hoja_dashboard["A4"] = "Total incidencias"
+
+    # Escribe valor de incidencias.
+    hoja_dashboard["B4"] = metricas["total_incidencias"]
+
+    # Escribe score medio móvil.
+    hoja_dashboard["A5"] = "Score medio móvil"
+
+    # Escribe valor de score móvil.
+    hoja_dashboard["B5"] = score_medio_mobile
+
+    # Escribe score medio escritorio.
+    hoja_dashboard["A6"] = "Score medio escritorio"
+
+    # Escribe valor de score escritorio.
+    hoja_dashboard["B6"] = score_medio_desktop
+
+    # Escribe total de oportunidades.
+    hoja_dashboard["A7"] = "Total oportunidades"
+
+    # Escribe conteo de oportunidades.
+    hoja_dashboard["B7"] = len([fila for fila in filas_rendimiento if fila.get("oportunidad")])
+
+    # Construye distribuciones para gráficos de dashboard.
+    severidades_rend = Counter([str(fila.get("severidad", "informativa")).lower() for fila in filas_rendimiento if fila.get("oportunidad")])
+
+    # Construye distribución por tipo de mejora.
+    tipos_mejora = Counter([str(fila.get("oportunidad", "Sin clasificar")).strip() for fila in filas_rendimiento if fila.get("oportunidad")])
+
+    # Construye distribución de severidad técnica.
+    severidades_tecnicas = Counter([str(fila.get("severidad", "informativa")).lower() for fila in filas if fila.get("problema")])
+
+    # Escribe bloque de severidad de rendimiento en hoja auxiliar.
+    hoja_aux["A1"] = "Severidad rendimiento"
     hoja_aux["B1"] = "Cantidad"
-    for indice, severidad in enumerate(ORDEN_SEVERIDAD, start=2):
-        hoja_aux[f"A{indice}"] = severidad.title()
-        hoja_aux[f"B{indice}"] = f"=COUNTIF(Errores!M2:M1048576,\"{severidad}\")"
 
-    # Escribe bloque de áreas en hoja auxiliar.
-    hoja_aux["D1"] = "Área"
+    # Rellena tabla de severidad de rendimiento.
+    for indice, severidad in enumerate(["crítica", "alta", "media", "baja", "informativa"], start=2):
+        # Escribe etiqueta de severidad.
+        hoja_aux[f"A{indice}"] = severidad
+
+        # Escribe cantidad de oportunidades para la severidad.
+        hoja_aux[f"B{indice}"] = severidades_rend.get(severidad, 0)
+
+    # Escribe bloque de severidad técnica en hoja auxiliar.
+    hoja_aux["D1"] = "Severidad técnica"
     hoja_aux["E1"] = "Cantidad"
-    areas = sorted(metricas["areas"].keys()) or ["Contenido"]
-    for indice, area in enumerate(areas[:6], start=2):
-        hoja_aux[f"D{indice}"] = area
-        hoja_aux[f"E{indice}"] = f"=COUNTIF(Errores!N2:N1048576,\"{area}\")"
 
-    # Escribe bloque de tipos de problema en hoja auxiliar.
-    hoja_aux["G1"] = "Tipo"
+    # Rellena tabla de severidad técnica.
+    for indice, severidad in enumerate(["crítica", "alta", "media", "baja", "informativa"], start=2):
+        # Escribe etiqueta de severidad técnica.
+        hoja_aux[f"D{indice}"] = severidad
+
+        # Escribe cantidad de incidencias técnicas.
+        hoja_aux[f"E{indice}"] = severidades_tecnicas.get(severidad, 0)
+
+    # Escribe bloque de tipos de mejora en hoja auxiliar.
+    hoja_aux["G1"] = "Tipo de mejora"
     hoja_aux["H1"] = "Cantidad"
-    tipos = sorted(metricas["tipos"].keys()) or ["técnico"]
-    for indice, tipo in enumerate(tipos[:6], start=2):
+
+    # Recorre tipos de mejora más frecuentes.
+    for indice, (tipo, cantidad) in enumerate(tipos_mejora.most_common(6), start=2):
+        # Escribe etiqueta del tipo de mejora.
         hoja_aux[f"G{indice}"] = tipo
-        hoja_aux[f"H{indice}"] = f"=COUNTIF(Errores!C2:C1048576,\"{tipo}\")"
 
-    # Escribe bloque de estado de incidencias.
-    hoja_aux["J1"] = "Estado"
-    hoja_aux["K1"] = "Cantidad"
-    hoja_aux["J2"] = "Resueltas"
-    hoja_aux["K2"] = "=COUNTIF(Errores!S2:S1048576,\"Sí\")"
-    hoja_aux["J3"] = "Pendientes"
-    hoja_aux["K3"] = "=MAX(COUNTIF(Errores!K2:K1048576,\"<>\")-K2,0)"
+        # Escribe cantidad del tipo de mejora.
+        hoja_aux[f"H{indice}"] = cantidad
 
-    # Escribe bloque de estado de URLs.
-    hoja_aux["M1"] = "Estado URL"
-    hoja_aux["N1"] = "Cantidad"
-    hoja_aux["M2"] = "Sanas"
-    hoja_aux["N2"] = metricas["urls_sanas"]
-    hoja_aux["M3"] = "Con incidencias"
-    hoja_aux["N3"] = f"=MAX({resultado.total_urls}-N2,0)"
+    # Escribe fallback cuando no existan oportunidades.
+    if not tipos_mejora:
+        # Inserta etiqueta por defecto de mejoras.
+        hoja_aux["G2"] = "Sin oportunidades"
 
-    # Oculta hoja auxiliar para uso interno de cálculos.
+        # Inserta valor por defecto.
+        hoja_aux["H2"] = 1
+
+    # Crea gráfico de distribución de severidad de rendimiento.
+    grafico_severidad_rend = PieChart()
+
+    # Define título del gráfico de severidad de rendimiento.
+    grafico_severidad_rend.title = "Severidad oportunidades de rendimiento"
+
+    # Carga datos del gráfico desde hoja auxiliar.
+    grafico_severidad_rend.add_data(Reference(hoja_aux, min_col=2, min_row=1, max_row=6), titles_from_data=True)
+
+    # Carga categorías del gráfico desde hoja auxiliar.
+    grafico_severidad_rend.set_categories(Reference(hoja_aux, min_col=1, min_row=2, max_row=6))
+
+    # Fija tamaño visual del gráfico.
+    grafico_severidad_rend.width = 7.2
+
+    # Fija altura visual del gráfico.
+    grafico_severidad_rend.height = 5.4
+
+    # Inserta gráfico en posición explícita.
+    hoja_dashboard.add_chart(grafico_severidad_rend, "D10")
+
+    # Crea gráfico de severidad técnica.
+    grafico_severidad_tecnica = BarChart()
+
+    # Define título del gráfico de severidad técnica.
+    grafico_severidad_tecnica.title = "Incidencias técnicas por severidad"
+
+    # Carga datos del gráfico desde hoja auxiliar.
+    grafico_severidad_tecnica.add_data(Reference(hoja_aux, min_col=5, min_row=1, max_row=6), titles_from_data=True)
+
+    # Carga categorías del gráfico desde hoja auxiliar.
+    grafico_severidad_tecnica.set_categories(Reference(hoja_aux, min_col=4, min_row=2, max_row=6))
+
+    # Ajusta ancho del gráfico.
+    grafico_severidad_tecnica.width = 7.8
+
+    # Ajusta alto del gráfico.
+    grafico_severidad_tecnica.height = 5.4
+
+    # Inserta gráfico en posición explícita.
+    hoja_dashboard.add_chart(grafico_severidad_tecnica, "L10")
+
+    # Crea gráfico de tipos de mejora de rendimiento.
+    grafico_tipos_mejora = BarChart()
+
+    # Define título del gráfico de tipos de mejora.
+    grafico_tipos_mejora.title = "Top tipos de mejora PageSpeed"
+
+    # Determina fila final de tipos de mejora.
+    max_fila_tipos = max(2, 1 + min(6, len(tipos_mejora) if tipos_mejora else 1))
+
+    # Carga datos del gráfico desde hoja auxiliar.
+    grafico_tipos_mejora.add_data(Reference(hoja_aux, min_col=8, min_row=1, max_row=max_fila_tipos), titles_from_data=True)
+
+    # Carga categorías del gráfico desde hoja auxiliar.
+    grafico_tipos_mejora.set_categories(Reference(hoja_aux, min_col=7, min_row=2, max_row=max_fila_tipos))
+
+    # Ajusta ancho del gráfico.
+    grafico_tipos_mejora.width = 16.0
+
+    # Ajusta alto del gráfico.
+    grafico_tipos_mejora.height = 5.8
+
+    # Inserta gráfico en posición explícita.
+    hoja_dashboard.add_chart(grafico_tipos_mejora, "D25")
+
+    # Oculta la hoja auxiliar para no contaminar entregable final.
     hoja_aux.sheet_state = "hidden"
 
-    # Define estilo de borde para tarjetas KPI.
-    borde = Border(left=Side(style="thin", color="D9D9D9"), right=Side(style="thin", color="D9D9D9"), top=Side(style="thin", color="D9D9D9"), bottom=Side(style="thin", color="D9D9D9"))
+    # Crea tabla Excel en hoja rendimiento cuando haya filas.
+    if filas_rendimiento:
+        # Define rango dinámico de tabla de rendimiento.
+        rango = f"A1:T{len(filas_rendimiento) + 1}"
 
-    # Escribe cabecera del dashboard.
-    hoja_dashboard["A1"] = "Dashboard SEO"
-    hoja_dashboard["A1"].font = Font(size=18, bold=True, color="1F4E78")
-    hoja_dashboard["A2"] = f"Cliente: {resultado.cliente}"
-    hoja_dashboard["A3"] = f"Gestor: {resultado.gestor}"
-    hoja_dashboard["A4"] = f"Fecha de ejecución: {resultado.fecha_ejecucion}"
+        # Crea tabla de rendimiento.
+        tabla = ExcelTable(displayName="TablaRendimiento", ref=rango)
 
-    # Define tarjetas KPI en rejilla superior.
-    tarjetas = [
-        ("A6", "Total URLs auditadas", resultado.total_urls),
-        ("D6", "Total incidencias", "=COUNTIF(Errores!K2:K1048576,\"<>\")"),
-        ("G6", "URLs sanas", metricas["urls_sanas"]),
-        ("J6", "URLs con redirección", metricas["urls_redireccion"]),
-        ("M6", "Score SEO", metricas["score"]),
-    ]
+        # Define estilo de tabla.
+        tabla.tableStyleInfo = TableStyleInfo(name="TableStyleMedium2", showFirstColumn=False, showLastColumn=False, showRowStripes=True, showColumnStripes=False)
 
-    # Recorre tarjetas para pintarlas con estilo uniforme.
-    for celda_inicio, etiqueta, valor in tarjetas:
-        # Extrae coordenadas base de la tarjeta.
-        columna = celda_inicio[0]
-        fila = int(celda_inicio[1:])
+        # Inserta tabla en hoja.
+        hoja_rendimiento.add_table(tabla)
 
-        # Escribe etiqueta de tarjeta.
-        hoja_dashboard[f"{columna}{fila}"] = etiqueta
-
-        # Aplica estilo de etiqueta de tarjeta.
-        hoja_dashboard[f"{columna}{fila}"].font = Font(bold=True, color="1F4E78")
-        hoja_dashboard[f"{columna}{fila}"].fill = PatternFill(fill_type="solid", fgColor="EAF0F6")
-        hoja_dashboard[f"{columna}{fila}"].border = borde
-
-        # Escribe valor de tarjeta en fila siguiente.
-        hoja_dashboard[f"{columna}{fila+1}"] = valor
-
-        # Aplica estilo de valor de tarjeta.
-        hoja_dashboard[f"{columna}{fila+1}"].font = Font(size=14, bold=True, color="1B1B1B")
-        hoja_dashboard[f"{columna}{fila+1}"].fill = PatternFill(fill_type="solid", fgColor="FFFFFF")
-        hoja_dashboard[f"{columna}{fila+1}"].border = borde
-
-    # Escribe porcentaje de incidencias resueltas.
-    hoja_dashboard["P6"] = "% incidencias resueltas"
-    hoja_dashboard["P6"].font = Font(bold=True, color="1F4E78")
-    hoja_dashboard["P6"].fill = PatternFill(fill_type="solid", fgColor="EAF0F6")
-    hoja_dashboard["P6"].border = borde
-    hoja_dashboard["P7"] = "=IF(D7=0,0,AuxDashboard!K2/D7)"
-    hoja_dashboard["P7"].number_format = "0.00%"
-    hoja_dashboard["P7"].font = Font(size=14, bold=True)
-    hoja_dashboard["P7"].border = borde
-
-    # Ajusta ancho de columnas del dashboard para lectura limpia.
-    for columna, ancho in {"A": 20, "B": 3, "C": 3, "D": 20, "E": 3, "F": 3, "G": 20, "H": 3, "I": 3, "J": 22, "K": 3, "L": 3, "M": 16, "N": 3, "O": 3, "P": 20}.items():
-        hoja_dashboard.column_dimensions[columna].width = ancho
-
-    # Crea gráfico de severidad en bloque izquierdo superior.
-    grafico_severidad = DoughnutChart()
-    grafico_severidad.title = "Incidencias por severidad"
-    grafico_severidad.width = 7.5
-    grafico_severidad.height = 6.0
-    grafico_severidad.add_data(Reference(hoja_aux, min_col=2, min_row=1, max_row=1 + len(ORDEN_SEVERIDAD)), titles_from_data=True)
-    grafico_severidad.set_categories(Reference(hoja_aux, min_col=1, min_row=2, max_row=1 + len(ORDEN_SEVERIDAD)))
-    hoja_dashboard.add_chart(grafico_severidad, "B10")
-
-    # Crea gráfico de áreas en bloque derecho superior.
-    grafico_areas = BarChart()
-    grafico_areas.title = "Incidencias por área"
-    grafico_areas.width = 7.5
-    grafico_areas.height = 6.0
-    grafico_areas.add_data(Reference(hoja_aux, min_col=5, min_row=1, max_row=1 + len(areas[:6])), titles_from_data=True)
-    grafico_areas.set_categories(Reference(hoja_aux, min_col=4, min_row=2, max_row=1 + len(areas[:6])))
-    hoja_dashboard.add_chart(grafico_areas, "J10")
-
-    # Crea gráfico de tipos de problema en bloque izquierdo inferior.
-    grafico_tipos = BarChart()
-    grafico_tipos.title = "Tipos de problemas"
-    grafico_tipos.width = 7.5
-    grafico_tipos.height = 6.0
-    grafico_tipos.add_data(Reference(hoja_aux, min_col=8, min_row=1, max_row=1 + len(tipos[:6])), titles_from_data=True)
-    grafico_tipos.set_categories(Reference(hoja_aux, min_col=7, min_row=2, max_row=1 + len(tipos[:6])))
-    hoja_dashboard.add_chart(grafico_tipos, "B27")
-
-    # Crea gráfico de URLs sanas vs incidencias en bloque derecho inferior.
-    grafico_urls = PieChart()
-    grafico_urls.title = "URLs sanas vs URLs con incidencias"
-    grafico_urls.width = 7.5
-    grafico_urls.height = 6.0
-    grafico_urls.add_data(Reference(hoja_aux, min_col=14, min_row=1, max_row=3), titles_from_data=True)
-    grafico_urls.set_categories(Reference(hoja_aux, min_col=13, min_row=2, max_row=3))
-    hoja_dashboard.add_chart(grafico_urls, "J27")
-
-    # Crea gráfico de progreso de resueltas vs pendientes en bloque final.
-    grafico_resueltas = PieChart()
-    grafico_resueltas.title = "Progreso incidencias resueltas"
-    grafico_resueltas.width = 7.5
-    grafico_resueltas.height = 5.5
-    grafico_resueltas.add_data(Reference(hoja_aux, min_col=11, min_row=1, max_row=3), titles_from_data=True)
-    grafico_resueltas.set_categories(Reference(hoja_aux, min_col=10, min_row=2, max_row=3))
-    hoja_dashboard.add_chart(grafico_resueltas, "B44")
-
-    # Escribe bloque explicativo de fórmula de score.
-    hoja_dashboard["J44"] = "Fórmula score SEO"
-    hoja_dashboard["J44"].font = Font(bold=True, color="1F4E78")
-    hoja_dashboard["J45"] = metricas["formula_score"]
-    hoja_dashboard["J45"].alignment = Alignment(wrap_text=True, vertical="top")
-
-    # Crea encabezados en roadmap.
-    hoja_roadmap.append(["Horizonte", "Objetivo", "Acción", "Prioridad", "Responsable", "Estado"])
-    hoja_roadmap.append(["30 días", "Corregir bloqueos de indexación", "Resolver 5xx/4xx y redirecciones en sitemap", "P1", resultado.gestor, "Pendiente"])
-    hoja_roadmap.append(["60 días", "Optimizar elementos on-page", "Completar title, H1 y meta description faltantes", "P2", resultado.gestor, "Pendiente"])
-    hoja_roadmap.append(["90 días", "Consolidar arquitectura", "Revisar canonicals y noindex no deseados", "P2", resultado.gestor, "Pendiente"])
-
-    # Ajusta formato básico del roadmap.
-    for celda in hoja_roadmap[1]:
-        celda.font = Font(bold=True, color="FFFFFF")
-        celda.fill = PatternFill(fill_type="solid", fgColor="1F4E78")
-        celda.alignment = Alignment(horizontal="center")
-
-    # Ajusta columnas de roadmap para lectura clara.
-    for columna, ancho in {"A": 14, "B": 36, "C": 58, "D": 12, "E": 28, "F": 14}.items():
-        hoja_roadmap.column_dimensions[columna].width = ancho
-
-    # Establece la hoja inicial al abrir archivo.
-    libro.active = 0
-
-    # Guarda el libro en disco.
+    # Guarda libro final en disco.
     libro.save(destino)
 
-    # Devuelve la ruta del archivo generado.
+    # Devuelve ruta de salida.
     return destino
 
 
 # Exporta un informe ejecutivo en Word.
 def exportar_word(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
-    """
-    Genera un informe DOCX corporativo con estructura editorial y tablas ejecutivas.
-    """
+    """Genera un DOCX corporativo usando estructura semántica intermedia."""
 
-    # Garantiza la existencia de la carpeta de salida.
+    # Garantiza carpeta de salida.
     asegurar_directorio(path_salida)
 
-    # Define la ruta de salida del documento Word.
+    # Define ruta del documento Word.
     destino = path_salida / f"{construir_prefijo_archivo(resultado)}.docx"
 
-    # Crea un nuevo documento Word vacío.
+    # Crea documento vacío.
     documento = Document()
 
-    # Configura estilo normal como base tipográfica.
-    estilo_normal = documento.styles["Normal"]
-    estilo_normal.font.name = "Calibri"
-    estilo_normal.font.size = Pt(11)
+    # Configura estilo base de documento.
+    documento.styles["Normal"].font.name = "Calibri"
 
-    # Configura encabezado y pie de página de la primera sección.
-    seccion = documento.sections[0]
-    seccion.header.paragraphs[0].text = f"Informe SEO | {resultado.cliente}"
-    seccion.footer.paragraphs[0].text = "Página "
+    # Configura tamaño base de fuente.
+    documento.styles["Normal"].font.size = Pt(11)
 
-    # Centra verticalmente la portada.
-    seccion.start_type = WD_SECTION_START.NEW_PAGE
+    # Inserta portada.
+    titulo = documento.add_paragraph("INFORME DE AUDITORÍA SEO")
 
-    # Añade separadores de aire visual para centrar contenido de portada.
-    for _ in range(6):
-        documento.add_paragraph("")
+    # Centra título de portada.
+    titulo.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
-    # Añade título principal de portada.
-    portada_titulo = documento.add_paragraph("INFORME DE AUDITORÍA SEO")
-    portada_titulo.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    portada_titulo.runs[0].font.size = Pt(28)
-    portada_titulo.runs[0].font.bold = True
-    portada_titulo.runs[0].font.color.rgb = RGBColor(31, 78, 120)
+    # Aplica estilo visual a portada.
+    titulo.runs[0].font.color.rgb = RGBColor(31, 78, 120)
 
-    # Añade subtítulo corporativo de portada.
-    portada_subtitulo = documento.add_paragraph("Auditoría técnica, de indexación y contenidos")
-    portada_subtitulo.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    portada_subtitulo.runs[0].font.size = Pt(14)
-    portada_subtitulo.runs[0].font.color.rgb = RGBColor(84, 96, 105)
+    # Aplica tamaño destacado a portada.
+    titulo.runs[0].font.size = Pt(26)
 
-    # Añade metadatos principales de portada.
-    for linea in [f"Cliente: {resultado.cliente}", f"Dominio / sitemap: {resultado.sitemap}", f"Fecha de ejecución: {resultado.fecha_ejecucion}", f"Gestor: {resultado.gestor}"]:
-        parrafo = documento.add_paragraph(linea)
-        parrafo.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    # Añade metadatos de portada.
+    documento.add_paragraph(f"Cliente: {resultado.cliente}")
+
+    # Añade metadatos de sitemap.
+    documento.add_paragraph(f"Sitemap: {resultado.sitemap}")
+
+    # Añade metadatos de fecha.
+    documento.add_paragraph(f"Fecha: {resultado.fecha_ejecucion}")
 
     # Inserta salto de página tras portada.
     documento.add_page_break()
 
-    # Calcula métricas ejecutivas para tabla KPI.
+    # Obtiene métricas para bloque KPI.
     metricas = calcular_metricas(resultado)
 
-    # Añade encabezado de resumen ejecutivo.
-    documento.add_heading("Resumen ejecutivo", level=1)
+    # Construye bloques narrativos sin duplicidades.
+    bloques = _construir_bloques_narrativos(resultado)
 
-    # Crea tabla visual de KPIs clave.
-    tabla_kpi = documento.add_table(rows=4, cols=4)
-    tabla_kpi.style = "Table Grid"
-    tabla_kpi.cell(0, 0).text = "Total URLs"
-    tabla_kpi.cell(0, 1).text = str(metricas["total_urls"])
-    tabla_kpi.cell(0, 2).text = "Total incidencias"
-    tabla_kpi.cell(0, 3).text = str(metricas["total_incidencias"])
-    tabla_kpi.cell(1, 0).text = "URLs sanas"
-    tabla_kpi.cell(1, 1).text = str(metricas["urls_sanas"])
-    tabla_kpi.cell(1, 2).text = "URLs con redirección"
-    tabla_kpi.cell(1, 3).text = str(metricas["urls_redireccion"])
-    tabla_kpi.cell(2, 0).text = "Score SEO"
-    tabla_kpi.cell(2, 1).text = str(metricas["score"])
-    tabla_kpi.cell(2, 2).text = "Incidencias altas"
-    tabla_kpi.cell(2, 3).text = str(metricas["severidades"].get("alta", 0))
-    tabla_kpi.cell(3, 0).text = "Incidencias medias"
-    tabla_kpi.cell(3, 1).text = str(metricas["severidades"].get("media", 0))
-    tabla_kpi.cell(3, 2).text = "Incidencias bajas"
-    tabla_kpi.cell(3, 3).text = str(metricas["severidades"].get("baja", 0))
+    # Renderiza jerarquía fija en orden obligatorio.
+    for titulo_seccion in JERARQUIA_INFORME:
+        # Inserta encabezado de sección.
+        documento.add_heading(titulo_seccion, level=1)
 
-    # Convierte narrativa IA en estructura editorial intermedia.
-    secciones_ia = construir_secciones_desde_ia(resultado.resumen_ia)
+        # Inserta tabla de KPI en su sección dedicada.
+        if titulo_seccion == "KPIs principales":
+            # Crea tabla KPI de dos columnas.
+            tabla = documento.add_table(rows=4, cols=2)
 
-    # Crea índice rápido de secciones ya presentes en IA.
-    titulos_ia = {str(seccion["titulo"]).lower() for seccion in secciones_ia}
+            # Aplica estilo de tabla.
+            tabla.style = "Table Grid"
 
-    # Renderiza secciones IA ya estructuradas.
-    for seccion_ia in secciones_ia:
-        documento.add_heading(str(seccion_ia["titulo"]), level=2)
-        if seccion_ia["tipo"] == "vinetas":
-            for item in seccion_ia["items"]:
-                documento.add_paragraph(str(item), style="List Bullet")
-        elif seccion_ia["tipo"] == "numerada":
-            for item in seccion_ia["items"]:
-                documento.add_paragraph(str(item), style="List Number")
-        else:
-            for item in seccion_ia["items"]:
-                documento.add_paragraph(str(item))
+            # Completa filas de KPI.
+            tabla.cell(0, 0).text = "Total URLs"
+            tabla.cell(0, 1).text = str(metricas["total_urls"])
+            tabla.cell(1, 0).text = "Total incidencias"
+            tabla.cell(1, 1).text = str(metricas["total_incidencias"])
+            tabla.cell(2, 0).text = "Score SEO"
+            tabla.cell(2, 1).text = str(metricas["score"])
+            tabla.cell(3, 0).text = "Fuentes activas"
+            tabla.cell(3, 1).text = ", ".join(resultado.fuentes_activas)
 
-    # Garantiza estructura editorial mínima aunque IA no la haya devuelto completa.
-    for titulo in SECCIONES_OBJETIVO:
-        if titulo.lower() not in titulos_ia:
-            documento.add_heading(titulo, level=2)
-            documento.add_paragraph("Sección completada desde datos técnicos de la auditoría.")
+            # Continúa con siguiente sección.
+            continue
 
-    # Añade tabla de hallazgos críticos.
-    documento.add_heading("Hallazgos críticos", level=2)
-    tabla_criticos = documento.add_table(rows=1, cols=4)
-    tabla_criticos.style = "Table Grid"
-    tabla_criticos.rows[0].cells[0].text = "Severidad"
-    tabla_criticos.rows[0].cells[1].text = "URL"
-    tabla_criticos.rows[0].cells[2].text = "Problema"
-    tabla_criticos.rows[0].cells[3].text = "Recomendación"
-    for fila in construir_filas(resultado):
-        if fila["severidad"] in {"crítica", "alta"} and fila["problema"]:
-            celdas = tabla_criticos.add_row().cells
-            celdas[0].text = str(fila["severidad"]).upper()
-            celdas[1].text = str(fila["url"])
-            celdas[2].text = str(fila["problema"])
-            celdas[3].text = str(fila["recomendacion"])
+        # Inserta bloque específico de rendimiento.
+        if titulo_seccion == "Rendimiento y experiencia de usuario":
+            # Filtra resultados con métricas válidas para evitar `None` en informe.
+            rendimiento_valido = [item for item in resultado.rendimiento if not item.error and isinstance(item.performance_score, (int, float))]
 
-    # Añade tabla compacta de quick wins.
-    documento.add_heading("Quick wins", level=2)
-    tabla_quick = documento.add_table(rows=1, cols=3)
-    tabla_quick.style = "Table Grid"
-    tabla_quick.rows[0].cells[0].text = "URL"
-    tabla_quick.rows[0].cells[1].text = "Acción rápida"
-    tabla_quick.rows[0].cells[2].text = "Impacto"
-    for fila in construir_filas(resultado):
-        if fila["esfuerzo"] == "Bajo" and fila["impacto"] in {"Muy alto", "Alto", "Medio"} and fila["problema"]:
-            celdas = tabla_quick.add_row().cells
-            celdas[0].text = str(fila["url"])
-            celdas[1].text = str(fila["recomendacion"])
-            celdas[2].text = str(fila["impacto"])
+            # Recorre resultados de rendimiento resumidos cuando existan.
+            for item in rendimiento_valido[:8]:
+                # Inserta párrafo de métricas clave por estrategia.
+                documento.add_paragraph(f"{item.url} [{item.estrategia}] · performance={item.performance_score} · seo={item.seo_score} · LCP={item.lcp or 'N/D'} · CLS={item.cls or 'N/D'} · INP={item.inp or 'N/D'}")
 
-    # Añade tabla roadmap por fase temporal.
-    documento.add_heading("Roadmap", level=2)
-    tabla_roadmap = documento.add_table(rows=4, cols=3)
-    tabla_roadmap.style = "Table Grid"
-    tabla_roadmap.rows[0].cells[0].text = "Fase"
-    tabla_roadmap.rows[0].cells[1].text = "Objetivo"
-    tabla_roadmap.rows[0].cells[2].text = "Acciones"
-    tabla_roadmap.rows[1].cells[0].text = "30 días"
-    tabla_roadmap.rows[1].cells[1].text = "Estabilizar indexación"
-    tabla_roadmap.rows[1].cells[2].text = "Corregir redirecciones y errores HTTP"
-    tabla_roadmap.rows[2].cells[0].text = "60 días"
-    tabla_roadmap.rows[2].cells[1].text = "Optimizar on-page"
-    tabla_roadmap.rows[2].cells[2].text = "Completar title, H1 y meta description"
-    tabla_roadmap.rows[3].cells[0].text = "90 días"
-    tabla_roadmap.rows[3].cells[1].text = "Consolidar arquitectura"
-    tabla_roadmap.rows[3].cells[2].text = "Alinear canonical, noindex y enlazado interno"
+            # Inserta mensaje profesional cuando no hay datos válidos.
+            if not rendimiento_valido:
+                # Redacta mensaje según tipo de fallo/ausencia.
+                mensaje = (
+                    "No se pudieron obtener métricas de PageSpeed en esta ejecución por timeout o error de la API."
+                    if "pagespeed" in resultado.fuentes_fallidas or resultado.pagespeed_estado
+                    else "No hay datos de rendimiento disponibles en esta ejecución."
+                )
 
-    # Separa bloque ejecutivo de anexo técnico.
+                # Añade mensaje al documento.
+                documento.add_paragraph(mensaje)
+
+            # Continúa con siguiente sección.
+            continue
+
+        # Inserta narrativa no vacía de la sección.
+        for linea in bloques[titulo_seccion][:8]:
+            # Añade párrafo limpio sin markdown crudo.
+            documento.add_paragraph(linea)
+
+    # Inserta anexo técnico como sección única al final.
     documento.add_page_break()
 
-    # Añade título de anexo técnico.
+    # Inserta encabezado de anexo.
     documento.add_heading("Anexo técnico", level=1)
 
-    # Renderiza detalle técnico sin repetir narrativa ejecutiva.
-    for item in resultado.resultados:
-        # Añade subtítulo por URL.
-        documento.add_heading(item.url, level=3)
+    # Recorre una muestra de URLs para anexo estructurado.
+    for item in resultado.resultados[:20]:
+        # Inserta subtítulo por URL.
+        documento.add_heading(item.url, level=2)
 
-        # Añade URL como enlace clicable.
-        parrafo_url = documento.add_paragraph("URL auditada: ")
-        agregar_hipervinculo(parrafo_url, item.url, "Abrir URL")
+        # Inserta línea de estado técnico.
+        documento.add_paragraph(f"HTTP={item.estado_http} · redirección={'Sí' if item.redirecciona else 'No'} · noindex={'Sí' if item.noindex else 'No'}")
 
-        # Añade señales técnicas básicas.
-        documento.add_paragraph(f"Estado HTTP: {item.estado_http} | Redirección: {'Sí' if item.redirecciona else 'No'} | Noindex: {'Sí' if item.noindex else 'No'}")
-        documento.add_paragraph(f"Title: {item.title or 'Sin title'}")
-        documento.add_paragraph(f"H1: {item.h1 or 'Sin H1'}")
-        documento.add_paragraph(f"Canonical: {item.canonical or 'Sin canonical'}")
+        # Recorre hallazgos de la URL.
+        for hallazgo in item.hallazgos[:3]:
+            # Añade hallazgo en formato de lista.
+            documento.add_paragraph(f"[{hallazgo.severidad}] {hallazgo.descripcion}", style="List Bullet")
 
-        # Añade incidencias de la URL actual.
-        for hallazgo in item.hallazgos:
-            documento.add_paragraph(f"[{hallazgo.severidad}] {hallazgo.descripcion} -> {hallazgo.recomendacion}", style="List Bullet")
-
-    # Guarda el documento en la ruta final.
+    # Guarda documento final.
     documento.save(destino)
 
-    # Devuelve la ruta del archivo generado.
+    # Devuelve ruta del Word generado.
     return destino
 
 
 # Exporta un PDF con estructura similar a Word.
 def exportar_pdf(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
-    """
-    Genera un PDF profesional alineado con la estructura editorial del DOCX.
-    """
+    """Genera un PDF profesional respetando la misma jerarquía documental."""
 
-    # Garantiza la existencia de la carpeta de salida.
+    # Garantiza carpeta de salida.
     asegurar_directorio(path_salida)
 
-    # Define la ruta final del PDF.
+    # Define ruta del PDF final.
     destino = path_salida / f"{construir_prefijo_archivo(resultado)}.pdf"
 
-    # Crea el documento PDF.
+    # Crea documento PDF base.
     pdf = SimpleDocTemplate(str(destino), pagesize=A4, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
 
-    # Inicializa la lista de elementos de contenido.
+    # Inicializa lista de elementos del PDF.
     elementos = []
 
-    # Obtiene estilos base de reportlab.
+    # Obtiene estilos de referencia.
     estilos = getSampleStyleSheet()
 
-    # Define estilo de subtítulo corporativo.
-    estilo_subtitulo = ParagraphStyle(name="Subtitulo", parent=estilos["Normal"], fontSize=11, textColor=colors.HexColor("#5F6B73"), alignment=1)
+    # Crea estilo de portada.
+    estilo_portada = ParagraphStyle(name="Portada", parent=estilos["Title"], alignment=1, textColor=colors.HexColor("#1F4E78"))
 
-    # Añade portada del informe con separación visual.
-    elementos.append(Spacer(1, 120))
-    elementos.append(Paragraph("<b>INFORME DE AUDITORÍA SEO</b>", estilos["Title"]))
-    elementos.append(Spacer(1, 8))
-    elementos.append(Paragraph("Auditoría técnica, de indexación y contenidos", estilo_subtitulo))
-    elementos.append(Spacer(1, 18))
+    # Inserta portada.
+    elementos.append(Spacer(1, 80))
+
+    # Inserta título de portada.
+    elementos.append(Paragraph("INFORME DE AUDITORÍA SEO", estilo_portada))
+
+    # Inserta datos generales de portada.
+    elementos.append(Spacer(1, 16))
     elementos.append(Paragraph(f"Cliente: {sanear_texto_para_pdf(resultado.cliente)}", estilos["Normal"]))
-    elementos.append(Paragraph(f"Dominio / sitemap: {sanear_texto_para_pdf(resultado.sitemap)}", estilos["Normal"]))
-    elementos.append(Paragraph(f"Fecha de ejecución: {sanear_texto_para_pdf(resultado.fecha_ejecucion)}", estilos["Normal"]))
-    elementos.append(Paragraph(f"Gestor: {sanear_texto_para_pdf(resultado.gestor)}", estilos["Normal"]))
+    elementos.append(Paragraph(f"Sitemap: {sanear_texto_para_pdf(resultado.sitemap)}", estilos["Normal"]))
     elementos.append(PageBreak())
 
-    # Calcula métricas ejecutivas para tabla de resumen.
+    # Obtiene bloques narrativos consolidados.
+    bloques = _construir_bloques_narrativos(resultado)
+
+    # Obtiene métricas globales.
     metricas = calcular_metricas(resultado)
 
-    # Añade resumen ejecutivo con tabla KPI.
-    elementos.append(Paragraph("<b>Resumen ejecutivo</b>", estilos["Heading2"]))
-    tabla_kpi = Table([
-        ["KPI", "Valor", "KPI", "Valor"],
-        ["Total URLs", str(metricas["total_urls"]), "Total incidencias", str(metricas["total_incidencias"])],
-        ["URLs sanas", str(metricas["urls_sanas"]), "URLs con redirección", str(metricas["urls_redireccion"])],
-        ["Score SEO", str(metricas["score"]), "Incidencias altas", str(metricas["severidades"].get("alta", 0))],
-    ], colWidths=[110, 80, 130, 80])
-    tabla_kpi.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (3, 0), colors.HexColor("#1F4E78")),
-        ("TEXTCOLOR", (0, 0), (3, 0), colors.white),
-        ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#D9D9D9")),
-    ]))
-    elementos.append(tabla_kpi)
-    elementos.append(Spacer(1, 12))
+    # Recorre jerarquía del informe.
+    for titulo_seccion in JERARQUIA_INFORME:
+        # Inserta título de sección.
+        elementos.append(Paragraph(f"<b>{sanear_texto_para_pdf(titulo_seccion)}</b>", estilos["Heading2"]))
 
-    # Convierte narrativa IA a secciones limpias para PDF.
-    secciones_ia = construir_secciones_desde_ia(resultado.resumen_ia)
+        # Inserta tabla KPI en sección correspondiente.
+        if titulo_seccion == "KPIs principales":
+            # Crea tabla de KPIs.
+            tabla = Table([["KPI", "Valor"], ["Total URLs", str(metricas["total_urls"])], ["Total incidencias", str(metricas["total_incidencias"])], ["Score SEO", str(metricas["score"])], ["Fuentes activas", ", ".join(resultado.fuentes_activas)]], colWidths=[180, 280])
 
-    # Renderiza contenido IA sin markdown crudo.
-    for seccion in secciones_ia[:6]:
-        elementos.append(Paragraph(f"<b>{sanear_texto_para_pdf(str(seccion['titulo']))}</b>", estilos["Heading3"]))
-        for item in seccion["items"][:8]:
-            elementos.append(Paragraph(sanear_texto_para_pdf(str(item)), estilos["Normal"]))
+            # Aplica estilo visual de tabla.
+            tabla.setStyle(TableStyle([("BACKGROUND", (0, 0), (1, 0), colors.HexColor("#1F4E78")), ("TEXTCOLOR", (0, 0), (1, 0), colors.white), ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#D9D9D9"))]))
 
-    # Inserta salto y anexo técnico resumido.
-    elementos.append(PageBreak())
-    elementos.append(Paragraph("<b>Anexo técnico</b>", estilos["Heading2"]))
-    for item in resultado.resultados[:20]:
-        elementos.append(Paragraph(sanear_texto_para_pdf(f"URL: {item.url}"), estilos["Normal"]))
-        elementos.append(Paragraph(sanear_texto_para_pdf(f"HTTP: {item.estado_http} | Redirección: {'Sí' if item.redirecciona else 'No'} | Noindex: {'Sí' if item.noindex else 'No'}"), estilos["Normal"]))
-        for hallazgo in item.hallazgos[:3]:
-            elementos.append(Paragraph(sanear_texto_para_pdf(f"• [{hallazgo.severidad}] {hallazgo.descripcion}"), estilos["Normal"]))
+            # Añade tabla al flujo.
+            elementos.append(tabla)
+
+            # Salta a siguiente sección.
+            continue
+
+        # Inserta resumen de rendimiento.
+        if titulo_seccion == "Rendimiento y experiencia de usuario":
+            # Filtra resultados con métricas válidas para evitar `None` en informe.
+            rendimiento_valido = [item for item in resultado.rendimiento if not item.error and isinstance(item.performance_score, (int, float))]
+
+            # Recorre resultados de rendimiento cuando existan datos reales.
+            for item in rendimiento_valido[:8]:
+                # Inserta línea de métricas clave.
+                elementos.append(Paragraph(sanear_texto_para_pdf(f"{item.url} [{item.estrategia}] performance={item.performance_score} seo={item.seo_score} LCP={item.lcp or 'N/D'} CLS={item.cls or 'N/D'} INP={item.inp or 'N/D'}"), estilos["Normal"]))
+
+            # Inserta mensaje profesional cuando no hay datos válidos.
+            if not rendimiento_valido:
+                # Redacta mensaje según tipo de fallo/ausencia.
+                mensaje = (
+                    "No se pudieron obtener métricas de PageSpeed en esta ejecución por timeout o error de la API."
+                    if "pagespeed" in resultado.fuentes_fallidas or resultado.pagespeed_estado
+                    else "No hay datos de rendimiento disponibles en esta ejecución."
+                )
+
+                # Añade mensaje saneado al PDF.
+                elementos.append(Paragraph(sanear_texto_para_pdf(mensaje), estilos["Normal"]))
+
+            # Salta a siguiente sección.
+            continue
+
+        # Inserta líneas narrativas de sección.
+        for linea in bloques[titulo_seccion][:8]:
+            # Añade párrafo saneado.
+            elementos.append(Paragraph(sanear_texto_para_pdf(linea), estilos["Normal"]))
+
+        # Añade espacio vertical entre secciones.
         elementos.append(Spacer(1, 6))
 
-    # Construye el PDF final.
+    # Inserta anexo técnico al final.
+    elementos.append(PageBreak())
+
+    # Inserta título de anexo.
+    elementos.append(Paragraph("<b>Anexo técnico</b>", estilos["Heading2"]))
+
+    # Recorre muestra de URLs para el anexo.
+    for item in resultado.resultados[:20]:
+        # Inserta encabezado por URL.
+        elementos.append(Paragraph(sanear_texto_para_pdf(item.url), estilos["Heading3"]))
+
+        # Inserta estado base de la URL.
+        elementos.append(Paragraph(sanear_texto_para_pdf(f"HTTP={item.estado_http} · redirección={'Sí' if item.redirecciona else 'No'} · noindex={'Sí' if item.noindex else 'No'}"), estilos["Normal"]))
+
+    # Construye PDF final.
     pdf.build(elementos)
 
-    # Devuelve la ruta del archivo generado.
+    # Devuelve ruta del PDF generado.
     return destino
 
 
 # Exporta el informe IA en Markdown para edición y revisión humana.
 def exportar_markdown_ia(resultado: ResultadoAuditoria, path_salida: Path) -> Path | None:
-    """
-    Genera un archivo Markdown con el resumen IA y metadatos.
-    """
+    """Genera un archivo Markdown con el resumen IA y metadatos."""
 
     # Sale sin crear archivo cuando no existe resumen IA.
     if not resultado.resumen_ia:
+        # Retorna None cuando no hay contenido IA.
         return None
 
     # Garantiza la existencia de la carpeta de salida.
@@ -1038,14 +1128,7 @@ def exportar_markdown_ia(resultado: ResultadoAuditoria, path_salida: Path) -> Pa
     destino = path_salida / f"{construir_prefijo_archivo(resultado)}_ia.md"
 
     # Construye encabezado contextual de informe.
-    contenido = (
-        f"# Informe SEO IA\n\n"
-        f"- Cliente: {resultado.cliente}\n"
-        f"- Gestor: {resultado.gestor}\n"
-        f"- Fecha de ejecución: {resultado.fecha_ejecucion}\n"
-        f"- Sitemap: {resultado.sitemap}\n\n"
-        f"{resultado.resumen_ia}\n"
-    )
+    contenido = f"# Informe SEO IA\n\n- Cliente: {resultado.cliente}\n- Gestor: {resultado.gestor}\n- Fecha de ejecución: {resultado.fecha_ejecucion}\n- Sitemap: {resultado.sitemap}\n\n{resultado.resumen_ia}\n"
 
     # Escribe el contenido del informe IA en UTF-8.
     destino.write_text(contenido, encoding="utf-8")

@@ -7,9 +7,15 @@ from datetime import UTC, datetime
 # Importa utilidades de URL estándar del lenguaje.
 from urllib.parse import urlparse
 
+# Importa tipos para iteradores con progreso.
+from typing import Iterable, Iterator, TypeVar
+
 
 # Define una expresión regular conservadora para validar URLs HTTP y HTTPS.
 URL_REGEX = re.compile(r"^https?://[^\s/$.?#].[^\s]*$", re.IGNORECASE)
+
+# Define tipo genérico para iteradores con tipado.
+T = TypeVar("T")
 
 
 # Valida que una URL use un esquema permitido y tenga dominio.
@@ -130,3 +136,28 @@ def inferir_cliente_desde_slug(slug: str) -> str:
 
     # Devuelve un valor por defecto si no hay contenido utilizable.
     return texto.title() if texto else "Cliente"
+
+
+# Recorre una colección mostrando progreso textual en consola.
+def iterar_con_progreso(items: Iterable[T], descripcion: str, unidad: str) -> Iterator[T]:
+    """
+    Itera elementos mostrando progreso simple y compatible sin dependencias externas.
+    """
+
+    # Convierte los elementos a lista para conocer el total.
+    lista = list(items)
+
+    # Calcula el total de elementos de la colección.
+    total = len(lista)
+
+    # Recorre cada elemento con índice para dibujar avance.
+    for indice, item in enumerate(lista, start=1):
+        # Muestra progreso en una sola línea para no ensuciar la salida.
+        print(f"\r{descripcion}: {indice}/{total} {unidad}", end="")
+
+        # Entrega elemento actual al consumidor.
+        yield item
+
+    # Cierra la línea de progreso al completar la iteración.
+    if total > 0:
+        print("")
