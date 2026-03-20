@@ -297,11 +297,6 @@ def main() -> int:
         # Resuelve URLs objetivo según reglas funcionales.
         urls_pagespeed = _resolver_urls_pagespeed(argumentos, argumentos.sitemap, urls, max_pagepsi_urls)
 
-        # Informa si se aplicó recorte por límite.
-        if len(urls_pagespeed) > max_pagepsi_urls:
-            # Aplica recorte de seguridad por límite máximo.
-            urls_pagespeed = urls_pagespeed[:max_pagepsi_urls]
-
         # Ejecuta análisis de rendimiento y guarda resultados.
         resultado.rendimiento = _ejecutar_pagespeed(urls_pagespeed, configuracion.pagespeed_api_key, configuracion.http_timeout)
 

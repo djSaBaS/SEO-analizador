@@ -198,15 +198,44 @@ def construir_filas(resultado: ResultadoAuditoria) -> list[dict]:
 
     # Recorre cada URL auditada para convertirla a filas de incidencias.
     for item in resultado.resultados:
+        # Construye una base común para evitar duplicación de campos.
+        fila_base = {
+            "url": item.url,
+            "url_final": item.url_final,
+            "tipo": item.tipo,
+            "estado_http": item.estado_http,
+            "redirecciona": "Sí" if item.redirecciona else "No",
+            "title": item.title,
+            "h1": item.h1,
+            "meta_description": item.meta_description,
+            "canonical": item.canonical or "",
+            "noindex": "Sí" if item.noindex else "No",
+            "estado": "Pendiente",
+            "resuelto": "No",
+            "responsable": "",
+        }
+
         # Inserta fila de control cuando no haya hallazgos.
         if not item.hallazgos:
-            # Añade fila informativa sin incidencias.
-            filas.append({"url": item.url, "url_final": item.url_final, "tipo": item.tipo, "estado_http": item.estado_http, "redirecciona": "Sí" if item.redirecciona else "No", "title": item.title, "h1": item.h1, "meta_description": item.meta_description, "canonical": item.canonical or "", "noindex": "Sí" if item.noindex else "No", "problema": "", "recomendacion": "", "severidad": "informativa", "area": "Calidad", "impacto": "Bajo", "esfuerzo": "Bajo", "prioridad": "P4", "estado": "Pendiente", "resuelto": "No", "responsable": "", "observaciones": item.error or "Sin incidencias críticas"})
+            # Crea copia independiente de la fila base.
+            fila = fila_base.copy()
+
+            # Completa datos por defecto para URL sin incidencias.
+            fila.update({"problema": "", "recomendacion": "", "severidad": "informativa", "area": "Calidad", "impacto": "Bajo", "esfuerzo": "Bajo", "prioridad": "P4", "observaciones": item.error or "Sin incidencias críticas"})
+
+            # Añade fila informativa final a la colección.
+            filas.append(fila)
 
         # Recorre hallazgos cuando existan para crear filas detalladas.
         for hallazgo in item.hallazgos:
+            # Crea copia independiente de la fila base.
+            fila = fila_base.copy()
+
+            # Completa datos de hallazgo para esta fila.
+            fila.update({"problema": hallazgo.descripcion, "recomendacion": hallazgo.recomendacion, "severidad": hallazgo.severidad, "area": hallazgo.area, "impacto": hallazgo.impacto, "esfuerzo": hallazgo.esfuerzo, "prioridad": hallazgo.prioridad, "observaciones": item.error or ""})
+
             # Añade una fila por hallazgo detectado.
-            filas.append({"url": item.url, "url_final": item.url_final, "tipo": item.tipo, "estado_http": item.estado_http, "redirecciona": "Sí" if item.redirecciona else "No", "title": item.title, "h1": item.h1, "meta_description": item.meta_description, "canonical": item.canonical or "", "noindex": "Sí" if item.noindex else "No", "problema": hallazgo.descripcion, "recomendacion": hallazgo.recomendacion, "severidad": hallazgo.severidad, "area": hallazgo.area, "impacto": hallazgo.impacto, "esfuerzo": hallazgo.esfuerzo, "prioridad": hallazgo.prioridad, "estado": "Pendiente", "resuelto": "No", "responsable": "", "observaciones": item.error or ""})
+            filas.append(fila)
 
     # Devuelve las filas preparadas para cualquier exportador.
     return filas
@@ -221,15 +250,45 @@ def construir_filas_rendimiento(resultado: ResultadoAuditoria) -> list[dict]:
 
     # Recorre cada resultado de PageSpeed disponible.
     for item in resultado.rendimiento:
+        # Construye una base común para evitar duplicación de campos.
+        fila_base = {
+            "url": item.url,
+            "estrategia": item.estrategia,
+            "performance_score": item.performance_score,
+            "accessibility_score": item.accessibility_score,
+            "best_practices_score": item.best_practices_score,
+            "seo_score": item.seo_score,
+            "lcp": item.lcp,
+            "cls": item.cls,
+            "inp": item.inp,
+            "fcp": item.fcp,
+            "speed_index": item.speed_index,
+            "estado": "Pendiente",
+            "resuelto": "No",
+            "responsable": "",
+        }
+
         # Crea una fila base cuando no haya oportunidades.
         if not item.oportunidades:
+            # Crea copia independiente de la fila base.
+            fila = fila_base.copy()
+
+            # Completa datos por defecto para esta ejecución.
+            fila.update({"oportunidad": "", "descripcion": item.error or "Sin oportunidades destacadas", "ahorro_estimado": "", "severidad": "informativa", "recomendacion": "Mantener monitorización continua", "observaciones": item.error or ""})
+
             # Añade fila base de métricas sin oportunidad concreta.
-            filas.append({"url": item.url, "estrategia": item.estrategia, "performance_score": item.performance_score, "accessibility_score": item.accessibility_score, "best_practices_score": item.best_practices_score, "seo_score": item.seo_score, "lcp": item.lcp, "cls": item.cls, "inp": item.inp, "fcp": item.fcp, "speed_index": item.speed_index, "oportunidad": "", "descripcion": item.error or "Sin oportunidades destacadas", "ahorro_estimado": "", "severidad": "informativa", "recomendacion": "Mantener monitorización continua", "estado": "Pendiente", "resuelto": "No", "responsable": "", "observaciones": item.error or ""})
+            filas.append(fila)
 
         # Recorre oportunidades para crear filas accionables.
         for oportunidad in item.oportunidades:
+            # Crea copia independiente de la fila base.
+            fila = fila_base.copy()
+
+            # Completa datos específicos de la oportunidad.
+            fila.update({"oportunidad": oportunidad.titulo, "descripcion": oportunidad.descripcion, "ahorro_estimado": oportunidad.ahorro_estimado, "severidad": oportunidad.severidad, "recomendacion": f"Aplicar mejora: {oportunidad.titulo}", "observaciones": ""})
+
             # Añade fila por oportunidad detectada.
-            filas.append({"url": item.url, "estrategia": item.estrategia, "performance_score": item.performance_score, "accessibility_score": item.accessibility_score, "best_practices_score": item.best_practices_score, "seo_score": item.seo_score, "lcp": item.lcp, "cls": item.cls, "inp": item.inp, "fcp": item.fcp, "speed_index": item.speed_index, "oportunidad": oportunidad.titulo, "descripcion": oportunidad.descripcion, "ahorro_estimado": oportunidad.ahorro_estimado, "severidad": oportunidad.severidad, "recomendacion": f"Aplicar mejora: {oportunidad.titulo}", "estado": "Pendiente", "resuelto": "No", "responsable": "", "observaciones": ""})
+            filas.append(fila)
 
     # Devuelve filas listas para Excel.
     return filas
@@ -321,10 +380,87 @@ def _construir_bloques_narrativos(resultado: ResultadoAuditoria) -> dict[str, li
                 # Inserta solo textos no vacíos en el bloque destino.
                 bloques[destino].extend([str(item).strip() for item in seccion["items"] if str(item).strip()])
 
+    # Construye vistas tabulares para generar fallback de secciones obligatorias.
+    filas = construir_filas(resultado)
+
+    # Construye vista tabular de rendimiento para secciones de UX.
+    filas_rendimiento = construir_filas_rendimiento(resultado)
+
     # Construye fallback de resumen ejecutivo cuando IA no aporta contenido.
     if not bloques["Resumen ejecutivo"]:
         # Añade resumen automático con datos técnicos.
         bloques["Resumen ejecutivo"].append(f"Se auditaron {resultado.total_urls} URLs con fuentes activas: {', '.join(resultado.fuentes_activas)}.")
+
+    # Construye fallback de KPIs principales para mantener consistencia de jerarquía.
+    if not bloques["KPIs principales"]:
+        # Añade recordatorio de que los KPIs se muestran en tabla.
+        bloques["KPIs principales"].append("Los indicadores clave se presentan en la tabla KPI de esta sección.")
+
+    # Construye fallback de hallazgos críticos cuando no exista IA útil.
+    if not bloques["Hallazgos críticos"]:
+        # Filtra hallazgos críticos para el bloque ejecutivo.
+        hallazgos_criticos = [fila for fila in filas if str(fila.get("severidad", "")).lower() in {"crítica", "alta"} and fila.get("problema")]
+
+        # Inserta resumen compacto de hallazgos prioritarios.
+        for fila in hallazgos_criticos[:5]:
+            # Añade línea ejecutiva de hallazgo.
+            bloques["Hallazgos críticos"].append(f"[{fila['severidad']}] {fila['problema']} ({fila['url']})")
+
+    # Construye fallback de quick wins cuando no exista narrativa IA.
+    if not bloques["Quick wins"]:
+        # Filtra acciones de bajo esfuerzo y alto impacto.
+        quick_wins = [fila for fila in filas if fila.get("esfuerzo") == "Bajo" and fila.get("impacto") in {"Muy alto", "Alto", "Medio"} and fila.get("recomendacion")]
+
+        # Inserta recomendaciones rápidas priorizadas.
+        for fila in quick_wins[:5]:
+            # Añade quick win concreto.
+            bloques["Quick wins"].append(f"{fila['recomendacion']} ({fila['url']})")
+
+    # Construye fallback de acciones técnicas cuando no haya bloque IA.
+    if not bloques["Acciones técnicas"]:
+        # Filtra recomendaciones técnicas.
+        acciones_tecnicas = [fila for fila in filas if fila.get("area") in {"Infraestructura", "Indexación", "Arquitectura"} and fila.get("recomendacion")]
+
+        # Inserta recomendaciones técnicas de mayor prioridad.
+        for fila in acciones_tecnicas[:5]:
+            # Añade acción técnica priorizada.
+            bloques["Acciones técnicas"].append(f"{fila['prioridad']}: {fila['recomendacion']}")
+
+        # Añade fallback genérico cuando no existan acciones técnicas específicas.
+        if not bloques["Acciones técnicas"]:
+            # Inserta recomendación de revisión técnica base.
+            bloques["Acciones técnicas"].append("Revisar cobertura de rastreo, estado HTTP y canonicals para mantener estabilidad técnica.")
+
+    # Construye fallback de acciones de contenido cuando no haya bloque IA.
+    if not bloques["Acciones de contenido"]:
+        # Filtra recomendaciones del área de contenido.
+        acciones_contenido = [fila for fila in filas if fila.get("area") == "Contenido" and fila.get("recomendacion")]
+
+        # Inserta recomendaciones editoriales de mayor prioridad.
+        for fila in acciones_contenido[:5]:
+            # Añade acción de contenido priorizada.
+            bloques["Acciones de contenido"].append(f"{fila['prioridad']}: {fila['recomendacion']}")
+
+    # Construye fallback de rendimiento y experiencia de usuario.
+    if not bloques["Rendimiento y experiencia de usuario"]:
+        # Inserta resumen de PageSpeed cuando exista información.
+        for fila in filas_rendimiento[:5]:
+            # Añade línea compacta con score y oportunidad.
+            bloques["Rendimiento y experiencia de usuario"].append(f"{fila['url']} [{fila['estrategia']}] score={fila['performance_score']} oportunidad={fila['oportunidad'] or 'sin oportunidad destacada'}")
+
+        # Añade mensaje neutro cuando no hay datos de rendimiento.
+        if not bloques["Rendimiento y experiencia de usuario"]:
+            # Inserta texto de continuidad operativa.
+            bloques["Rendimiento y experiencia de usuario"].append("No se han recibido datos de PageSpeed en esta ejecución.")
+
+    # Construye fallback de roadmap cuando IA no lo entregue.
+    if not bloques["Roadmap"]:
+        # Añade fase corta de estabilización.
+        bloques["Roadmap"].append("30 días: corregir incidencias críticas y altas de indexación e infraestructura.")
+        # Añade fase media de optimización.
+        bloques["Roadmap"].append("60 días: ejecutar quick wins y completar mejoras on-page.")
+        # Añade fase de consolidación.
+        bloques["Roadmap"].append("90 días: consolidar rendimiento, calidad de contenido y control SEO continuo.")
 
     # Devuelve bloques listos para render narrativo.
     return bloques
@@ -474,11 +610,11 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     # Calcula métricas de dashboard.
     metricas = calcular_metricas(resultado)
 
-    # Calcula scores medios mobile y desktop.
-    scores_mobile = [fila["performance_score"] for fila in filas_rendimiento if fila.get("estrategia") == "mobile" and isinstance(fila.get("performance_score"), (int, float))]
+    # Calcula scores medios mobile y desktop desde ejecuciones únicas.
+    scores_mobile = [item.performance_score for item in resultado.rendimiento if item.estrategia == "mobile" and isinstance(item.performance_score, (int, float))]
 
-    # Calcula scores de desktop.
-    scores_desktop = [fila["performance_score"] for fila in filas_rendimiento if fila.get("estrategia") == "desktop" and isinstance(fila.get("performance_score"), (int, float))]
+    # Calcula scores de desktop desde ejecuciones únicas.
+    scores_desktop = [item.performance_score for item in resultado.rendimiento if item.estrategia == "desktop" and isinstance(item.performance_score, (int, float))]
 
     # Obtiene media mobile segura.
     score_medio_mobile = round(sum(scores_mobile) / len(scores_mobile), 1) if scores_mobile else 0.0
