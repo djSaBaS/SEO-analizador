@@ -191,8 +191,14 @@ class ResultadoAuditoria:
     # Guarda las fuentes realmente activas en la ejecución.
     fuentes_activas: List[str] = field(default_factory=lambda: ["sitemap", "rastreo_tecnico", "html"])
 
+    # Guarda fuentes que se intentaron usar pero fallaron en ejecución.
+    fuentes_fallidas: List[str] = field(default_factory=list)
+
     # Guarda los resultados de rendimiento obtenidos desde PageSpeed.
     rendimiento: List[ResultadoRendimiento] = field(default_factory=list)
+
+    # Guarda estado por URL y estrategia cuando PageSpeed falla o devuelve datos parciales.
+    pagespeed_estado: dict[str, dict[str, str]] = field(default_factory=dict)
 
     # Guarda el informe narrativo opcional generado por IA.
     resumen_ia: Optional[str] = None

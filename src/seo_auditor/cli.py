@@ -96,7 +96,7 @@ def _resolver_urls_pagespeed(argumentos: argparse.Namespace, sitemap: str, urls_
 
 
 # Ejecuta las consultas de PageSpeed para móvil y escritorio por URL.
-def _ejecutar_pagespeed(urls: list[str], api_key: str, timeout: int) -> list[ResultadoRendimiento]:
+def _ejecutar_pagespeed(urls: list[str], api_key: str, timeout: int, reintentos: int) -> list[ResultadoRendimiento]:
     """
     Ejecuta PageSpeed de forma resiliente y sin detener la auditoría global.
     """
@@ -112,10 +112,10 @@ def _ejecutar_pagespeed(urls: list[str], api_key: str, timeout: int) -> list[Res
         # Recorre estrategias obligatorias móvil y escritorio.
         for estrategia in ["mobile", "desktop"]:
             # Informa estrategia activa para trazabilidad.
-            print(f"    · estrategia={estrategia}")
+            print(f"    · estrategia={estrategia} | intento máximo={reintentos + 1}")
 
             # Ejecuta análisis y acumula resultado con manejo interno de errores.
-            resultado = analizar_pagespeed_url(url, api_key, estrategia, timeout)
+            resultado = analizar_pagespeed_url(url, api_key, estrategia, timeout, reintentos)
 
             # Informa error controlado por URL/estrategia sin detener flujo.
             if resultado.error:
@@ -164,6 +164,12 @@ def crear_parser() -> argparse.ArgumentParser:
 
     # Añade parámetro para limitar el total de URLs de PageSpeed.
     parser.add_argument("--max-pagepsi-urls", type=int, default=0, help="Límite manual de URLs para PageSpeed (0 usa configuración).")
+
+    # Añade parámetro opcional para timeout de PageSpeed.
+    parser.add_argument("--pagepsi-timeout", type=int, default=0, help="Timeout de PageSpeed en segundos (0 usa configuración).")
+
+    # Añade parámetro opcional para reintentos de PageSpeed.
+    parser.add_argument("--pagepsi-reintentos", type=int, default=-1, help="Reintentos de PageSpeed (valor negativo usa configuración).")
 
     # Añade parámetro para definir gestor de la auditoría.
     parser.add_argument("--gestor", default=GESTOR_POR_DEFECTO, help="Nombre del gestor responsable del informe.")
@@ -273,6 +279,22 @@ def main() -> int:
         # Devuelve error al sistema.
         return 1
 
+    # Valida timeout manual de PageSpeed cuando se reciba.
+    if argumentos.pagepsi_timeout < 0:
+        # Informa error de rango del parámetro.
+        print("Error: --pagepsi-timeout no puede ser negativo.")
+
+        # Devuelve error al sistema.
+        return 1
+
+    # Valida reintentos manuales de PageSpeed cuando se reciban.
+    if argumentos.pagepsi_reintentos < -1:
+        # Informa error de rango del parámetro.
+        print("Error: --pagepsi-reintentos debe ser -1 o mayor.")
+
+        # Devuelve error al sistema.
+        return 1
+
     # Genera metadatos reales de ejecución.
     fecha = fecha_ejecucion_iso()
 
@@ -308,6 +330,12 @@ def main() -> int:
     # Calcula el límite efectivo de URLs para PageSpeed.
     max_pagepsi_urls = argumentos.max_pagepsi_urls if argumentos.max_pagepsi_urls > 0 else configuracion.max_pagepsi_urls
 
+    # Calcula timeout efectivo de PageSpeed.
+    pagespeed_timeout = argumentos.pagepsi_timeout if argumentos.pagepsi_timeout > 0 else configuracion.pagespeed_timeout
+
+    # Calcula reintentos efectivos de PageSpeed.
+    pagespeed_reintentos = argumentos.pagepsi_reintentos if argumentos.pagepsi_reintentos >= 0 else configuracion.pagespeed_reintentos
+
     # Ejecuta PageSpeed si existe clave API configurada.
     if configuracion.pagespeed_api_key:
         # Informa progreso del bloque de rendimiento.
@@ -317,10 +345,49 @@ def main() -> int:
         urls_pagespeed = _resolver_urls_pagespeed(argumentos, argumentos.sitemap, urls, max_pagepsi_urls)
 
         # Ejecuta análisis de rendimiento y guarda resultados.
-        resultado.rendimiento = _ejecutar_pagespeed(urls_pagespeed, configuracion.pagespeed_api_key, configuracion.http_timeout)
+        resultado.rendimiento = _ejecutar_pagespeed(urls_pagespeed, configuracion.pagespeed_api_key, pagespeed_timeout, pagespeed_reintentos)
 
-        # Añade fuente activa de rendimiento para control editorial.
-        resultado.fuentes_activas.append("pagespeed")
+        # Inicializa estado de ejecución de PageSpeed por URL.
+        estado_pagespeed: dict[str, dict[str, str]] = {}
+
+        # Recorre resultados para construir estado estructurado.
+        for item in resultado.rendimiento:
+            # Garantiza nodo por URL dentro del estado.
+            estado_pagespeed.setdefault(item.url, {})
+
+            # Registra estado por estrategia según éxito o error.
+            estado_pagespeed[item.url][item.estrategia] = item.error or "ok"
+
+        # Guarda estado de PageSpeed dentro del resultado final.
+        resultado.pagespeed_estado = estado_pagespeed
+
+        # Determina si existe al menos un resultado con métricas válidas.
+        hay_metricas_validas = any(
+            (
+                item.performance_score is not None
+                or item.accessibility_score is not None
+                or item.best_practices_score is not None
+                or item.seo_score is not None
+                or item.lcp is not None
+                or item.cls is not None
+                or item.inp is not None
+                or item.fcp is not None
+                or item.tbt is not None
+                or item.speed_index is not None
+            )
+            and not item.error
+            for item in resultado.rendimiento
+        )
+
+        # Añade fuente activa solo cuando hay métricas útiles reales.
+        if hay_metricas_validas:
+            # Registra fuente activa válida para reporting/IA.
+            resultado.fuentes_activas.append("pagespeed")
+        else:
+            # Registra fuente fallida cuando no hay métricas válidas.
+            resultado.fuentes_fallidas.append("pagespeed")
+            # Informa causa general en consola de forma profesional.
+            print("Aviso: no se pudieron obtener métricas válidas de PageSpeed en esta ejecución.")
 
     # Informa cuando no haya clave de PageSpeed y se omita bloque.
     else:

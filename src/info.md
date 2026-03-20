@@ -5,6 +5,7 @@ Contiene el código fuente principal del auditor SEO.
 ## Módulos principales
 - `main.py`: punto de entrada del CLI.
 - `seo_auditor/config.py`: carga segura de configuración (Gemini + PageSpeed + límites).
+- `seo_auditor/config.py`: carga segura de configuración (Gemini + PageSpeed + límites + timeout/reintentos).
 - `seo_auditor/models.py`: modelos tipados de auditoría técnica, rendimiento y metadatos de fuentes activas.
 - `seo_auditor/utils.py`: validación, normalización y utilidades de fecha/slug de dominio.
 - `seo_auditor/fetcher.py`: descarga y parseo de sitemaps y páginas.

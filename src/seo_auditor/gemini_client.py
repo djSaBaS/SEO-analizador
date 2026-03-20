@@ -83,6 +83,7 @@ def construir_contexto_ia(resultado: ResultadoAuditoria, max_muestras: int) -> d
         "fecha_ejecucion": resultado.fecha_ejecucion,
         "gestor": resultado.gestor,
         "fuentes_activas": resultado.fuentes_activas,
+        "fuentes_fallidas": resultado.fuentes_fallidas,
         "total_urls": resultado.total_urls,
         "total_incidencias": sum(contador_problemas.values()),
         "distribucion_severidad": dict(contador_severidad),
@@ -100,6 +101,7 @@ def construir_contexto_ia(resultado: ResultadoAuditoria, max_muestras: int) -> d
         ],
         "quick_wins": quick_wins[:max_muestras],
         "rendimiento": resumen_rendimiento,
+        "pagespeed_estado": resultado.pagespeed_estado,
     }
 
 

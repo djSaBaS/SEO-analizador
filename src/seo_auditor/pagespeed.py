@@ -4,6 +4,9 @@ from urllib.parse import urlparse
 # Importa cliente HTTP para consultar la API pública de Google.
 import requests
 
+# Importa espera para aplicar backoff simple entre reintentos.
+import time
+
 # Importa modelos de rendimiento tipados.
 from seo_auditor.models import OportunidadRendimiento, ResultadoRendimiento
 
@@ -145,7 +148,7 @@ def _extraer_metricas_campo(datos_json: dict) -> tuple[str | None, str | None, s
 
 
 # Ejecuta una consulta de PageSpeed Insights para URL y estrategia.
-def analizar_pagespeed_url(url: str, api_key: str, estrategia: str, timeout: int) -> ResultadoRendimiento:
+def analizar_pagespeed_url(url: str, api_key: str, estrategia: str, timeout: int, reintentos: int) -> ResultadoRendimiento:
     """
     Consulta PageSpeed Insights y devuelve resultados normalizados por estrategia.
     """
@@ -177,56 +180,91 @@ def analizar_pagespeed_url(url: str, api_key: str, estrategia: str, timeout: int
         campo_inp=None,
     )
 
-    # Ejecuta la llamada HTTP a la API pública.
-    try:
-        # Lanza petición GET a la API.
-        respuesta = requests.get(ENDPOINT_PAGESPEED, params=parametros, timeout=timeout)
+    # Itera intentos con backoff simple para robustez ante fallos transitorios.
+    for intento in range(1, reintentos + 2):
+        # Ejecuta la llamada HTTP a la API pública.
+        try:
+            # Lanza petición GET a la API.
+            respuesta = requests.get(ENDPOINT_PAGESPEED, params=parametros, timeout=timeout)
 
-        # Fuerza excepción en códigos HTTP de error.
-        respuesta.raise_for_status()
+            # Fuerza excepción en códigos HTTP de error.
+            respuesta.raise_for_status()
 
-        # Convierte la respuesta JSON a diccionario.
-        datos_json = respuesta.json()
+            # Convierte la respuesta JSON a diccionario.
+            datos_json = respuesta.json()
 
-        # Obtiene bloque principal Lighthouse.
-        lighthouse = datos_json.get("lighthouseResult", {})
+            # Obtiene bloque principal Lighthouse.
+            lighthouse = datos_json.get("lighthouseResult", {})
 
-        # Obtiene categorías de score.
-        categorias = lighthouse.get("categories", {}) if isinstance(lighthouse, dict) else {}
+            # Obtiene categorías de score.
+            categorias = lighthouse.get("categories", {}) if isinstance(lighthouse, dict) else {}
 
-        # Obtiene auditorías detalladas.
-        auditorias = lighthouse.get("audits", {}) if isinstance(lighthouse, dict) else {}
+            # Obtiene auditorías detalladas.
+            auditorias = lighthouse.get("audits", {}) if isinstance(lighthouse, dict) else {}
 
-        # Extrae métricas de campo disponibles.
-        campo_lcp, campo_cls, campo_inp = _extraer_metricas_campo(datos_json)
+            # Extrae métricas de campo disponibles.
+            campo_lcp, campo_cls, campo_inp = _extraer_metricas_campo(datos_json)
 
-        # Devuelve resultado consolidado con métricas clave.
-        return ResultadoRendimiento(
-            url=url,
-            estrategia=estrategia,
-            performance_score=_score_a_100(categorias.get("performance", {}).get("score")),
-            accessibility_score=_score_a_100(categorias.get("accessibility", {}).get("score")),
-            best_practices_score=_score_a_100(categorias.get("best-practices", {}).get("score")),
-            seo_score=_score_a_100(categorias.get("seo", {}).get("score")),
-            lcp=_obtener_metrica(auditorias, "largest-contentful-paint"),
-            cls=_obtener_metrica(auditorias, "cumulative-layout-shift"),
-            inp=_obtener_metrica(auditorias, "interaction-to-next-paint"),
-            fcp=_obtener_metrica(auditorias, "first-contentful-paint"),
-            tbt=_obtener_metrica(auditorias, "total-blocking-time"),
-            speed_index=_obtener_metrica(auditorias, "speed-index"),
-            campo_lcp=campo_lcp,
-            campo_cls=campo_cls,
-            campo_inp=campo_inp,
-            oportunidades=_extraer_oportunidades(auditorias, 6),
-        )
+            # Construye resultado consolidado con métricas clave.
+            resultado = ResultadoRendimiento(
+                url=url,
+                estrategia=estrategia,
+                performance_score=_score_a_100(categorias.get("performance", {}).get("score")),
+                accessibility_score=_score_a_100(categorias.get("accessibility", {}).get("score")),
+                best_practices_score=_score_a_100(categorias.get("best-practices", {}).get("score")),
+                seo_score=_score_a_100(categorias.get("seo", {}).get("score")),
+                lcp=_obtener_metrica(auditorias, "largest-contentful-paint"),
+                cls=_obtener_metrica(auditorias, "cumulative-layout-shift"),
+                inp=_obtener_metrica(auditorias, "interaction-to-next-paint"),
+                fcp=_obtener_metrica(auditorias, "first-contentful-paint"),
+                tbt=_obtener_metrica(auditorias, "total-blocking-time"),
+                speed_index=_obtener_metrica(auditorias, "speed-index"),
+                campo_lcp=campo_lcp,
+                campo_cls=campo_cls,
+                campo_inp=campo_inp,
+                oportunidades=_extraer_oportunidades(auditorias, 6),
+            )
 
-    # Maneja error de red/API sin romper la ejecución completa.
-    except Exception as exc:
-        # Registra el error controlado en el objeto de salida.
-        resultado_error.error = str(exc)
+            # Valida que exista al menos una métrica clave útil.
+            if any(
+                valor is not None
+                for valor in [
+                    resultado.performance_score,
+                    resultado.accessibility_score,
+                    resultado.best_practices_score,
+                    resultado.seo_score,
+                    resultado.lcp,
+                    resultado.cls,
+                    resultado.inp,
+                    resultado.fcp,
+                    resultado.tbt,
+                    resultado.speed_index,
+                ]
+            ):
+                # Devuelve resultado válido cuando hay datos útiles.
+                return resultado
 
-        # Devuelve resultado con error sin lanzar excepción aguas arriba.
-        return resultado_error
+            # Define error explícito cuando la respuesta no trae métricas útiles.
+            raise ValueError("PageSpeed respondió sin métricas útiles.")
+
+        # Maneja error de red/API sin romper la ejecución completa.
+        except Exception as exc:
+            # Registra error de intento para trazabilidad.
+            resultado_error.error = f"intento {intento}/{reintentos + 1}: {exc}"
+
+            # Espera backoff simple cuando aún queden reintentos.
+            if intento <= reintentos:
+                # Aplica una pausa incremental antes del siguiente intento.
+                time.sleep(float(intento))
+
+                # Continúa al siguiente intento configurado.
+                continue
+
+            # Devuelve resultado con error final tras agotar reintentos.
+            return resultado_error
+
+    # Devuelve error de seguridad si no se obtuvo salida en el bucle.
+    return resultado_error
 
 
 # Detecta la home a partir del dominio base o del conjunto de URLs.

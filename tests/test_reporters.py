@@ -326,3 +326,76 @@ def test_exportar_excel_aplica_color_por_severidad(tmp_path: Path) -> None:
 
     # Verifica que se haya aplicado un color distinto a blanco.
     assert "FDECEA" in color
+
+
+# Verifica que la sección de rendimiento no use valores None como datos reales.
+def test_construir_bloques_narrativos_rendimiento_fallido_muestra_mensaje_profesional() -> None:
+    """Comprueba que, ante fallo de PageSpeed, se renderice mensaje profesional y no valores vacíos."""
+
+    # Construye auditoría mínima con estado fallido de PageSpeed.
+    auditoria = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=1,
+        resultados=[],
+        cliente="Ejemplo",
+        fecha_ejecucion="2026-03-20",
+        gestor="Gestor",
+        fuentes_fallidas=["pagespeed"],
+        pagespeed_estado={"https://ejemplo.com/": {"mobile": "timeout"}},
+    )
+
+    # Genera bloques narrativos.
+    bloques = _construir_bloques_narrativos(auditoria)
+
+    # Consolida sección de rendimiento.
+    texto = " ".join(bloques["Rendimiento y experiencia de usuario"])
+
+    # Verifica mensaje profesional de indisponibilidad.
+    assert "No se pudieron obtener métricas de PageSpeed" in texto
+
+
+# Verifica que la tabla de rendimiento se cree con rango válido.
+def test_exportar_excel_tabla_rendimiento_valida(tmp_path: Path) -> None:
+    """Comprueba que la tabla de rendimiento exista y tenga rango consistente."""
+
+    # Construye auditoría con una fila de rendimiento para crear tabla.
+    auditoria = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=1,
+        resultados=[],
+        cliente="Ejemplo",
+        fecha_ejecucion="2026-03-20",
+        gestor="Gestor",
+        rendimiento=[
+            ResultadoRendimiento(
+                url="https://ejemplo.com",
+                estrategia="mobile",
+                performance_score=80.0,
+                accessibility_score=90.0,
+                best_practices_score=90.0,
+                seo_score=95.0,
+                lcp="2,0 s",
+                cls="0,05",
+                inp="200 ms",
+                fcp="1,0 s",
+                tbt="80 ms",
+                speed_index="1,5 s",
+                campo_lcp=None,
+                campo_cls=None,
+                campo_inp=None,
+            )
+        ],
+    )
+
+    # Exporta Excel para inspección de tabla.
+    ruta_excel = exportar_excel(auditoria, tmp_path)
+
+    # Carga libro generado.
+    libro = load_workbook(ruta_excel)
+
+    # Obtiene hoja de rendimiento.
+    rendimiento = libro["Rendimiento"]
+
+    # Verifica existencia de tabla y rango válido esperado.
+    assert "TablaRendimiento" in rendimiento.tables
+    assert rendimiento.tables["TablaRendimiento"].ref == "A1:T2"

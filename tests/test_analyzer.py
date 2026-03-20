@@ -2,7 +2,7 @@
 from seo_auditor.models import HallazgoSeo, ResultadoAuditoria, ResultadoUrl
 
 # Importa funciones a validar del analizador.
-from seo_auditor.analyzer import clasificar_hallazgo
+from seo_auditor.analyzer import _es_redireccion_solo_slash, clasificar_hallazgo
 
 # Importa el exportador tabular para validar la salida.
 from seo_auditor.reporters import construir_filas
@@ -74,3 +74,14 @@ def test_clasificar_hallazgo_detecta_5xx_como_critica() -> None:
 
     # Verifica que el nivel de severidad sea crítica.
     assert clasificacion["severidad"] == "crítica", "Un error 5xx debe ser clasificado como crítica."
+
+
+# Verifica que la normalización de slash se detecte como redirección trivial.
+def test_es_redireccion_solo_slash_detecta_normalizacion() -> None:
+    """Comprueba que la comparación de slash final detecte cambios triviales."""
+
+    # Evalúa origen sin slash y destino con slash.
+    resultado = _es_redireccion_solo_slash("https://ejemplo.com/pagina", "https://ejemplo.com/pagina/")
+
+    # Verifica detección correcta de redirección trivial.
+    assert resultado is True

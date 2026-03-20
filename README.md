@@ -20,6 +20,8 @@ Herramienta de auditoría SEO técnica y ejecutiva para agencia, con exportació
   - `HTTP_TIMEOUT` (opcional)
   - `MAX_URLS` (opcional)
   - `MAX_PAGESPEED_URLS` (opcional)
+  - `PAGESPEED_TIMEOUT` (opcional, recomendado `45`)
+  - `PAGESPEED_REINTENTOS` (opcional, recomendado `2`)
 
 ## Dónde configurar las API keys
 - Debes definir las claves en tu archivo `.env` (o en variables de entorno del sistema), **no** en `config.py`.
@@ -27,6 +29,8 @@ Herramienta de auditoría SEO técnica y ejecutiva para agencia, con exportació
 - Ejemplo mínimo en `.env`:
   - `GEMINI_API_KEY=tu_clave`
   - `PAGESPEED_API_KEY=tu_clave`
+  - `PAGESPEED_TIMEOUT=45`
+  - `PAGESPEED_REINTENTOS=2`
 
 ## Ejecución básica
 ```bash
@@ -50,6 +54,8 @@ python src/main.py --testia --modelo-ia gemini-2.0-flash
 - `--pagepsi <url>`: analiza solo esa URL en PageSpeed (mobile+desktop).
 - `--pagepsi-list <archivo>`: analiza lista de URLs (una por línea).
 - `--max-pagepsi-urls N`: limita URLs de PageSpeed para esa ejecución.
+- `--pagepsi-timeout N`: timeout de PageSpeed para esa ejecución.
+- `--pagepsi-reintentos N`: reintentos de PageSpeed para esa ejecución.
 
 ## Comportamiento de PageSpeed
 - Si existe `PAGESPEED_API_KEY` y no se indica nada, analiza solo la HOME.

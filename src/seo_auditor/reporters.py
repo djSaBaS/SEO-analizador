@@ -443,15 +443,25 @@ def _construir_bloques_narrativos(resultado: ResultadoAuditoria) -> dict[str, li
 
     # Construye fallback de rendimiento y experiencia de usuario.
     if not bloques["Rendimiento y experiencia de usuario"]:
-        # Inserta resumen de PageSpeed cuando exista información.
-        for fila in filas_rendimiento[:5]:
+        # Filtra filas con métricas reales de rendimiento.
+        filas_metricas_validas = [fila for fila in filas_rendimiento if isinstance(fila.get("performance_score"), (int, float))]
+
+        # Inserta resumen de PageSpeed cuando exista información válida.
+        for fila in filas_metricas_validas[:5]:
             # Añade línea compacta con score y oportunidad.
             bloques["Rendimiento y experiencia de usuario"].append(f"{fila['url']} [{fila['estrategia']}] score={fila['performance_score']} oportunidad={fila['oportunidad'] or 'sin oportunidad destacada'}")
 
-        # Añade mensaje neutro cuando no hay datos de rendimiento.
+        # Añade mensaje profesional cuando no hay datos válidos.
         if not bloques["Rendimiento y experiencia de usuario"]:
-            # Inserta texto de continuidad operativa.
-            bloques["Rendimiento y experiencia de usuario"].append("No se han recibido datos de PageSpeed en esta ejecución.")
+            # Determina si hubo fallos explícitos de PageSpeed.
+            hubo_fallo_pagespeed = "pagespeed" in resultado.fuentes_fallidas or bool(resultado.pagespeed_estado)
+
+            # Inserta mensaje específico según disponibilidad.
+            bloques["Rendimiento y experiencia de usuario"].append(
+                "No se pudieron obtener métricas de PageSpeed en esta ejecución por timeout o error de la API."
+                if hubo_fallo_pagespeed
+                else "No se han recibido datos de PageSpeed en esta ejecución."
+            )
 
     # Construye fallback de roadmap cuando IA no lo entregue.
     if not bloques["Roadmap"]:
@@ -483,11 +493,13 @@ def exportar_json(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
         "gestor": resultado.gestor,
         "fecha_ejecucion": resultado.fecha_ejecucion,
         "fuentes_activas": resultado.fuentes_activas,
+        "fuentes_fallidas": resultado.fuentes_fallidas,
         "total_urls": resultado.total_urls,
         "resumen_ia": resultado.resumen_ia,
         "metricas": calcular_metricas(resultado),
         "resultados": construir_filas(resultado),
         "rendimiento": construir_filas_rendimiento(resultado),
+        "pagespeed_estado": resultado.pagespeed_estado,
     }
 
     # Escribe el JSON con codificación UTF-8 legible.
@@ -654,8 +666,10 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
         # Aplica altura de lectura a filas.
         hoja_rendimiento.row_dimensions[indice_fila].height = 34
 
-    # Activa filtros en la hoja de rendimiento.
-    hoja_rendimiento.auto_filter.ref = f"A1:T{max(2, len(filas_rendimiento) + 1)}"
+    # Activa filtros en la hoja de rendimiento solo cuando no exista tabla.
+    if not filas_rendimiento:
+        # Aplica filtro simple sobre el encabezado cuando no hay tabla.
+        hoja_rendimiento.auto_filter.ref = "A1:T1"
 
     # Congela paneles en rendimiento.
     hoja_rendimiento.freeze_panes = "A2"
@@ -931,10 +945,25 @@ def exportar_word(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
 
         # Inserta bloque específico de rendimiento.
         if titulo_seccion == "Rendimiento y experiencia de usuario":
-            # Recorre resultados de rendimiento resumidos.
-            for item in resultado.rendimiento[:8]:
+            # Filtra resultados con métricas válidas para evitar `None` en informe.
+            rendimiento_valido = [item for item in resultado.rendimiento if not item.error and isinstance(item.performance_score, (int, float))]
+
+            # Recorre resultados de rendimiento resumidos cuando existan.
+            for item in rendimiento_valido[:8]:
                 # Inserta párrafo de métricas clave por estrategia.
-                documento.add_paragraph(f"{item.url} [{item.estrategia}] · performance={item.performance_score} · seo={item.seo_score} · LCP={item.lcp} · CLS={item.cls} · INP={item.inp}")
+                documento.add_paragraph(f"{item.url} [{item.estrategia}] · performance={item.performance_score} · seo={item.seo_score} · LCP={item.lcp or 'N/D'} · CLS={item.cls or 'N/D'} · INP={item.inp or 'N/D'}")
+
+            # Inserta mensaje profesional cuando no hay datos válidos.
+            if not rendimiento_valido:
+                # Redacta mensaje según tipo de fallo/ausencia.
+                mensaje = (
+                    "No se pudieron obtener métricas de PageSpeed en esta ejecución por timeout o error de la API."
+                    if "pagespeed" in resultado.fuentes_fallidas or resultado.pagespeed_estado
+                    else "No hay datos de rendimiento disponibles en esta ejecución."
+                )
+
+                # Añade mensaje al documento.
+                documento.add_paragraph(mensaje)
 
             # Continúa con siguiente sección.
             continue
@@ -1031,10 +1060,25 @@ def exportar_pdf(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
 
         # Inserta resumen de rendimiento.
         if titulo_seccion == "Rendimiento y experiencia de usuario":
-            # Recorre resultados de rendimiento.
-            for item in resultado.rendimiento[:8]:
+            # Filtra resultados con métricas válidas para evitar `None` en informe.
+            rendimiento_valido = [item for item in resultado.rendimiento if not item.error and isinstance(item.performance_score, (int, float))]
+
+            # Recorre resultados de rendimiento cuando existan datos reales.
+            for item in rendimiento_valido[:8]:
                 # Inserta línea de métricas clave.
-                elementos.append(Paragraph(sanear_texto_para_pdf(f"{item.url} [{item.estrategia}] performance={item.performance_score} seo={item.seo_score} LCP={item.lcp} CLS={item.cls} INP={item.inp}"), estilos["Normal"]))
+                elementos.append(Paragraph(sanear_texto_para_pdf(f"{item.url} [{item.estrategia}] performance={item.performance_score} seo={item.seo_score} LCP={item.lcp or 'N/D'} CLS={item.cls or 'N/D'} INP={item.inp or 'N/D'}"), estilos["Normal"]))
+
+            # Inserta mensaje profesional cuando no hay datos válidos.
+            if not rendimiento_valido:
+                # Redacta mensaje según tipo de fallo/ausencia.
+                mensaje = (
+                    "No se pudieron obtener métricas de PageSpeed en esta ejecución por timeout o error de la API."
+                    if "pagespeed" in resultado.fuentes_fallidas or resultado.pagespeed_estado
+                    else "No hay datos de rendimiento disponibles en esta ejecución."
+                )
+
+                # Añade mensaje saneado al PDF.
+                elementos.append(Paragraph(sanear_texto_para_pdf(mensaje), estilos["Normal"]))
 
             # Salta a siguiente sección.
             continue

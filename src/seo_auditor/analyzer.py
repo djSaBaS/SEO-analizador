@@ -25,6 +25,7 @@ def clasificar_hallazgo(tipo: str, descripcion: str) -> dict[str, str]:
         ("5xx", {"severidad": "crítica", "area": "Infraestructura", "impacto": "Muy alto", "esfuerzo": "Medio", "prioridad": "P1"}),
         ("4xx", {"severidad": "alta", "area": "Indexación", "impacto": "Alto", "esfuerzo": "Bajo", "prioridad": "P1"}),
         ("redirección", {"severidad": "alta", "area": "Arquitectura", "impacto": "Alto", "esfuerzo": "Bajo", "prioridad": "P1"}),
+        ("slash final", {"severidad": "baja", "area": "Arquitectura", "impacto": "Bajo", "esfuerzo": "Bajo", "prioridad": "P3"}),
         ("canonical incoherente", {"severidad": "alta", "area": "Indexación", "impacto": "Alto", "esfuerzo": "Medio", "prioridad": "P1"}),
         ("noindex", {"severidad": "alta", "area": "Indexación", "impacto": "Alto", "esfuerzo": "Bajo", "prioridad": "P1"}),
         ("title", {"severidad": "alta", "area": "Contenido", "impacto": "Alto", "esfuerzo": "Bajo", "prioridad": "P2"}),
@@ -78,6 +79,22 @@ def extraer_meta(html: BeautifulSoup, nombre: str) -> str:
 
     # Devuelve el contenido si la etiqueta existe y contiene el atributo esperado.
     return etiqueta.get("content", "").strip() if etiqueta else ""
+
+
+# Determina si una redirección es solo normalización de slash final.
+def _es_redireccion_solo_slash(url_origen: str, url_destino: str) -> bool:
+    """
+    Evalúa si el cambio entre origen y destino es únicamente barra final.
+    """
+
+    # Limpia barra final para comparar rutas equivalentes.
+    origen_limpio = url_origen.rstrip("/")
+
+    # Limpia barra final de la URL de destino.
+    destino_limpio = url_destino.rstrip("/")
+
+    # Compara ambos valores para detectar normalización trivial.
+    return origen_limpio == destino_limpio
 
 
 # Analiza una sola URL y genera un resultado técnico.
@@ -142,14 +159,25 @@ def auditar_url(url: str, timeout: int) -> ResultadoUrl:
 
         # Añade hallazgo si la página redirige.
         if len(respuesta.history) > 0:
-            # Registra un problema de redirección para priorizar limpieza.
-            hallazgos.append(
-                crear_hallazgo(
-                    tipo="indexación",
-                    descripcion="La URL devuelve una redirección y debería apuntar directamente al destino final.",
-                    recomendacion="Revisar enlaces internos, sitemap y canonicals para apuntar a la URL final.",
+            # Detecta si la redirección es solo por slash final.
+            if _es_redireccion_solo_slash(url, str(respuesta.url)):
+                # Registra incidencia leve para evitar sobredimensionar el informe.
+                hallazgos.append(
+                    crear_hallazgo(
+                        tipo="indexación",
+                        descripcion="La URL redirecciona solo para normalizar slash final.",
+                        recomendacion="Unificar enlazado interno y sitemap con la versión final para reducir saltos innecesarios.",
+                    )
                 )
-            )
+            else:
+                # Registra un problema de redirección relevante.
+                hallazgos.append(
+                    crear_hallazgo(
+                        tipo="indexación",
+                        descripcion="La URL devuelve una redirección y debería apuntar directamente al destino final.",
+                        recomendacion="Revisar enlaces internos, sitemap y canonicals para apuntar a la URL final.",
+                    )
+                )
 
         # Añade hallazgo si el title está vacío.
         if not title:

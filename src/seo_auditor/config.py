@@ -37,6 +37,12 @@ class Configuracion:
     # Guarda el límite máximo de URLs para PageSpeed.
     max_pagepsi_urls: int
 
+    # Guarda el timeout de PageSpeed en segundos.
+    pagespeed_timeout: int
+
+    # Guarda el número de reintentos de PageSpeed.
+    pagespeed_reintentos: int
+
 
 # Carga y valida la configuración desde entorno.
 def cargar_configuracion() -> Configuracion:
@@ -53,6 +59,12 @@ def cargar_configuracion() -> Configuracion:
     # Lee el límite de URLs de PageSpeed o aplica un valor seguro.
     max_pagepsi_texto = os.getenv("MAX_PAGESPEED_URLS", "5")
 
+    # Lee timeout de PageSpeed o aplica valor más robusto.
+    pagespeed_timeout_texto = os.getenv("PAGESPEED_TIMEOUT", "45")
+
+    # Lee reintentos de PageSpeed o aplica valor prudente.
+    pagespeed_reintentos_texto = os.getenv("PAGESPEED_REINTENTOS", "2")
+
     # Valida que el timeout sea un entero positivo razonable.
     if not timeout_texto.isdigit() or int(timeout_texto) <= 0:
         # Corta la ejecución con un mensaje controlado y accionable.
@@ -68,6 +80,16 @@ def cargar_configuracion() -> Configuracion:
         # Corta la ejecución con un mensaje claro y accionable.
         raise ValueError("MAX_PAGESPEED_URLS debe ser un entero positivo.")
 
+    # Valida que el timeout de PageSpeed sea positivo.
+    if not pagespeed_timeout_texto.isdigit() or int(pagespeed_timeout_texto) <= 0:
+        # Corta la ejecución con un mensaje claro y accionable.
+        raise ValueError("PAGESPEED_TIMEOUT debe ser un entero positivo.")
+
+    # Valida que el número de reintentos de PageSpeed sea no negativo.
+    if not pagespeed_reintentos_texto.isdigit() or int(pagespeed_reintentos_texto) < 0:
+        # Corta la ejecución con un mensaje claro y accionable.
+        raise ValueError("PAGESPEED_REINTENTOS debe ser un entero igual o mayor que cero.")
+
     # Devuelve la configuración consolidada del proyecto.
     return Configuracion(
         # Carga la clave de Gemini o deja cadena vacía si no existe.
@@ -82,4 +104,8 @@ def cargar_configuracion() -> Configuracion:
         max_urls=int(max_urls_texto),
         # Convierte el límite de URLs de PageSpeed a entero.
         max_pagepsi_urls=int(max_pagepsi_texto),
+        # Convierte timeout de PageSpeed a entero.
+        pagespeed_timeout=int(pagespeed_timeout_texto),
+        # Convierte reintentos de PageSpeed a entero.
+        pagespeed_reintentos=int(pagespeed_reintentos_texto),
     )

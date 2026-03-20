@@ -1,5 +1,12 @@
 # version.md
 
+## 0.4.3 - 2026-03-20
+- Se corrige el tratamiento de PageSpeed cuando falla por timeout/red: no se marca como fuente activa sin métricas válidas y se registra en `fuentes_fallidas` con `pagespeed_estado` estructurado.
+- Se añaden timeout y reintentos configurables para PageSpeed (`PAGESPEED_TIMEOUT`, `PAGESPEED_REINTENTOS`, `--pagepsi-timeout`, `--pagepsi-reintentos`) con backoff simple y logs de intentos.
+- Se evita renderizar métricas `None` en Word/PDF y se muestra mensaje profesional cuando PageSpeed no está disponible por timeout/error.
+- Se corrige la robustez de Excel para evitar conflictos de tabla/autofiltro y se añaden validaciones automáticas de tabla de rendimiento.
+- Se añaden tests para flujo PageSpeed fallido, mensaje narrativo de rendimiento no disponible y validez de tabla `TablaRendimiento`.
+
 ## 0.4.2 - 2026-03-20
 - Se corrige el flujo funcional de PageSpeed extremo a extremo con trazabilidad de errores por URL/estrategia y fallback a HOME cuando `--pagepsi-list` no aporta URLs válidas.
 - Se añaden barras de progreso en consola para auditoría técnica, ejecución de PageSpeed y exportación de entregables.
