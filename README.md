@@ -6,8 +6,10 @@ Herramienta de auditoría SEO técnica y ejecutiva para agencia, con exportació
 - Analizar sitemaps XML.
 - Auditar URLs y señales SEO on-page.
 - Integrar PageSpeed Insights (móvil/escritorio) con control de alcance.
+- Cachear resultados costosos (PageSpeed e IA) con TTL configurable.
 - Clasificar incidencias automáticamente por severidad, área, impacto, esfuerzo y prioridad.
 - Generar entregables orientados a cliente final sin markdown crudo en DOCX/PDF.
+- Exportar adicionalmente un informe HTML reutilizable.
 - Reducir consumo de tokens en IA mediante contexto agregado.
 
 ## Requisitos
@@ -22,6 +24,7 @@ Herramienta de auditoría SEO técnica y ejecutiva para agencia, con exportació
   - `MAX_PAGESPEED_URLS` (opcional)
   - `PAGESPEED_TIMEOUT` (opcional, recomendado `45`)
   - `PAGESPEED_REINTENTOS` (opcional, recomendado `2`)
+  - `CACHE_TTL_SEGUNDOS` (opcional, recomendado `21600`)
 
 ## Dónde configurar las API keys
 - Debes definir las claves en tu archivo `.env` (o en variables de entorno del sistema), **no** en `config.py`.
@@ -51,6 +54,9 @@ python src/main.py --testia --modelo-ia gemini-2.0-flash
 ## Parámetros CLI clave
 - `--gestor "Nombre Apellidos"`: define gestor del informe.
 - `--max-muestras-ia 15`: limita muestras agregadas enviadas a Gemini.
+- `--modo-rapido`: limita la auditoría técnica a una muestra ligera para demos.
+- `--cache-ttl N`: define TTL de caché local para IA y PageSpeed.
+- `--invalidar-cache`: elimina la caché local antes de ejecutar.
 - `--pagepsi <url>`: analiza solo esa URL en PageSpeed (mobile+desktop).
 - `--pagepsi-list <archivo>`: analiza lista de URLs (una por línea).
 - `--max-pagepsi-urls N`: limita URLs de PageSpeed para esa ejecución.
@@ -68,6 +74,14 @@ python src/main.py --testia --modelo-ia gemini-2.0-flash
 ```text
 <output>/<slug_dominio>/<YYYY-MM-DD>/
 ```
+
+## Canonical: nueva lógica de coherencia
+- Se normalizan esquema, host, puertos por defecto, slash final, query ordenada y fragmento.
+- Nuevos estados:
+  - `diferencia menor normalizable` (baja severidad)
+  - `canonical potencialmente incoherente` (media severidad)
+  - `canonical realmente incoherente` (alta severidad)
+- Si la diferencia es solo slash final y la URL auditada responde 200, no escala automáticamente a alta severidad.
 
 ## Calidad documental
 - Jerarquía fija del informe: portada, resumen, KPIs, hallazgos, quick wins, acciones, rendimiento, roadmap y anexo.

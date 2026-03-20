@@ -43,6 +43,9 @@ class Configuracion:
     # Guarda el número de reintentos de PageSpeed.
     pagespeed_reintentos: int
 
+    # Guarda el TTL por defecto de caché local en segundos.
+    cache_ttl_segundos: int
+
 
 # Carga y valida la configuración desde entorno.
 def cargar_configuracion() -> Configuracion:
@@ -64,6 +67,9 @@ def cargar_configuracion() -> Configuracion:
 
     # Lee reintentos de PageSpeed o aplica valor prudente.
     pagespeed_reintentos_texto = os.getenv("PAGESPEED_REINTENTOS", "2")
+
+    # Lee TTL de caché local o aplica valor equilibrado.
+    cache_ttl_texto = os.getenv("CACHE_TTL_SEGUNDOS", "21600")
 
     # Valida que el timeout sea un entero positivo razonable.
     if not timeout_texto.isdigit() or int(timeout_texto) <= 0:
@@ -90,6 +96,11 @@ def cargar_configuracion() -> Configuracion:
         # Corta la ejecución con un mensaje claro y accionable.
         raise ValueError("PAGESPEED_REINTENTOS debe ser un entero igual o mayor que cero.")
 
+    # Valida que TTL de caché sea no negativo.
+    if not cache_ttl_texto.isdigit() or int(cache_ttl_texto) < 0:
+        # Corta la ejecución con mensaje claro y accionable.
+        raise ValueError("CACHE_TTL_SEGUNDOS debe ser un entero igual o mayor que cero.")
+
     # Devuelve la configuración consolidada del proyecto.
     return Configuracion(
         # Carga la clave de Gemini o deja cadena vacía si no existe.
@@ -108,4 +119,6 @@ def cargar_configuracion() -> Configuracion:
         pagespeed_timeout=int(pagespeed_timeout_texto),
         # Convierte reintentos de PageSpeed a entero.
         pagespeed_reintentos=int(pagespeed_reintentos_texto),
+        # Convierte TTL de caché a entero.
+        cache_ttl_segundos=int(cache_ttl_texto),
     )

@@ -1,6 +1,9 @@
 # Importa el analizador HTML para tipado explícito.
 from bs4 import BeautifulSoup
 
+# Importa utilidades estándar para normalización robusta de URL.
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
+
 # Importa funciones de obtención de HTML.
 from seo_auditor.fetcher import obtener_metadatos_html
 
@@ -26,7 +29,9 @@ def clasificar_hallazgo(tipo: str, descripcion: str) -> dict[str, str]:
         ("4xx", {"severidad": "alta", "area": "Indexación", "impacto": "Alto", "esfuerzo": "Bajo", "prioridad": "P1"}),
         ("redirección", {"severidad": "alta", "area": "Arquitectura", "impacto": "Alto", "esfuerzo": "Bajo", "prioridad": "P1"}),
         ("slash final", {"severidad": "baja", "area": "Arquitectura", "impacto": "Bajo", "esfuerzo": "Bajo", "prioridad": "P3"}),
-        ("canonical incoherente", {"severidad": "alta", "area": "Indexación", "impacto": "Alto", "esfuerzo": "Medio", "prioridad": "P1"}),
+        ("canonical realmente incoherente", {"severidad": "alta", "area": "Indexación", "impacto": "Alto", "esfuerzo": "Medio", "prioridad": "P1"}),
+        ("canonical potencialmente incoherente", {"severidad": "media", "area": "Indexación", "impacto": "Medio", "esfuerzo": "Medio", "prioridad": "P2"}),
+        ("canonical con diferencia menor normalizable", {"severidad": "baja", "area": "Indexación", "impacto": "Bajo", "esfuerzo": "Bajo", "prioridad": "P3"}),
         ("noindex", {"severidad": "alta", "area": "Indexación", "impacto": "Alto", "esfuerzo": "Bajo", "prioridad": "P1"}),
         ("title", {"severidad": "alta", "area": "Contenido", "impacto": "Alto", "esfuerzo": "Bajo", "prioridad": "P2"}),
         ("meta description", {"severidad": "media", "area": "Contenido", "impacto": "Medio", "esfuerzo": "Bajo", "prioridad": "P2"}),
@@ -97,6 +102,76 @@ def _es_redireccion_solo_slash(url_origen: str, url_destino: str) -> bool:
     return origen_limpio == destino_limpio
 
 
+# Normaliza una URL para comparaciones SEO robustas y consistentes.
+def _normalizar_url_comparable(url: str) -> str:
+    """
+    Normaliza esquema, host, puertos, barra final, query y fragmento para comparar URLs.
+    """
+
+    # Parsea la URL de entrada para manipular sus componentes.
+    parseada = urlparse(url.strip())
+
+    # Normaliza esquema en minúsculas.
+    esquema = parseada.scheme.lower()
+
+    # Normaliza hostname en minúsculas.
+    host = (parseada.hostname or "").lower()
+
+    # Lee el puerto explícito cuando exista.
+    puerto = parseada.port
+
+    # Descarta puertos por defecto para evitar falsos positivos.
+    if (esquema == "http" and puerto == 80) or (esquema == "https" and puerto == 443):
+        # Limpia puerto redundante.
+        puerto = None
+
+    # Construye netloc final con puerto solo cuando sea necesario.
+    netloc = f"{host}:{puerto}" if puerto else host
+
+    # Limpia ruta vacía para dejar siempre barra raíz.
+    ruta = parseada.path or "/"
+
+    # Elimina barra final solo cuando no sea la raíz del dominio.
+    if ruta != "/" and ruta.endswith("/"):
+        # Recorta slash final para evitar falsos positivos triviales.
+        ruta = ruta.rstrip("/")
+
+    # Ordena query params para comparación estable.
+    query_ordenada = urlencode(sorted(parse_qsl(parseada.query, keep_blank_values=True)))
+
+    # Reconstruye URL sin fragmento para comparación técnica.
+    return urlunparse((esquema, netloc, ruta, "", query_ordenada, ""))
+
+
+# Clasifica coherencia de canonical considerando normalizaciones SEO comunes.
+def _clasificar_canonical(url_auditada: str, url_final: str, canonical: str, estado_http: int) -> str:
+    """
+    Devuelve `menor`, `potencial` o `incoherente` según el nivel de desviación detectado.
+    """
+
+    # Normaliza la URL auditada para comparación homogénea.
+    auditada_normalizada = _normalizar_url_comparable(url_auditada)
+
+    # Normaliza la URL final servida.
+    final_normalizada = _normalizar_url_comparable(url_final)
+
+    # Normaliza canonical declarada en el HTML.
+    canonical_normalizada = _normalizar_url_comparable(canonical)
+
+    # Detecta canonical autorreferente contra URL auditada o final.
+    if canonical_normalizada in {auditada_normalizada, final_normalizada}:
+        # Clasifica como ajuste menor por consistencia efectiva.
+        return "menor"
+
+    # Evalúa si la diferencia es solo slash final entre canonical y URL de referencia.
+    if canonical_normalizada.rstrip("/") in {auditada_normalizada.rstrip("/"), final_normalizada.rstrip("/")}:
+        # Clasifica como diferencia menor para evitar falsos positivos.
+        return "menor" if estado_http == 200 else "potencial"
+
+    # Evalúa cambio de host/ruta como potencial incoherencia.
+    return "incoherente"
+
+
 # Analiza una sola URL y genera un resultado técnico.
 def auditar_url(url: str, timeout: int) -> ResultadoUrl:
     """
@@ -112,10 +187,10 @@ def auditar_url(url: str, timeout: int) -> ResultadoUrl:
         title = html.title.get_text(strip=True) if html.title else ""
 
         # Busca el primer H1 útil del documento.
-        h1_tag = html.find("h1")
+        h1_tags = html.find_all("h1")
 
         # Extrae el texto del H1 si se ha localizado.
-        h1 = h1_tag.get_text(strip=True) if h1_tag else ""
+        h1 = h1_tags[0].get_text(strip=True) if h1_tags else ""
 
         # Extrae la meta descripción para evaluar completitud on-page.
         meta_description = extraer_meta(html, "description")
@@ -189,6 +264,26 @@ def auditar_url(url: str, timeout: int) -> ResultadoUrl:
                     recomendacion="Definir un title único, descriptivo y alineado con la intención de búsqueda.",
                 )
             )
+        # Añade hallazgo si el title es demasiado corto.
+        elif len(title) < 15:
+            # Señala posible falta de contexto semántico en SERP.
+            hallazgos.append(
+                crear_hallazgo(
+                    tipo="contenido",
+                    descripcion="Title demasiado corto para competir con contexto semántico.",
+                    recomendacion="Ampliar title a un rango orientativo de 15-60 caracteres con intención clara.",
+                )
+            )
+        # Añade hallazgo si el title es demasiado largo.
+        elif len(title) > 60:
+            # Señala riesgo de truncado en snippets.
+            hallazgos.append(
+                crear_hallazgo(
+                    tipo="contenido",
+                    descripcion="Title demasiado largo y con riesgo de truncado en resultados.",
+                    recomendacion="Reducir title a un rango orientativo de 15-60 caracteres priorizando keyword principal.",
+                )
+            )
 
         # Añade hallazgo si el H1 está vacío.
         if not h1:
@@ -200,6 +295,16 @@ def auditar_url(url: str, timeout: int) -> ResultadoUrl:
                     recomendacion="Añadir un H1 único que resuma el propósito principal de la página.",
                 )
             )
+        # Añade hallazgo cuando se detectan múltiples H1 en una misma URL.
+        elif len(h1_tags) > 1:
+            # Señala potencial conflicto jerárquico de encabezados.
+            hallazgos.append(
+                crear_hallazgo(
+                    tipo="contenido",
+                    descripcion="Se detectaron múltiples H1 en la misma página.",
+                    recomendacion="Mantener un único H1 principal y usar H2/H3 para la jerarquía restante.",
+                )
+            )
 
         # Añade hallazgo si la meta descripción está vacía.
         if not meta_description:
@@ -209,6 +314,26 @@ def auditar_url(url: str, timeout: int) -> ResultadoUrl:
                     tipo="contenido",
                     descripcion="La página no tiene meta description.",
                     recomendacion="Añadir una meta description persuasiva y única para mejorar el CTR.",
+                )
+            )
+        # Añade hallazgo si la meta description es demasiado corta.
+        elif len(meta_description) < 70:
+            # Señala oportunidad de mejorar relevancia y CTR.
+            hallazgos.append(
+                crear_hallazgo(
+                    tipo="contenido",
+                    descripcion="Meta description demasiado corta para comunicar valor.",
+                    recomendacion="Ajustar meta description a un rango orientativo de 70-160 caracteres.",
+                )
+            )
+        # Añade hallazgo si la meta description es demasiado larga.
+        elif len(meta_description) > 160:
+            # Señala riesgo de truncado y pérdida de mensaje.
+            hallazgos.append(
+                crear_hallazgo(
+                    tipo="contenido",
+                    descripcion="Meta description demasiado larga y con riesgo de truncado.",
+                    recomendacion="Reducir meta description a un rango orientativo de 70-160 caracteres.",
                 )
             )
 
@@ -223,16 +348,61 @@ def auditar_url(url: str, timeout: int) -> ResultadoUrl:
                 )
             )
 
-        # Añade hallazgo si canonical apunta a otra URL distinta no prevista.
-        if canonical and canonical != url and canonical != str(respuesta.url):
-            # Añade una alerta de canonical potencialmente incoherente.
-            hallazgos.append(
-                crear_hallazgo(
-                    tipo="indexación",
-                    descripcion="Canonical incoherente detectada respecto a la URL final auditada.",
-                    recomendacion="Alinear canonical con la URL indexable preferida y revisar consistencia interna.",
+        # Evalúa coherencia de canonical con normalización robusta cuando exista.
+        if canonical:
+            # Clasifica el nivel real de desviación detectada.
+            estado_canonical = _clasificar_canonical(url, str(respuesta.url), canonical, respuesta.status_code)
+
+            # Registra diferencia menor para trazabilidad sin alarmismo.
+            if estado_canonical == "menor":
+                # Añade hallazgo de baja severidad no bloqueante.
+                hallazgos.append(
+                    crear_hallazgo(
+                        tipo="indexación",
+                        descripcion="Canonical con diferencia menor normalizable respecto a URL auditada/final.",
+                        recomendacion="Unificar formato de canonical (slash final, host y esquema) para consistencia técnica.",
+                    )
                 )
-            )
+
+            # Registra posible incoherencia cuando hay señales mixtas.
+            if estado_canonical == "potencial":
+                # Añade alerta moderada para revisión manual.
+                hallazgos.append(
+                    crear_hallazgo(
+                        tipo="indexación",
+                        descripcion="Canonical potencialmente incoherente por diferencia no crítica de normalización.",
+                        recomendacion="Revisar canonical y redirecciones para confirmar la URL indexable preferida.",
+                    )
+                )
+
+            # Registra incoherencia real para actuación prioritaria.
+            if estado_canonical == "incoherente":
+                # Añade alerta de alta severidad.
+                hallazgos.append(
+                    crear_hallazgo(
+                        tipo="indexación",
+                        descripcion="Canonical realmente incoherente respecto a la URL final indexable.",
+                        recomendacion="Alinear canonical con la URL canónica estratégica y corregir enlazado interno relacionado.",
+                    )
+                )
+
+        # Revisa imágenes sin atributo alt para accesibilidad y SEO semántico.
+        for imagen in html.find_all("img"):
+            # Obtiene atributo alt cuando exista.
+            alt = (imagen.get("alt") or "").strip()
+
+            # Señala imagen sin alt explícito.
+            if not alt:
+                # Añade hallazgo de contenido por accesibilidad/SEO.
+                hallazgos.append(
+                    crear_hallazgo(
+                        tipo="contenido",
+                        descripcion="Imagen sin atributo alt detectada.",
+                        recomendacion="Añadir texto alt descriptivo y contextual en todas las imágenes informativas.",
+                    )
+                )
+                # Limita ruido de hallazgos repetidos por página.
+                break
 
         # Añade hallazgo si la página está marcada como noindex.
         if noindex:
