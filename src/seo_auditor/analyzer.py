@@ -25,6 +25,8 @@ def clasificar_hallazgo(tipo: str, descripcion: str) -> dict[str, str]:
         ("5xx", {"severidad": "crítica", "area": "Infraestructura", "impacto": "Muy alto", "esfuerzo": "Medio", "prioridad": "P1"}),
         ("4xx", {"severidad": "alta", "area": "Indexación", "impacto": "Alto", "esfuerzo": "Bajo", "prioridad": "P1"}),
         ("redirección", {"severidad": "alta", "area": "Arquitectura", "impacto": "Alto", "esfuerzo": "Bajo", "prioridad": "P1"}),
+        ("no se pudo analizar la url", {"severidad": "crítica", "area": "Infraestructura", "impacto": "Muy alto", "esfuerzo": "Medio", "prioridad": "P1"}),
+        ("error de descarga", {"severidad": "crítica", "area": "Infraestructura", "impacto": "Muy alto", "esfuerzo": "Medio", "prioridad": "P1"}),
         ("canonical incoherente", {"severidad": "alta", "area": "Indexación", "impacto": "Alto", "esfuerzo": "Medio", "prioridad": "P1"}),
         ("noindex", {"severidad": "alta", "area": "Indexación", "impacto": "Alto", "esfuerzo": "Bajo", "prioridad": "P1"}),
         ("title", {"severidad": "alta", "area": "Contenido", "impacto": "Alto", "esfuerzo": "Bajo", "prioridad": "P2"}),

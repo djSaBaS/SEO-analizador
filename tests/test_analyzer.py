@@ -74,3 +74,15 @@ def test_clasificar_hallazgo_detecta_5xx_como_critica() -> None:
 
     # Verifica que el nivel de severidad sea crítica.
     assert clasificacion["severidad"] == "crítica", "Un error 5xx debe ser clasificado como crítica."
+
+
+# Verifica que los fallos de descarga no se degraden a informativos.
+def test_clasificar_hallazgo_mantiene_error_descarga_como_critico() -> None:
+    """Comprueba que un fallo de análisis de URL permanezca como crítico/P1."""
+
+    # Clasifica el mensaje utilizado por la ruta de excepción en la auditoría.
+    clasificacion = clasificar_hallazgo("técnico", "No se pudo analizar la URL por un error de descarga o parseo.")
+
+    # Verifica que la severidad y prioridad mantengan tratamiento bloqueante.
+    assert clasificacion["severidad"] == "crítica", "Un fallo de descarga debe mantener severidad crítica."
+    assert clasificacion["prioridad"] == "P1", "Un fallo de descarga debe mantener prioridad P1."
