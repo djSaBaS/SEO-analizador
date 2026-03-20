@@ -10,25 +10,6 @@ from typing import List, Optional
 class HallazgoSeo:
     """
     Representa un problema o recomendación SEO detectada en una URL.
-
-    Parameters
-    ----------
-    tipo : str
-        Categoría del hallazgo.
-    severidad : str
-        Nivel de prioridad operativo.
-    descripcion : str
-        Explicación breve del problema detectado.
-    recomendacion : str
-        Acción concreta recomendada para resolver el problema.
-    area : str
-        Área de trabajo principal a la que impacta la incidencia.
-    impacto : str
-        Impacto estimado de negocio o SEO.
-    esfuerzo : str
-        Esfuerzo estimado para resolver la incidencia.
-    prioridad : str
-        Prioridad de ejecución propuesta.
     """
 
     # Guarda la categoría funcional del hallazgo.
@@ -54,6 +35,88 @@ class HallazgoSeo:
 
     # Guarda la prioridad recomendada de ejecución.
     prioridad: str
+
+
+# Define la estructura de una oportunidad detectada por Lighthouse/PageSpeed.
+@dataclass(slots=True)
+class OportunidadRendimiento:
+    """
+    Representa una oportunidad accionable de optimización de rendimiento.
+    """
+
+    # Guarda el identificador técnico de la oportunidad.
+    id_oportunidad: str
+
+    # Guarda el título legible de la oportunidad.
+    titulo: str
+
+    # Guarda la descripción de negocio/técnica de la oportunidad.
+    descripcion: str
+
+    # Guarda ahorro estimado devuelto por Lighthouse cuando exista.
+    ahorro_estimado: str
+
+    # Guarda una severidad orientativa para seguimiento.
+    severidad: str
+
+
+# Define la estructura de resultados de PageSpeed por URL y estrategia.
+@dataclass(slots=True)
+class ResultadoRendimiento:
+    """
+    Almacena métricas de laboratorio y campo obtenidas desde PageSpeed.
+    """
+
+    # Guarda la URL analizada.
+    url: str
+
+    # Guarda la estrategia usada en la llamada (mobile o desktop).
+    estrategia: str
+
+    # Guarda el score de rendimiento en escala 0-100.
+    performance_score: Optional[float]
+
+    # Guarda el score de accesibilidad en escala 0-100.
+    accessibility_score: Optional[float]
+
+    # Guarda el score de buenas prácticas en escala 0-100.
+    best_practices_score: Optional[float]
+
+    # Guarda el score SEO en escala 0-100.
+    seo_score: Optional[float]
+
+    # Guarda la métrica LCP (laboratorio).
+    lcp: Optional[str]
+
+    # Guarda la métrica CLS (laboratorio).
+    cls: Optional[str]
+
+    # Guarda la métrica INP (laboratorio) cuando exista.
+    inp: Optional[str]
+
+    # Guarda la métrica FCP (laboratorio).
+    fcp: Optional[str]
+
+    # Guarda la métrica TBT (laboratorio) cuando exista.
+    tbt: Optional[str]
+
+    # Guarda la métrica Speed Index (laboratorio).
+    speed_index: Optional[str]
+
+    # Guarda la métrica de campo LCP cuando exista.
+    campo_lcp: Optional[str]
+
+    # Guarda la métrica de campo CLS cuando exista.
+    campo_cls: Optional[str]
+
+    # Guarda la métrica de campo INP cuando exista.
+    campo_inp: Optional[str]
+
+    # Guarda las oportunidades principales detectadas.
+    oportunidades: List[OportunidadRendimiento] = field(default_factory=list)
+
+    # Guarda un error controlado de consulta cuando ocurra.
+    error: Optional[str] = None
 
 
 # Define la estructura de datos de una URL auditada.
@@ -124,6 +187,12 @@ class ResultadoAuditoria:
 
     # Guarda el gestor responsable del informe.
     gestor: str
+
+    # Guarda las fuentes realmente activas en la ejecución.
+    fuentes_activas: List[str] = field(default_factory=lambda: ["sitemap", "rastreo_tecnico", "html"])
+
+    # Guarda los resultados de rendimiento obtenidos desde PageSpeed.
+    rendimiento: List[ResultadoRendimiento] = field(default_factory=list)
 
     # Guarda el informe narrativo opcional generado por IA.
     resumen_ia: Optional[str] = None
