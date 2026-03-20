@@ -142,6 +142,48 @@ def test_construir_bloques_narrativos_generar_fallback_completo() -> None:
 
 
 # Verifica que la media de score de dashboard use ejecuciones únicas.
+
+
+# Verifica que las secciones obligatorias no queden vacías sin IA ni hallazgos.
+def test_construir_bloques_narrativos_sin_ia_ni_hallazgos_mantiene_secciones() -> None:
+    """Comprueba fallback textual de secciones ejecutivas aunque no haya incidencias."""
+
+    # Construye resultado URL sin hallazgos para simular auditoría limpia.
+    resultado_url = ResultadoUrl(
+        url="https://ejemplo.com/limpia",
+        tipo="page",
+        estado_http=200,
+        redirecciona=False,
+        url_final="https://ejemplo.com/limpia",
+        title="Home",
+        h1="Inicio",
+        meta_description="Meta",
+        canonical="https://ejemplo.com/limpia",
+        noindex=False,
+        hallazgos=[],
+    )
+
+    # Crea auditoría sin IA ni rendimiento para validar mensajes por defecto.
+    auditoria = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=1,
+        resultados=[resultado_url],
+        cliente="Ejemplo",
+        fecha_ejecucion="2026-03-20",
+        gestor="Gestor",
+    )
+
+    # Genera bloques narrativos de fallback.
+    bloques = _construir_bloques_narrativos(auditoria)
+
+    # Verifica que secciones ejecutivas críticas mantengan contenido útil.
+    assert bloques["Hallazgos críticos"]
+    assert bloques["Quick wins"]
+    assert bloques["Acciones técnicas"]
+    assert bloques["Acciones de contenido"]
+    assert bloques["Roadmap"]
+
+
 def test_exportar_excel_score_medio_desde_ejecuciones_unicas(tmp_path: Path) -> None:
     """Comprueba que KPI de score medio no se sesgue por número de oportunidades."""
 

@@ -406,6 +406,11 @@ def _construir_bloques_narrativos(resultado: ResultadoAuditoria) -> dict[str, li
             # Añade línea ejecutiva de hallazgo.
             bloques["Hallazgos críticos"].append(f"[{fila['severidad']}] {fila['problema']} ({fila['url']})")
 
+        # Añade fallback profesional cuando no existan hallazgos críticos.
+        if not bloques["Hallazgos críticos"]:
+            # Inserta mensaje de ausencia de riesgos críticos.
+            bloques["Hallazgos críticos"].append("No se detectaron hallazgos críticos en esta ejecución; mantener monitorización activa para prevenir regresiones.")
+
     # Construye fallback de quick wins cuando no exista narrativa IA.
     if not bloques["Quick wins"]:
         # Filtra acciones de bajo esfuerzo y alto impacto.
@@ -415,6 +420,11 @@ def _construir_bloques_narrativos(resultado: ResultadoAuditoria) -> dict[str, li
         for fila in quick_wins[:5]:
             # Añade quick win concreto.
             bloques["Quick wins"].append(f"{fila['recomendacion']} ({fila['url']})")
+
+        # Añade fallback profesional cuando no haya quick wins claros.
+        if not bloques["Quick wins"]:
+            # Inserta recomendación operativa de mejora incremental.
+            bloques["Quick wins"].append("Priorizar mejoras de metadatos y enlazado interno en páginas de mayor tráfico para generar impacto temprano.")
 
     # Construye fallback de acciones técnicas cuando no haya bloque IA.
     if not bloques["Acciones técnicas"]:
@@ -440,6 +450,11 @@ def _construir_bloques_narrativos(resultado: ResultadoAuditoria) -> dict[str, li
         for fila in acciones_contenido[:5]:
             # Añade acción de contenido priorizada.
             bloques["Acciones de contenido"].append(f"{fila['prioridad']}: {fila['recomendacion']}")
+
+        # Añade fallback genérico cuando no haya acciones de contenido explícitas.
+        if not bloques["Acciones de contenido"]:
+            # Inserta recomendación editorial base para sostener calidad.
+            bloques["Acciones de contenido"].append("Definir una hoja de ruta editorial con títulos únicos, cobertura semántica y actualización de contenido obsoleto.")
 
     # Construye fallback de rendimiento y experiencia de usuario.
     if not bloques["Rendimiento y experiencia de usuario"]:
