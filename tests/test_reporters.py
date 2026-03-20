@@ -228,3 +228,101 @@ def test_exportar_excel_score_medio_desde_ejecuciones_unicas(tmp_path: Path) -> 
 
     # Verifica score medio móvil basado en ejecuciones únicas: (50 + 100) / 2 = 75.
     assert hoja_dashboard["B5"].value == 75.0
+
+
+# Verifica que el dashboard conserve los gráficos esperados.
+def test_exportar_excel_dashboard_contiene_graficos(tmp_path: Path) -> None:
+    """Comprueba que el Dashboard exportado tenga gráficos visibles y cargados."""
+
+    # Construye auditoría mínima para exportar Excel.
+    auditoria = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=1,
+        resultados=[
+            ResultadoUrl(
+                url="https://ejemplo.com",
+                tipo="page",
+                estado_http=200,
+                redirecciona=False,
+                url_final="https://ejemplo.com",
+                title="Home",
+                h1="Inicio",
+                meta_description="Meta",
+                canonical="https://ejemplo.com",
+                noindex=False,
+                hallazgos=[],
+            )
+        ],
+        cliente="Ejemplo",
+        fecha_ejecucion="2026-03-20",
+        gestor="Gestor",
+    )
+
+    # Exporta libro para inspeccionar gráficos.
+    ruta_excel = exportar_excel(auditoria, tmp_path)
+
+    # Carga libro recién exportado.
+    libro = load_workbook(ruta_excel)
+
+    # Obtiene hoja dashboard para validar gráficos.
+    dashboard = libro["Dashboard"]
+
+    # Verifica que existan al menos tres gráficos.
+    assert len(dashboard._charts) >= 3
+
+
+# Verifica que la hoja de errores mantenga color por severidad.
+def test_exportar_excel_aplica_color_por_severidad(tmp_path: Path) -> None:
+    """Comprueba que la fila de error reciba un color suave según severidad."""
+
+    # Crea hallazgo de severidad crítica para validar color.
+    hallazgo = HallazgoSeo(
+        tipo="indexación",
+        severidad="crítica",
+        descripcion="Error 5xx.",
+        recomendacion="Corregir servidor.",
+        area="Infraestructura",
+        impacto="Muy alto",
+        esfuerzo="Medio",
+        prioridad="P1",
+    )
+
+    # Construye resultado URL con incidencia crítica.
+    resultado_url = ResultadoUrl(
+        url="https://ejemplo.com",
+        tipo="page",
+        estado_http=500,
+        redirecciona=False,
+        url_final="https://ejemplo.com",
+        title="Home",
+        h1="Inicio",
+        meta_description="Meta",
+        canonical="https://ejemplo.com",
+        noindex=False,
+        hallazgos=[hallazgo],
+    )
+
+    # Construye auditoría para exportación.
+    auditoria = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=1,
+        resultados=[resultado_url],
+        cliente="Ejemplo",
+        fecha_ejecucion="2026-03-20",
+        gestor="Gestor",
+    )
+
+    # Exporta Excel con datos críticos.
+    ruta_excel = exportar_excel(auditoria, tmp_path)
+
+    # Carga libro exportado.
+    libro = load_workbook(ruta_excel)
+
+    # Obtiene hoja de errores.
+    errores = libro["Errores"]
+
+    # Obtiene color de fondo de la primera fila de datos.
+    color = errores["A2"].fill.fgColor.rgb or ""
+
+    # Verifica que se haya aplicado un color distinto a blanco.
+    assert "FDECEA" in color

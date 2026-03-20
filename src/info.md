@@ -10,5 +10,6 @@ Contiene el código fuente principal del auditor SEO.
 - `seo_auditor/fetcher.py`: descarga y parseo de sitemaps y páginas.
 - `seo_auditor/analyzer.py`: análisis SEO y clasificación automática de incidencias.
 - `seo_auditor/pagespeed.py`: integración con API pública de PageSpeed Insights y separación de laboratorio/campo.
+- `seo_auditor/analyzer.py`: análisis SEO por URL con barra de progreso visible durante la auditoría técnica.
 - `seo_auditor/reporters.py`: exportación profesional a JSON, Excel, Word, PDF y Markdown IA, con jerarquía documental estable y sin markdown crudo en entregables finales.
 - `seo_auditor/gemini_client.py`: generación de resumen IA optimizado en tokens y validación de conectividad con `--testia`.

@@ -21,6 +21,13 @@ Herramienta de auditoría SEO técnica y ejecutiva para agencia, con exportació
   - `MAX_URLS` (opcional)
   - `MAX_PAGESPEED_URLS` (opcional)
 
+## Dónde configurar las API keys
+- Debes definir las claves en tu archivo `.env` (o en variables de entorno del sistema), **no** en `config.py`.
+- `config.py` solo carga y valida valores de entorno; por eso puede verse vacío y aun así funcionar si la variable existe en tu entorno.
+- Ejemplo mínimo en `.env`:
+  - `GEMINI_API_KEY=tu_clave`
+  - `PAGESPEED_API_KEY=tu_clave`
+
 ## Ejecución básica
 ```bash
 python src/main.py --sitemap https://www.ejemplo.com/sitemap_index.xml --output ./salidas

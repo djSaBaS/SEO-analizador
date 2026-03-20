@@ -522,14 +522,20 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     # Crea hoja específica de rendimiento.
     hoja_rendimiento = libro.create_sheet("Rendimiento")
 
+    # Crea hoja auxiliar para KPIs y rangos de gráficos.
+    hoja_aux = libro.create_sheet("AuxDashboard")
+
     # Construye filas técnicas y de rendimiento.
     filas = construir_filas(resultado)
 
     # Construye filas de rendimiento.
     filas_rendimiento = construir_filas_rendimiento(resultado)
 
-    # Escribe tabla de errores.
-    encabezados = list(filas[0].keys()) if filas else []
+    # Define columnas fijas de la hoja de errores para mantener estructura estable.
+    columnas_errores = ["url", "url_final", "tipo", "estado_http", "redirecciona", "title", "h1", "meta_description", "canonical", "noindex", "problema", "recomendacion", "severidad", "area", "impacto", "esfuerzo", "prioridad", "estado", "resuelto", "responsable", "observaciones"]
+
+    # Usa columnas fijas como encabezados para escritura tabular.
+    encabezados = columnas_errores
 
     # Recorre encabezados de errores.
     for columna, encabezado in enumerate(encabezados, start=1):
@@ -541,7 +547,7 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
         # Recorre columnas de la fila.
         for columna, encabezado in enumerate(encabezados, start=1):
             # Escribe valor de celda.
-            hoja_errores.cell(row=fila_indice, column=columna, value=fila[encabezado])
+            hoja_errores.cell(row=fila_indice, column=columna, value=fila.get(encabezado, ""))
 
     # Aplica formato básico de encabezado en errores.
     for celda in hoja_errores[1]:
@@ -551,10 +557,13 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
         # Aplica color corporativo.
         celda.fill = PatternFill(fill_type="solid", fgColor="1F4E78")
 
-    # Configura ancho y ajuste de texto en errores.
-    for columna in "ABCDEFGHIJKLMNOPQRSTU":
-        # Establece ancho cómodo por defecto.
-        hoja_errores.column_dimensions[columna].width = 24
+    # Configura ancho de columnas de errores con foco en legibilidad.
+    anchos_errores = {"A": 48, "B": 48, "C": 14, "D": 12, "E": 12, "F": 26, "G": 26, "H": 36, "I": 36, "J": 10, "K": 52, "L": 52, "M": 12, "N": 18, "O": 12, "P": 12, "Q": 12, "R": 14, "S": 10, "T": 20, "U": 36}
+
+    # Recorre anchos definidos y los aplica.
+    for columna, ancho in anchos_errores.items():
+        # Asigna ancho explícito de columna.
+        hoja_errores.column_dimensions[columna].width = ancho
 
     # Ajusta celdas para legibilidad.
     for fila in hoja_errores.iter_rows(min_row=2, max_row=max(2, len(filas) + 1), min_col=1, max_col=max(1, len(encabezados))):
@@ -562,6 +571,33 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
         for celda in fila:
             # Activa ajuste automático de texto.
             celda.alignment = Alignment(wrap_text=True, vertical="top")
+
+    # Ajusta altura de filas para lectura de textos largos.
+    for indice_fila in range(2, max(3, len(filas) + 2)):
+        # Aplica altura moderada para evitar cortes.
+        hoja_errores.row_dimensions[indice_fila].height = 38
+
+    # Aplica color suave por severidad en la hoja de errores.
+    colores_severidad = {"crítica": "FDECEA", "alta": "FCE8E6", "media": "FFF4E5", "baja": "EAF4EC", "informativa": "E8F0FE"}
+
+    # Recorre filas para aplicar color según severidad.
+    for indice_fila in range(2, max(3, len(filas) + 2)):
+        # Calcula índice de columna de severidad de forma estable.
+        indice_columna_severidad = columnas_errores.index("severidad") + 1
+
+        # Obtiene severidad desde su columna real.
+        severidad = str(hoja_errores.cell(row=indice_fila, column=indice_columna_severidad).value or "").lower()
+
+        # Resuelve color asociado a severidad.
+        color = colores_severidad.get(severidad, "FFFFFF")
+
+        # Recorre columnas de la fila para aplicar el color.
+        for indice_columna in range(1, max(1, len(encabezados)) + 1):
+            # Obtiene celda actual para formato.
+            celda = hoja_errores.cell(row=indice_fila, column=indice_columna)
+
+            # Aplica relleno suave según severidad.
+            celda.fill = PatternFill(fill_type="solid", fgColor=color)
 
     # Aplica validación de datos Sí/No en columna resuelto.
     validacion_resuelto = DataValidation(type="list", formula1='"Sí,No"', allow_blank=False)
@@ -571,6 +607,12 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
 
     # Aplica validación al rango de seguimiento.
     validacion_resuelto.add(f"S2:S{max(2, len(filas) + 1)}")
+
+    # Activa filtros en la hoja de errores.
+    hoja_errores.auto_filter.ref = f"A1:U{max(2, len(filas) + 1)}"
+
+    # Congela paneles para mejorar navegación.
+    hoja_errores.freeze_panes = "A2"
 
     # Escribe tabla de rendimiento con esquema obligatorio.
     columnas_rendimiento = ["url", "estrategia", "performance_score", "accessibility_score", "best_practices_score", "seo_score", "lcp", "cls", "inp", "fcp", "speed_index", "oportunidad", "descripcion", "ahorro_estimado", "severidad", "recomendacion", "estado", "resuelto", "responsable", "observaciones"]
@@ -606,6 +648,17 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
         for celda in fila:
             # Configura alineación legible.
             celda.alignment = Alignment(wrap_text=True, vertical="top")
+
+    # Ajusta alturas en rendimiento para mantener legibilidad.
+    for indice_fila in range(2, max(3, len(filas_rendimiento) + 2)):
+        # Aplica altura de lectura a filas.
+        hoja_rendimiento.row_dimensions[indice_fila].height = 34
+
+    # Activa filtros en la hoja de rendimiento.
+    hoja_rendimiento.auto_filter.ref = f"A1:T{max(2, len(filas_rendimiento) + 1)}"
+
+    # Congela paneles en rendimiento.
+    hoja_rendimiento.freeze_panes = "A2"
 
     # Calcula métricas de dashboard.
     metricas = calcular_metricas(resultado)
@@ -658,43 +711,127 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     # Escribe conteo de oportunidades.
     hoja_dashboard["B7"] = len([fila for fila in filas_rendimiento if fila.get("oportunidad")])
 
-    # Prepara tabla auxiliar para gráfico por severidad de rendimiento.
-    severidades_rend = Counter([str(fila.get("severidad", "informativa")).lower() for fila in filas_rendimiento])
+    # Construye distribuciones para gráficos de dashboard.
+    severidades_rend = Counter([str(fila.get("severidad", "informativa")).lower() for fila in filas_rendimiento if fila.get("oportunidad")])
 
-    # Escribe cabecera auxiliar.
-    hoja_dashboard["D3"] = "Severidad"
+    # Construye distribución por tipo de mejora.
+    tipos_mejora = Counter([str(fila.get("oportunidad", "Sin clasificar")).strip() for fila in filas_rendimiento if fila.get("oportunidad")])
 
-    # Escribe cabecera auxiliar de cantidad.
-    hoja_dashboard["E3"] = "Cantidad"
+    # Construye distribución de severidad técnica.
+    severidades_tecnicas = Counter([str(fila.get("severidad", "informativa")).lower() for fila in filas if fila.get("problema")])
 
-    # Recorre severidades estándar.
-    for indice, severidad in enumerate(["crítica", "alta", "media", "baja", "informativa"], start=4):
-        # Escribe nombre de severidad.
-        hoja_dashboard[f"D{indice}"] = severidad
+    # Escribe bloque de severidad de rendimiento en hoja auxiliar.
+    hoja_aux["A1"] = "Severidad rendimiento"
+    hoja_aux["B1"] = "Cantidad"
 
-        # Escribe cantidad asociada.
-        hoja_dashboard[f"E{indice}"] = severidades_rend.get(severidad, 0)
+    # Rellena tabla de severidad de rendimiento.
+    for indice, severidad in enumerate(["crítica", "alta", "media", "baja", "informativa"], start=2):
+        # Escribe etiqueta de severidad.
+        hoja_aux[f"A{indice}"] = severidad
 
-    # Crea gráfico de distribución de severidad.
-    grafico_severidad = PieChart()
+        # Escribe cantidad de oportunidades para la severidad.
+        hoja_aux[f"B{indice}"] = severidades_rend.get(severidad, 0)
 
-    # Define título del gráfico.
-    grafico_severidad.title = "Distribución oportunidades por severidad"
+    # Escribe bloque de severidad técnica en hoja auxiliar.
+    hoja_aux["D1"] = "Severidad técnica"
+    hoja_aux["E1"] = "Cantidad"
 
-    # Carga datos del gráfico.
-    grafico_severidad.add_data(Reference(hoja_dashboard, min_col=5, min_row=3, max_row=8), titles_from_data=True)
+    # Rellena tabla de severidad técnica.
+    for indice, severidad in enumerate(["crítica", "alta", "media", "baja", "informativa"], start=2):
+        # Escribe etiqueta de severidad técnica.
+        hoja_aux[f"D{indice}"] = severidad
 
-    # Carga categorías del gráfico.
-    grafico_severidad.set_categories(Reference(hoja_dashboard, min_col=4, min_row=4, max_row=8))
+        # Escribe cantidad de incidencias técnicas.
+        hoja_aux[f"E{indice}"] = severidades_tecnicas.get(severidad, 0)
+
+    # Escribe bloque de tipos de mejora en hoja auxiliar.
+    hoja_aux["G1"] = "Tipo de mejora"
+    hoja_aux["H1"] = "Cantidad"
+
+    # Recorre tipos de mejora más frecuentes.
+    for indice, (tipo, cantidad) in enumerate(tipos_mejora.most_common(6), start=2):
+        # Escribe etiqueta del tipo de mejora.
+        hoja_aux[f"G{indice}"] = tipo
+
+        # Escribe cantidad del tipo de mejora.
+        hoja_aux[f"H{indice}"] = cantidad
+
+    # Escribe fallback cuando no existan oportunidades.
+    if not tipos_mejora:
+        # Inserta etiqueta por defecto de mejoras.
+        hoja_aux["G2"] = "Sin oportunidades"
+
+        # Inserta valor por defecto.
+        hoja_aux["H2"] = 1
+
+    # Crea gráfico de distribución de severidad de rendimiento.
+    grafico_severidad_rend = PieChart()
+
+    # Define título del gráfico de severidad de rendimiento.
+    grafico_severidad_rend.title = "Severidad oportunidades de rendimiento"
+
+    # Carga datos del gráfico desde hoja auxiliar.
+    grafico_severidad_rend.add_data(Reference(hoja_aux, min_col=2, min_row=1, max_row=6), titles_from_data=True)
+
+    # Carga categorías del gráfico desde hoja auxiliar.
+    grafico_severidad_rend.set_categories(Reference(hoja_aux, min_col=1, min_row=2, max_row=6))
 
     # Fija tamaño visual del gráfico.
-    grafico_severidad.width = 8
+    grafico_severidad_rend.width = 7.2
 
     # Fija altura visual del gráfico.
-    grafico_severidad.height = 6
+    grafico_severidad_rend.height = 5.4
 
     # Inserta gráfico en posición explícita.
-    hoja_dashboard.add_chart(grafico_severidad, "G3")
+    hoja_dashboard.add_chart(grafico_severidad_rend, "D10")
+
+    # Crea gráfico de severidad técnica.
+    grafico_severidad_tecnica = BarChart()
+
+    # Define título del gráfico de severidad técnica.
+    grafico_severidad_tecnica.title = "Incidencias técnicas por severidad"
+
+    # Carga datos del gráfico desde hoja auxiliar.
+    grafico_severidad_tecnica.add_data(Reference(hoja_aux, min_col=5, min_row=1, max_row=6), titles_from_data=True)
+
+    # Carga categorías del gráfico desde hoja auxiliar.
+    grafico_severidad_tecnica.set_categories(Reference(hoja_aux, min_col=4, min_row=2, max_row=6))
+
+    # Ajusta ancho del gráfico.
+    grafico_severidad_tecnica.width = 7.8
+
+    # Ajusta alto del gráfico.
+    grafico_severidad_tecnica.height = 5.4
+
+    # Inserta gráfico en posición explícita.
+    hoja_dashboard.add_chart(grafico_severidad_tecnica, "L10")
+
+    # Crea gráfico de tipos de mejora de rendimiento.
+    grafico_tipos_mejora = BarChart()
+
+    # Define título del gráfico de tipos de mejora.
+    grafico_tipos_mejora.title = "Top tipos de mejora PageSpeed"
+
+    # Determina fila final de tipos de mejora.
+    max_fila_tipos = max(2, 1 + min(6, len(tipos_mejora) if tipos_mejora else 1))
+
+    # Carga datos del gráfico desde hoja auxiliar.
+    grafico_tipos_mejora.add_data(Reference(hoja_aux, min_col=8, min_row=1, max_row=max_fila_tipos), titles_from_data=True)
+
+    # Carga categorías del gráfico desde hoja auxiliar.
+    grafico_tipos_mejora.set_categories(Reference(hoja_aux, min_col=7, min_row=2, max_row=max_fila_tipos))
+
+    # Ajusta ancho del gráfico.
+    grafico_tipos_mejora.width = 16.0
+
+    # Ajusta alto del gráfico.
+    grafico_tipos_mejora.height = 5.8
+
+    # Inserta gráfico en posición explícita.
+    hoja_dashboard.add_chart(grafico_tipos_mejora, "D25")
+
+    # Oculta la hoja auxiliar para no contaminar entregable final.
+    hoja_aux.sheet_state = "hidden"
 
     # Crea tabla Excel en hoja rendimiento cuando haya filas.
     if filas_rendimiento:

@@ -7,8 +7,8 @@ from seo_auditor.fetcher import obtener_metadatos_html
 # Importa tipos del dominio del proyecto.
 from seo_auditor.models import HallazgoSeo, ResultadoAuditoria, ResultadoUrl
 
-# Importa utilidades para clasificación interna.
-from seo_auditor.utils import inferir_tipo_url
+# Importa utilidades para clasificación interna y progreso.
+from seo_auditor.utils import inferir_tipo_url, iterar_con_progreso
 
 
 # Crea una matriz de clasificación SEO transparente y extensible.
@@ -263,8 +263,13 @@ def auditar_urls(sitemap: str, urls: list[str], timeout: int, cliente: str, fech
     Ejecuta la auditoría SEO básica de varias URLs.
     """
 
-    # Analiza cada URL de forma secuencial para una primera versión simple y estable.
-    resultados = [auditar_url(url, timeout) for url in urls]
+    # Inicializa la colección de resultados de URLs auditadas.
+    resultados: list[ResultadoUrl] = []
+
+    # Recorre URLs con barra de progreso visible en consola.
+    for url in iterar_con_progreso(urls, "Auditoría técnica", "URL"):
+        # Ejecuta auditoría de la URL actual.
+        resultados.append(auditar_url(url, timeout))
 
     # Devuelve el agregado final de la auditoría.
     return ResultadoAuditoria(

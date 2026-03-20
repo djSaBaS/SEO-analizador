@@ -26,7 +26,7 @@ from seo_auditor.pagespeed import analizar_pagespeed_url, detectar_home
 from seo_auditor.reporters import exportar_excel, exportar_json, exportar_markdown_ia, exportar_pdf, exportar_word
 
 # Importa utilidades de entrada, fecha y estructura de salida.
-from seo_auditor.utils import es_url_http_valida, fecha_ejecucion_iso, inferir_cliente_desde_slug, slug_dominio_desde_url
+from seo_auditor.utils import es_url_http_valida, fecha_ejecucion_iso, inferir_cliente_desde_slug, iterar_con_progreso, slug_dominio_desde_url
 
 
 # Define gestor por defecto para metadatos de informe.
@@ -80,6 +80,14 @@ def _resolver_urls_pagespeed(argumentos: argparse.Namespace, sitemap: str, urls_
         # Obtiene URLs desde archivo y aplica deduplicación.
         urls_archivo = _cargar_urls_desde_archivo(argumentos.pagepsi_list)
 
+        # Aplica fallback a HOME cuando el archivo no contenga URLs válidas.
+        if not urls_archivo:
+            # Muestra aviso claro para facilitar depuración.
+            print("Aviso: --pagepsi-list no contiene URLs válidas. Se analizará la HOME por defecto.")
+
+            # Devuelve la home detectada para no dejar el bloque vacío.
+            return [detectar_home(sitemap, urls_sitemap)]
+
         # Aplica límite de control máximo de URLs.
         return urls_archivo[:max_urls]
 
@@ -97,7 +105,7 @@ def _ejecutar_pagespeed(urls: list[str], api_key: str, timeout: int) -> list[Res
     resultados: list[ResultadoRendimiento] = []
 
     # Recorre cada URL objetivo de rendimiento.
-    for url in urls:
+    for url in iterar_con_progreso(urls, "PageSpeed", "URL"):
         # Informa en consola de la URL bajo análisis.
         print(f"  - PageSpeed URL: {url}")
 
@@ -107,7 +115,18 @@ def _ejecutar_pagespeed(urls: list[str], api_key: str, timeout: int) -> list[Res
             print(f"    · estrategia={estrategia}")
 
             # Ejecuta análisis y acumula resultado con manejo interno de errores.
-            resultados.append(analizar_pagespeed_url(url, api_key, estrategia, timeout))
+            resultado = analizar_pagespeed_url(url, api_key, estrategia, timeout)
+
+            # Informa error controlado por URL/estrategia sin detener flujo.
+            if resultado.error:
+                # Muestra aviso de error trazable para depuración.
+                print(f"    · error={resultado.error}")
+            else:
+                # Muestra resumen mínimo de score para trazabilidad.
+                print(f"    · performance={resultado.performance_score} seo={resultado.seo_score}")
+
+            # Añade resultado a la colección consolidada.
+            resultados.append(resultado)
 
     # Devuelve colección completa de resultados de rendimiento.
     return resultados
@@ -329,20 +348,22 @@ def main() -> int:
     # Informa progreso de exportación de entregables.
     print("[5/6] Exportando entregables profesionales...")
 
-    # Exporta el resultado técnico a JSON.
-    exportar_json(resultado, carpeta_salida)
+    # Define tareas de exportación para ejecutar con progreso controlado.
+    tareas_exportacion = [
+        ("JSON técnico", lambda: exportar_json(resultado, carpeta_salida)),
+        ("Excel", lambda: exportar_excel(resultado, carpeta_salida)),
+        ("Word", lambda: exportar_word(resultado, carpeta_salida)),
+        ("PDF", lambda: exportar_pdf(resultado, carpeta_salida)),
+        ("Markdown IA", lambda: exportar_markdown_ia(resultado, carpeta_salida)),
+    ]
 
-    # Exporta el detalle técnico a Excel.
-    exportar_excel(resultado, carpeta_salida)
+    # Recorre tareas de exportación con barra de progreso.
+    for nombre_tarea, funcion in iterar_con_progreso(tareas_exportacion, "Exportación", "archivo"):
+        # Ejecuta la función de exportación concreta.
+        funcion()
 
-    # Exporta el informe ejecutivo a Word.
-    exportar_word(resultado, carpeta_salida)
-
-    # Exporta el resumen portable a PDF.
-    exportar_pdf(resultado, carpeta_salida)
-
-    # Exporta el informe IA en Markdown cuando exista.
-    exportar_markdown_ia(resultado, carpeta_salida)
+        # Informa tarea completada de forma legible.
+        print(f"  - Exportado: {nombre_tarea}")
 
     # Finaliza con mensaje de éxito y ruta final.
     print(f"[6/6] Auditoría completada. Archivos generados en: {carpeta_salida.resolve()}")
