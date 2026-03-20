@@ -1,58 +1,76 @@
 # Importa el analizador HTML para tipado explícito.
 from bs4 import BeautifulSoup
 
-# Importa tipos del dominio del proyecto.
-from seo_auditor.models import HallazgoSeo, ResultadoAuditoria, ResultadoUrl
-
 # Importa funciones de obtención de HTML.
 from seo_auditor.fetcher import obtener_metadatos_html
+
+# Importa tipos del dominio del proyecto.
+from seo_auditor.models import HallazgoSeo, ResultadoAuditoria, ResultadoUrl
 
 # Importa utilidades para clasificación interna.
 from seo_auditor.utils import inferir_tipo_url
 
 
+# Crea una matriz de clasificación SEO transparente y extensible.
+def clasificar_hallazgo(tipo: str, descripcion: str) -> dict[str, str]:
+    """
+    Clasifica un hallazgo con severidad, área, impacto, esfuerzo y prioridad.
+    """
+
+    # Convierte la descripción a minúsculas para aplicar reglas homogéneas.
+    descripcion_normalizada = descripcion.lower()
+
+    # Define reglas ordenadas desde casos más críticos a menos críticos.
+    reglas = [
+        ("5xx", {"severidad": "crítica", "area": "Infraestructura", "impacto": "Muy alto", "esfuerzo": "Medio", "prioridad": "P1"}),
+        ("4xx", {"severidad": "alta", "area": "Indexación", "impacto": "Alto", "esfuerzo": "Bajo", "prioridad": "P1"}),
+        ("redirección", {"severidad": "alta", "area": "Arquitectura", "impacto": "Alto", "esfuerzo": "Bajo", "prioridad": "P1"}),
+        ("canonical incoherente", {"severidad": "alta", "area": "Indexación", "impacto": "Alto", "esfuerzo": "Medio", "prioridad": "P1"}),
+        ("noindex", {"severidad": "alta", "area": "Indexación", "impacto": "Alto", "esfuerzo": "Bajo", "prioridad": "P1"}),
+        ("title", {"severidad": "alta", "area": "Contenido", "impacto": "Alto", "esfuerzo": "Bajo", "prioridad": "P2"}),
+        ("meta description", {"severidad": "media", "area": "Contenido", "impacto": "Medio", "esfuerzo": "Bajo", "prioridad": "P2"}),
+        ("h1", {"severidad": "media", "area": "Contenido", "impacto": "Medio", "esfuerzo": "Bajo", "prioridad": "P2"}),
+        ("canonical", {"severidad": "media", "area": "Indexación", "impacto": "Medio", "esfuerzo": "Bajo", "prioridad": "P2"}),
+        ("menor", {"severidad": "baja", "area": "Calidad", "impacto": "Bajo", "esfuerzo": "Bajo", "prioridad": "P3"}),
+    ]
+
+    # Recorre las reglas en orden para localizar la primera coincidencia.
+    for patron, clasificacion in reglas:
+        # Aplica coincidencia por inclusión simple para facilidad de mantenimiento.
+        if patron in descripcion_normalizada:
+            # Devuelve la clasificación asociada al patrón encontrado.
+            return clasificacion
+
+    # Devuelve una clasificación informativa por defecto cuando no hay coincidencias.
+    return {"severidad": "informativa", "area": tipo.title(), "impacto": "Bajo", "esfuerzo": "Bajo", "prioridad": "P4"}
+
+
 # Añade un hallazgo de forma declarativa y uniforme.
-def crear_hallazgo(tipo: str, severidad: str, descripcion: str, recomendacion: str) -> HallazgoSeo:
+def crear_hallazgo(tipo: str, descripcion: str, recomendacion: str) -> HallazgoSeo:
     """
-    Crea una instancia de hallazgo SEO.
-
-    Parameters
-    ----------
-    tipo : str
-        Categoría del hallazgo.
-    severidad : str
-        Severidad del hallazgo.
-    descripcion : str
-        Descripción del problema.
-    recomendacion : str
-        Acción recomendada.
-
-    Returns
-    -------
-    HallazgoSeo
-        Hallazgo construido de forma uniforme.
+    Crea una instancia de hallazgo SEO aplicando clasificación automática.
     """
+
+    # Calcula la clasificación basada en reglas mantenibles.
+    clasificacion = clasificar_hallazgo(tipo, descripcion)
 
     # Devuelve un objeto normalizado del dominio.
-    return HallazgoSeo(tipo=tipo, severidad=severidad, descripcion=descripcion, recomendacion=recomendacion)
+    return HallazgoSeo(
+        tipo=tipo,
+        severidad=clasificacion["severidad"],
+        descripcion=descripcion,
+        recomendacion=recomendacion,
+        area=clasificacion["area"],
+        impacto=clasificacion["impacto"],
+        esfuerzo=clasificacion["esfuerzo"],
+        prioridad=clasificacion["prioridad"],
+    )
 
 
 # Extrae un valor meta concreto desde el HTML.
 def extraer_meta(html: BeautifulSoup, nombre: str) -> str:
     """
     Obtiene el contenido de una meta etiqueta por atributo `name`.
-
-    Parameters
-    ----------
-    html : BeautifulSoup
-        Documento HTML parseado.
-    nombre : str
-        Valor del atributo `name` a buscar.
-
-    Returns
-    -------
-    str
-        Contenido de la meta si existe o cadena vacía.
     """
 
     # Busca la meta etiqueta por nombre exacto.
@@ -66,18 +84,6 @@ def extraer_meta(html: BeautifulSoup, nombre: str) -> str:
 def auditar_url(url: str, timeout: int) -> ResultadoUrl:
     """
     Analiza una URL y devuelve su resultado técnico SEO básico.
-
-    Parameters
-    ----------
-    url : str
-        URL a analizar.
-    timeout : int
-        Tiempo máximo de espera HTTP.
-
-    Returns
-    -------
-    ResultadoUrl
-        Resultado estructurado del análisis.
     """
 
     # Intenta descargar y analizar la URL con control explícito de errores.
@@ -112,15 +118,36 @@ def auditar_url(url: str, timeout: int) -> ResultadoUrl:
         # Inicializa la colección de hallazgos detectados.
         hallazgos = []
 
+        # Registra código 5xx como incidencia crítica.
+        if respuesta.status_code >= 500:
+            # Añade un hallazgo de servidor no disponible.
+            hallazgos.append(
+                crear_hallazgo(
+                    tipo="técnico",
+                    descripcion="La URL devuelve un error 5xx y no es accesible para rastreo.",
+                    recomendacion="Corregir el error de servidor con prioridad inmediata.",
+                )
+            )
+
+        # Registra código 4xx como incidencia alta.
+        if 400 <= respuesta.status_code < 500:
+            # Añade un hallazgo de recurso no accesible.
+            hallazgos.append(
+                crear_hallazgo(
+                    tipo="indexación",
+                    descripcion="La URL devuelve un error 4xx y aparece en activos auditados.",
+                    recomendacion="Eliminar la URL del sitemap o restaurar una respuesta 200 estable.",
+                )
+            )
+
         # Añade hallazgo si la página redirige.
         if len(respuesta.history) > 0:
             # Registra un problema de redirección para priorizar limpieza.
             hallazgos.append(
                 crear_hallazgo(
                     tipo="indexación",
-                    severidad="alta",
-                    descripcion="La URL devuelve una redirección y no debería indexarse tal cual.",
-                    recomendacion="Revisar enlaces internos, sitemap y canonicals para apuntar siempre a la URL final.",
+                    descripcion="La URL devuelve una redirección y debería apuntar directamente al destino final.",
+                    recomendacion="Revisar enlaces internos, sitemap y canonicals para apuntar a la URL final.",
                 )
             )
 
@@ -130,7 +157,6 @@ def auditar_url(url: str, timeout: int) -> ResultadoUrl:
             hallazgos.append(
                 crear_hallazgo(
                     tipo="contenido",
-                    severidad="alta",
                     descripcion="La página no tiene etiqueta title visible.",
                     recomendacion="Definir un title único, descriptivo y alineado con la intención de búsqueda.",
                 )
@@ -142,7 +168,6 @@ def auditar_url(url: str, timeout: int) -> ResultadoUrl:
             hallazgos.append(
                 crear_hallazgo(
                     tipo="contenido",
-                    severidad="media",
                     descripcion="La página no tiene encabezado H1.",
                     recomendacion="Añadir un H1 único que resuma el propósito principal de la página.",
                 )
@@ -154,7 +179,6 @@ def auditar_url(url: str, timeout: int) -> ResultadoUrl:
             hallazgos.append(
                 crear_hallazgo(
                     tipo="contenido",
-                    severidad="media",
                     descripcion="La página no tiene meta description.",
                     recomendacion="Añadir una meta description persuasiva y única para mejorar el CTR.",
                 )
@@ -166,9 +190,19 @@ def auditar_url(url: str, timeout: int) -> ResultadoUrl:
             hallazgos.append(
                 crear_hallazgo(
                     tipo="técnico",
-                    severidad="media",
                     descripcion="La página no declara canonical.",
                     recomendacion="Definir canonical autorreferente o consolidada según la estrategia de indexación.",
+                )
+            )
+
+        # Añade hallazgo si canonical apunta a otra URL distinta no prevista.
+        if canonical and canonical != url and canonical != str(respuesta.url):
+            # Añade una alerta de canonical potencialmente incoherente.
+            hallazgos.append(
+                crear_hallazgo(
+                    tipo="indexación",
+                    descripcion="Canonical incoherente detectada respecto a la URL final auditada.",
+                    recomendacion="Alinear canonical con la URL indexable preferida y revisar consistencia interna.",
                 )
             )
 
@@ -178,35 +212,23 @@ def auditar_url(url: str, timeout: int) -> ResultadoUrl:
             hallazgos.append(
                 crear_hallazgo(
                     tipo="indexación",
-                    severidad="alta",
                     descripcion="La página está marcada como noindex.",
-                    recomendacion="Confirmar si debe excluirse del índice o retirar la directiva si la página es estratégica.",
+                    recomendacion="Confirmar si debe excluirse del índice o retirar la directiva si es estratégica.",
                 )
             )
 
         # Devuelve el resultado consolidado de la URL.
         return ResultadoUrl(
-            # Guarda la URL original auditada.
             url=url,
-            # Infiere el tipo lógico de recurso.
             tipo=inferir_tipo_url(url),
-            # Guarda el código HTTP final observado.
             estado_http=respuesta.status_code,
-            # Indica si hubo redirección.
             redirecciona=len(respuesta.history) > 0,
-            # Guarda la URL final resuelta por HTTP.
             url_final=str(respuesta.url),
-            # Guarda el title extraído del documento.
             title=title,
-            # Guarda el H1 principal extraído.
             h1=h1,
-            # Guarda la meta description extraída.
             meta_description=meta_description,
-            # Guarda la canonical detectada o None.
             canonical=canonical,
-            # Guarda si existe directiva noindex.
             noindex=noindex,
-            # Guarda todos los hallazgos acumulados.
             hallazgos=hallazgos,
         )
 
@@ -214,62 +236,42 @@ def auditar_url(url: str, timeout: int) -> ResultadoUrl:
     except Exception as exc:
         # Devuelve un resultado seguro y trazable para la URL fallida.
         return ResultadoUrl(
-            # Conserva la URL original para diagnóstico.
             url=url,
-            # Infiere el tipo para no perder contexto.
             tipo=inferir_tipo_url(url),
-            # Usa cero como marcador cuando no se obtuvo respuesta útil.
             estado_http=0,
-            # Indica que no se puede confirmar redirección por error.
             redirecciona=False,
-            # Conserva la URL original como referencia final.
             url_final=url,
-            # Devuelve campos textuales vacíos al no disponer de HTML válido.
             title="",
-            # Devuelve H1 vacío por ausencia de análisis HTML.
             h1="",
-            # Devuelve meta description vacía por ausencia de análisis HTML.
             meta_description="",
-            # Devuelve canonical desconocida.
             canonical=None,
-            # Marca noindex como falso por falta de evidencia.
             noindex=False,
-            # Registra un hallazgo de error técnico accionable.
             hallazgos=[
                 crear_hallazgo(
                     tipo="técnico",
-                    severidad="alta",
                     descripcion="No se pudo analizar la URL por un error de descarga o parseo.",
                     recomendacion="Revisar disponibilidad, certificados, bloqueos WAF o errores del servidor.",
                 )
             ],
-            # Guarda un mensaje controlado y sin secretos del error.
             error=str(exc),
         )
 
 
 # Construye el resultado global a partir de una colección de URLs.
-def auditar_urls(sitemap: str, urls: list[str], timeout: int) -> ResultadoAuditoria:
+def auditar_urls(sitemap: str, urls: list[str], timeout: int, cliente: str, fecha_ejecucion: str, gestor: str) -> ResultadoAuditoria:
     """
     Ejecuta la auditoría SEO básica de varias URLs.
-
-    Parameters
-    ----------
-    sitemap : str
-        Sitemap origen de la ejecución.
-    urls : list[str]
-        URLs a auditar.
-    timeout : int
-        Tiempo máximo por petición HTTP.
-
-    Returns
-    -------
-    ResultadoAuditoria
-        Resultado global de la ejecución.
     """
 
     # Analiza cada URL de forma secuencial para una primera versión simple y estable.
     resultados = [auditar_url(url, timeout) for url in urls]
 
     # Devuelve el agregado final de la auditoría.
-    return ResultadoAuditoria(sitemap=sitemap, total_urls=len(resultados), resultados=resultados)
+    return ResultadoAuditoria(
+        sitemap=sitemap,
+        total_urls=len(resultados),
+        resultados=resultados,
+        cliente=cliente,
+        fecha_ejecucion=fecha_ejecucion,
+        gestor=gestor,
+    )

@@ -1,8 +1,11 @@
-# Importa pytest para escribir aserciones expresivas.
-import pytest
-
 # Importa utilidades del proyecto bajo prueba.
-from seo_auditor.utils import es_url_http_valida, inferir_tipo_url, normalizar_url
+from seo_auditor.utils import (
+    es_url_http_valida,
+    inferir_cliente_desde_slug,
+    inferir_tipo_url,
+    normalizar_url,
+    slug_dominio_desde_url,
+)
 
 
 # Verifica que una URL HTTPS válida sea aceptada.
@@ -58,3 +61,25 @@ def test_inferir_tipo_url_detecta_post() -> None:
 
     # Valida el tipo lógico esperado.
     assert resultado == "post", "Se esperaba el tipo 'post' para una ruta con fecha."
+
+
+# Verifica generación de slug limpio desde sitemap.
+def test_slug_dominio_desde_url_elimina_www_y_tld() -> None:
+    """Comprueba que el slug de dominio sea estable y limpio."""
+
+    # Calcula el slug de un dominio con www y TLD compuesto.
+    resultado = slug_dominio_desde_url("https://www.jmmoldes.com/page-sitemap.xml")
+
+    # Verifica el slug esperado para la carpeta de salida.
+    assert resultado == "jmmoldes", "El slug de dominio no coincide con el valor esperado."
+
+
+# Verifica inferencia de nombre de cliente desde slug.
+def test_inferir_cliente_desde_slug() -> None:
+    """Comprueba la conversión de slug a nombre legible de cliente."""
+
+    # Convierte un slug típico en nombre comercial.
+    resultado = inferir_cliente_desde_slug("mi-cliente")
+
+    # Verifica la salida esperada en formato título.
+    assert resultado == "Mi Cliente", "El nombre inferido del cliente no coincide con el esperado."

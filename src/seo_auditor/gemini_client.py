@@ -1,8 +1,8 @@
 # Importa serialización JSON para enviar contexto técnico a la IA.
 import json
 
-# Importa la utilidad oficial para convertir dataclasses en estructuras serializables.
-from dataclasses import asdict
+# Importa contador para resumir hallazgos por frecuencia.
+from collections import Counter
 
 # Importa el cliente oficial actual de Google Gemini.
 from google import genai
@@ -11,29 +11,81 @@ from google import genai
 from seo_auditor.models import ResultadoAuditoria
 
 
+# Construye un resumen optimizado para consumo eficiente de tokens en IA.
+def construir_contexto_ia(resultado: ResultadoAuditoria, max_muestras: int) -> dict:
+    """
+    Crea un contexto agregado y limitado para reducir coste de tokens.
+    """
+
+    # Inicializa acumuladores de hallazgos por tipo y severidad.
+    contador_problemas: Counter[str] = Counter()
+
+    # Inicializa acumuladores de severidad para visión ejecutiva.
+    contador_severidad: Counter[str] = Counter()
+
+    # Inicializa lista con incidencias por URL para ranking.
+    urls_con_problemas: list[tuple[str, int]] = []
+
+    # Recorre cada resultado para consolidar métricas globales.
+    for item in resultado.resultados:
+        # Cuenta el número de hallazgos detectados por URL.
+        total_hallazgos_url = len(item.hallazgos)
+
+        # Añade la URL y su volumen de incidencias al ranking.
+        urls_con_problemas.append((item.url, total_hallazgos_url))
+
+        # Recorre hallazgos para contar descripciones y severidades.
+        for hallazgo in item.hallazgos:
+            # Incrementa la frecuencia de cada tipo de problema textual.
+            contador_problemas[hallazgo.descripcion] += 1
+
+            # Incrementa la frecuencia de cada severidad clasificada.
+            contador_severidad[hallazgo.severidad] += 1
+
+    # Ordena URLs por mayor número de incidencias.
+    top_urls = sorted(urls_con_problemas, key=lambda item: item[1], reverse=True)
+
+    # Construye un listado de quick wins basado en bajo esfuerzo y alto/medio impacto.
+    quick_wins = []
+
+    # Recorre resultados para detectar incidencias de alto potencial.
+    for item in resultado.resultados:
+        # Recorre hallazgos de la URL actual.
+        for hallazgo in item.hallazgos:
+            # Filtra incidencias de esfuerzo bajo y potencial relevante.
+            if hallazgo.esfuerzo == "Bajo" and hallazgo.impacto in {"Muy alto", "Alto", "Medio"}:
+                # Añade la incidencia al conjunto de quick wins.
+                quick_wins.append({"url": item.url, "problema": hallazgo.descripcion, "recomendacion": hallazgo.recomendacion})
+
+    # Devuelve el contexto agregado y limitado para IA.
+    return {
+        "cliente": resultado.cliente,
+        "sitemap": resultado.sitemap,
+        "fecha_ejecucion": resultado.fecha_ejecucion,
+        "gestor": resultado.gestor,
+        "total_urls": resultado.total_urls,
+        "total_incidencias": sum(contador_problemas.values()),
+        "distribucion_severidad": dict(contador_severidad),
+        "top_problemas": [{"problema": problema, "cantidad": cantidad} for problema, cantidad in contador_problemas.most_common(max_muestras)],
+        "top_urls_afectadas": [{"url": url, "incidencias": incidencias} for url, incidencias in top_urls[:max_muestras]],
+        "muestras_representativas": [
+            {
+                "url": item.url,
+                "estado_http": item.estado_http,
+                "redirecciona": item.redirecciona,
+                "noindex": item.noindex,
+                "hallazgos": [hallazgo.descripcion for hallazgo in item.hallazgos[:3]],
+            }
+            for item in resultado.resultados[:max_muestras]
+        ],
+        "quick_wins": quick_wins[:max_muestras],
+    }
+
+
 # Convierte el resultado técnico en un resumen narrativo con IA.
-def generar_resumen_ia(resultado: ResultadoAuditoria, api_key: str, model_name: str) -> str:
+def generar_resumen_ia(resultado: ResultadoAuditoria, api_key: str, model_name: str, max_muestras: int) -> str:
     """
     Genera un resumen ejecutivo SEO usando Google AI Studio.
-
-    Parameters
-    ----------
-    resultado : ResultadoAuditoria
-        Resultado técnico consolidado de la auditoría.
-    api_key : str
-        Clave de API de Gemini.
-    model_name : str
-        Nombre del modelo configurado.
-
-    Returns
-    -------
-    str
-        Informe textual enriquecido por IA.
-
-    Raises
-    ------
-    ValueError
-        Si no se proporciona clave de API.
     """
 
     # Valida que exista una clave de API antes de llamar al servicio externo.
@@ -44,63 +96,25 @@ def generar_resumen_ia(resultado: ResultadoAuditoria, api_key: str, model_name: 
     # Instancia el cliente del SDK con la clave indicada por entorno.
     cliente = genai.Client(api_key=api_key)
 
-    # Construye una vista resumida y segura de los datos técnicos.
-    datos = {
-        # Incluye el sitemap auditado para contextualizar el dominio o proyecto.
-        "sitemap": resultado.sitemap,
-        # Incluye el número total de URLs analizadas.
-        "total_urls": resultado.total_urls,
-        # Incluye un subconjunto estructurado de resultados con foco ejecutivo.
-        "resultados": [
-            {
-                # Expone la URL auditada como unidad de análisis.
-                "url": item.url,
-                # Expone el tipo lógico inferido de la URL.
-                "tipo": item.tipo,
-                # Expone el código HTTP observado.
-                "estado_http": item.estado_http,
-                # Expone si hubo redirección.
-                "redirecciona": item.redirecciona,
-                # Expone la URL final resuelta.
-                "url_final": item.url_final,
-                # Expone el título para interpretación editorial.
-                "title": item.title,
-                # Expone el H1 para interpretación semántica.
-                "h1": item.h1,
-                # Expone la meta description para interpretación de CTR.
-                "meta_description": item.meta_description,
-                # Expone la canonical declarada si existe.
-                "canonical": item.canonical,
-                # Expone si la página marca noindex.
-                "noindex": item.noindex,
-                # Expone los hallazgos convertidos de forma compatible con dataclasses con slots.
-                "hallazgos": [asdict(hallazgo) for hallazgo in item.hallazgos],
-                # Expone el error controlado de la URL si existe.
-                "error": item.error,
-            }
-            # Recorre cada resultado auditado para incluirlo en el contexto de la IA.
-            for item in resultado.resultados
-        ],
-    }
+    # Construye el contexto resumido de IA con límite de muestras.
+    datos = construir_contexto_ia(resultado, max_muestras)
 
-    # Define un prompt acotado, útil y orientado a negocio.
+    # Define un prompt orientado a negocio y sin relleno.
     prompt = (
-        "Actúa como una agencia SEO senior especializada en auditoría técnica y estratégica. "
-        "A partir de estos datos técnicos en JSON, redacta en español un informe profesional con: "
-        "1) resumen ejecutivo, 2) problemas críticos, 3) quick wins, 4) acciones técnicas, "
-        "5) acciones de contenido, 6) roadmap en corto, medio y largo plazo. "
-        "No inventes datos que no estén soportados por el JSON. "
-        "Datos de la auditoría:\n"
+        "Actúa como consultor SEO senior de agencia. "
+        "Redacta un informe en español profesional natural, sin frases vacías ni repeticiones. "
+        "Usa solo los datos proporcionados, sin inventar información. "
+        "Usa exactamente la fecha de ejecución y el gestor indicados. "
+        "Estructura obligatoria: 1) Resumen ejecutivo, 2) Hallazgos críticos, 3) Quick wins, "
+        "4) Acciones técnicas, 5) Acciones de contenido, 6) Roadmap priorizado (30/60/90 días). "
+        "Separa claramente resumen ejecutivo y anexo técnico. "
+        "No uses placeholders ni texto genérico de IA. "
+        "Datos de auditoría en JSON:\n"
         + json.dumps(datos, ensure_ascii=False)
     )
 
     # Ejecuta la generación del contenido con el modelo indicado.
-    respuesta = cliente.models.generate_content(
-        # Indica el modelo configurado en el entorno.
-        model=model_name,
-        # Envía el prompt como contenido de entrada.
-        contents=prompt,
-    )
+    respuesta = cliente.models.generate_content(model=model_name, contents=prompt)
 
     # Devuelve el texto generado de forma segura y directa.
     return getattr(respuesta, "text", "") or "No se pudo generar el informe con IA."
