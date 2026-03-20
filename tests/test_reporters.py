@@ -227,7 +227,7 @@ def test_exportar_excel_score_medio_desde_ejecuciones_unicas(tmp_path: Path) -> 
     hoja_dashboard = libro["Dashboard"]
 
     # Verifica score medio móvil basado en ejecuciones únicas: (50 + 100) / 2 = 75.
-    assert hoja_dashboard["B5"].value == 75.0
+    assert hoja_dashboard["B12"].value == 75.0
 
 
 # Verifica que el dashboard conserve los gráficos esperados.

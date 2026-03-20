@@ -2,7 +2,7 @@
 from seo_auditor.models import HallazgoSeo, ResultadoAuditoria, ResultadoUrl
 
 # Importa funciones a validar del analizador.
-from seo_auditor.analyzer import _es_redireccion_solo_slash, clasificar_hallazgo
+from seo_auditor.analyzer import _clasificar_canonical, _es_redireccion_solo_slash, _normalizar_url_comparable, clasificar_hallazgo
 
 # Importa el exportador tabular para validar la salida.
 from seo_auditor.reporters import construir_filas
@@ -85,3 +85,36 @@ def test_es_redireccion_solo_slash_detecta_normalizacion() -> None:
 
     # Verifica detección correcta de redirección trivial.
     assert resultado is True
+
+
+# Verifica que la normalización de URL elimine diferencias irrelevantes.
+def test_normalizar_url_comparable_equivalencia_basica() -> None:
+    """Comprueba que esquema/host/puerto/fragmento se normalicen para comparar canonical."""
+
+    # Normaliza URL con mayúsculas, puerto por defecto y fragmento.
+    normalizada = _normalizar_url_comparable("HTTPS://EJEMPLO.COM:443/ruta/?b=2&a=1#seccion")
+
+    # Verifica resultado normalizado esperado.
+    assert normalizada == "https://ejemplo.com/ruta?a=1&b=2"
+
+
+# Verifica que diferencias de slash final no escalen como incoherencia real.
+def test_clasificar_canonical_diferencia_menor_por_slash() -> None:
+    """Comprueba que una diferencia menor de slash final se clasifique como menor."""
+
+    # Evalúa canonical equivalente con slash final en URL 200.
+    estado = _clasificar_canonical("https://ejemplo.com/pagina", "https://ejemplo.com/pagina", "https://ejemplo.com/pagina/", 200)
+
+    # Verifica clasificación de baja severidad.
+    assert estado == "menor"
+
+
+# Verifica que cambios de URL relevantes sí se clasifiquen como incoherencia real.
+def test_clasificar_canonical_incoherente_real() -> None:
+    """Comprueba que una canonical en ruta distinta se marque como incoherente."""
+
+    # Evalúa canonical en ruta diferente y no equivalente.
+    estado = _clasificar_canonical("https://ejemplo.com/a", "https://ejemplo.com/a", "https://ejemplo.com/otra-url", 200)
+
+    # Verifica clasificación de incoherencia real.
+    assert estado == "incoherente"

@@ -7,8 +7,14 @@ import requests
 # Importa espera para aplicar backoff simple entre reintentos.
 import time
 
+# Importa serialización segura de dataclass.
+from dataclasses import asdict
+
 # Importa modelos de rendimiento tipados.
 from seo_auditor.models import OportunidadRendimiento, ResultadoRendimiento
+
+# Importa utilidades de caché local reutilizable.
+from seo_auditor.cache import construir_clave_cache, escribir_cache, leer_cache
 
 
 # Define endpoint oficial de PageSpeed Insights v5.
@@ -148,7 +154,15 @@ def _extraer_metricas_campo(datos_json: dict) -> tuple[str | None, str | None, s
 
 
 # Ejecuta una consulta de PageSpeed Insights para URL y estrategia.
-def analizar_pagespeed_url(url: str, api_key: str, estrategia: str, timeout: int, reintentos: int) -> ResultadoRendimiento:
+def analizar_pagespeed_url(
+    url: str,
+    api_key: str,
+    estrategia: str,
+    timeout: int,
+    reintentos: int,
+    cache_dir=None,
+    cache_ttl_segundos: int = 0,
+) -> ResultadoRendimiento:
     """
     Consulta PageSpeed Insights y devuelve resultados normalizados por estrategia.
     """
@@ -160,6 +174,22 @@ def analizar_pagespeed_url(url: str, api_key: str, estrategia: str, timeout: int
 
     # Construye parámetros de consulta de la API.
     parametros = {"url": url, "strategy": estrategia, "key": api_key}
+
+    # Lee resultado cacheado cuando se habilite caché local.
+    if cache_dir is not None:
+        # Construye clave estable para búsqueda de caché.
+        clave_cache = construir_clave_cache("pagespeed", {"url": url, "estrategia": estrategia})
+
+        # Recupera valor cacheado aún válido por TTL.
+        dato_cache = leer_cache(cache_dir, clave_cache, cache_ttl_segundos)
+
+        # Devuelve resultado cacheado cuando esté disponible.
+        if isinstance(dato_cache, dict):
+            # Reconstruye tipado de oportunidades desde diccionario.
+            oportunidades = [OportunidadRendimiento(**item) for item in dato_cache.get("oportunidades", [])]
+
+            # Reconstruye objeto de dominio para mantener contrato de salida.
+            return ResultadoRendimiento(**{**dato_cache, "oportunidades": oportunidades})
 
     # Inicializa estructura mínima para errores controlados.
     resultado_error = ResultadoRendimiento(
@@ -242,6 +272,31 @@ def analizar_pagespeed_url(url: str, api_key: str, estrategia: str, timeout: int
                 ]
             ):
                 # Devuelve resultado válido cuando hay datos útiles.
+                if cache_dir is not None:
+                    # Persiste el resultado serializable para futuras ejecuciones.
+                    escribir_cache(
+                        cache_dir,
+                        clave_cache,
+                        {
+                            "url": resultado.url,
+                            "estrategia": resultado.estrategia,
+                            "performance_score": resultado.performance_score,
+                            "accessibility_score": resultado.accessibility_score,
+                            "best_practices_score": resultado.best_practices_score,
+                            "seo_score": resultado.seo_score,
+                            "lcp": resultado.lcp,
+                            "cls": resultado.cls,
+                            "inp": resultado.inp,
+                            "fcp": resultado.fcp,
+                            "tbt": resultado.tbt,
+                            "speed_index": resultado.speed_index,
+                            "campo_lcp": resultado.campo_lcp,
+                            "campo_cls": resultado.campo_cls,
+                            "campo_inp": resultado.campo_inp,
+                            "oportunidades": [asdict(oportunidad) for oportunidad in resultado.oportunidades],
+                            "error": resultado.error,
+                        },
+                    )
                 return resultado
 
             # Define error explícito cuando la respuesta no trae métricas útiles.
