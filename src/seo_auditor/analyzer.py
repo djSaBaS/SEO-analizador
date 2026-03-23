@@ -2,7 +2,7 @@
 from bs4 import BeautifulSoup
 
 # Importa utilidades estándar para normalización robusta de URL.
-from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
+from urllib.parse import parse_qsl, urlencode, urljoin, urlparse, urlunparse
 
 # Importa contador para reglas transversales del conjunto auditado.
 from collections import Counter
@@ -209,6 +209,9 @@ def auditar_url(url: str, timeout: int) -> ResultadoUrl:
         # Obtiene el href de la canonical cuando exista.
         canonical = canonical_tag.get("href", "").strip() if canonical_tag else None
 
+        # Resuelve canonicals relativas contra la URL final para comparar correctamente.
+        canonical_absoluta = urljoin(str(respuesta.url), canonical) if canonical else None
+
         # Lee la meta robots para buscar instrucciones noindex.
         robots = extraer_meta(html, "robots").lower()
 
@@ -367,9 +370,9 @@ def auditar_url(url: str, timeout: int) -> ResultadoUrl:
             )
 
         # Evalúa coherencia de canonical con normalización robusta cuando exista.
-        if canonical:
+        if canonical_absoluta:
             # Clasifica el nivel real de desviación detectada.
-            estado_canonical = _clasificar_canonical(url, str(respuesta.url), canonical, respuesta.status_code)
+            estado_canonical = _clasificar_canonical(url, str(respuesta.url), canonical_absoluta, respuesta.status_code)
 
             # Registra diferencia menor para trazabilidad sin alarmismo.
             if estado_canonical == "menor":
