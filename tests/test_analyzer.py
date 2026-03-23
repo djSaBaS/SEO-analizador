@@ -168,13 +168,16 @@ def test_auditar_url_no_reporta_canonical_menor_si_coincide(monkeypatch) -> None
     )
 
     # Simula respuesta HTTP estable sin redirecciones problemáticas.
-    respuesta = SimpleNamespace(status_code=200, url="https://ejemplo.com/pagina")
+    respuesta = SimpleNamespace(status_code=200, url="https://ejemplo.com/pagina", history=[])
 
     # Sustituye descarga real por fixture controlada.
     monkeypatch.setattr("seo_auditor.analyzer.obtener_metadatos_html", lambda *_args, **_kwargs: (respuesta, html))
 
     # Ejecuta auditoría de URL.
     resultado = auditar_url("https://ejemplo.com/pagina", timeout=5)
+
+    # Verifica que no se produjo un resultado de error en la auditoría.
+    assert resultado.estado_http == 200
 
     # Asegura que no se reporta hallazgo de canonical menor.
     assert all("Canonical con diferencia menor" not in hallazgo.descripcion for hallazgo in resultado.hallazgos)
