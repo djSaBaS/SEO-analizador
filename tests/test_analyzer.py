@@ -106,7 +106,18 @@ def test_clasificar_canonical_diferencia_menor_por_slash() -> None:
     estado = _clasificar_canonical("https://ejemplo.com/pagina", "https://ejemplo.com/pagina", "https://ejemplo.com/pagina/", 200)
 
     # Verifica clasificación de baja severidad.
-    assert estado == "menor"
+    assert estado == "coherente"
+
+
+# Verifica que una canonical idéntica se considere coherente.
+def test_clasificar_canonical_coherente_no_genera_desviacion() -> None:
+    """Comprueba que una canonical igual a la URL final no se clasifique como incidencia."""
+
+    # Evalúa canonical autorreferente exacta.
+    estado = _clasificar_canonical("https://ejemplo.com/pagina", "https://ejemplo.com/pagina", "https://ejemplo.com/pagina", 200)
+
+    # Verifica clasificación coherente.
+    assert estado == "coherente"
 
 
 # Verifica que cambios de URL relevantes sí se clasifiquen como incoherencia real.
@@ -118,3 +129,14 @@ def test_clasificar_canonical_incoherente_real() -> None:
 
     # Verifica clasificación de incoherencia real.
     assert estado == "incoherente"
+
+
+# Verifica que puertos inválidos en canonical no rompan toda la auditoría.
+def test_normalizar_url_comparable_tolera_puerto_invalido() -> None:
+    """Comprueba que la normalización no lanza excepción ante puertos malformados."""
+
+    # Normaliza URL con puerto inválido para asegurar tolerancia.
+    normalizada = _normalizar_url_comparable("https://ejemplo.com:abc/ruta")
+
+    # Verifica que se conserve una URL comparable utilizable.
+    assert normalizada == "https://ejemplo.com/ruta"

@@ -117,8 +117,13 @@ def _normalizar_url_comparable(url: str) -> str:
     # Normaliza hostname en minúsculas.
     host = (parseada.hostname or "").lower()
 
-    # Lee el puerto explícito cuando exista.
-    puerto = parseada.port
+    # Lee el puerto explícito cuando exista con tolerancia a valores inválidos.
+    try:
+        # Obtiene puerto parseado de forma segura.
+        puerto = parseada.port
+    except ValueError:
+        # Ignora puerto inválido para no romper la auditoría completa.
+        puerto = None
 
     # Descarta puertos por defecto para evitar falsos positivos.
     if (esquema == "http" and puerto == 80) or (esquema == "https" and puerto == 443):
@@ -146,7 +151,7 @@ def _normalizar_url_comparable(url: str) -> str:
 # Clasifica coherencia de canonical considerando normalizaciones SEO comunes.
 def _clasificar_canonical(url_auditada: str, url_final: str, canonical: str, estado_http: int) -> str:
     """
-    Devuelve `menor`, `potencial` o `incoherente` según el nivel de desviación detectado.
+    Devuelve `coherente`, `menor`, `potencial` o `incoherente` según el nivel de desviación detectado.
     """
 
     # Normaliza la URL auditada para comparación homogénea.
@@ -160,8 +165,8 @@ def _clasificar_canonical(url_auditada: str, url_final: str, canonical: str, est
 
     # Detecta canonical autorreferente contra URL auditada o final.
     if canonical_normalizada in {auditada_normalizada, final_normalizada}:
-        # Clasifica como ajuste menor por consistencia efectiva.
-        return "menor"
+        # Clasifica como coherente para evitar falsos positivos.
+        return "coherente"
 
     # Evalúa si la diferencia es solo slash final entre canonical y URL de referencia.
     if canonical_normalizada.rstrip("/") in {auditada_normalizada.rstrip("/"), final_normalizada.rstrip("/")}:

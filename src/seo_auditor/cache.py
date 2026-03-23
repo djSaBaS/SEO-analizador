@@ -86,13 +86,13 @@ def invalidar_cache(path_cache: Path) -> int:
     # Inicializa contador de archivos eliminados.
     eliminados = 0
 
-    # Recorre únicamente archivos JSON de caché.
-    for archivo in path_cache.glob("*.json"):
+    # Recorre archivos JSON de caché de forma recursiva.
+    for archivo in path_cache.rglob("*.json"):
         # Elimina archivo actual.
         archivo.unlink(missing_ok=True)
 
         # Incrementa contador acumulado.
         eliminados += 1
 
-    # Devuelve total de entradas invalidada.
+    # Devuelve total de entradas invalidadas.
     return eliminados
