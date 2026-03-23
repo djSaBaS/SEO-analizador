@@ -23,3 +23,24 @@ def test_invalidar_cache_elimina_archivos_recursivos(tmp_path: Path) -> None:
 
     # Verifica que se eliminen ambas entradas.
     assert total == 2
+
+
+# Verifica que también se invaliden extensiones JSON en mayúsculas.
+def test_invalidar_cache_elimina_json_con_extension_mayuscula(tmp_path: Path) -> None:
+    """Comprueba que la invalidación detecte entradas `.JSON` en subcarpetas."""
+
+    # Define carpeta raíz de caché.
+    raiz_cache = tmp_path / ".cache"
+
+    # Crea estructura de carpetas anidada.
+    carpeta = raiz_cache / "ia" / "2026"
+    carpeta.mkdir(parents=True, exist_ok=True)
+
+    # Crea archivo con extensión mayúscula para validar robustez.
+    (carpeta / "entrada.JSON").write_text("{}", encoding="utf-8")
+
+    # Ejecuta invalidación sobre la raíz.
+    total = invalidar_cache(raiz_cache)
+
+    # Verifica que el archivo se elimine correctamente.
+    assert total == 1

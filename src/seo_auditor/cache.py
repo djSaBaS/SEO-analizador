@@ -86,8 +86,18 @@ def invalidar_cache(path_cache: Path) -> int:
     # Inicializa contador de archivos eliminados.
     eliminados = 0
 
-    # Recorre archivos JSON de caché de forma recursiva.
-    for archivo in path_cache.rglob("*.json"):
+    # Recorre cualquier archivo de caché de forma recursiva.
+    for archivo in path_cache.rglob("*"):
+        # Omite directorios para borrar solo archivos.
+        if not archivo.is_file():
+            # Continúa con el siguiente elemento.
+            continue
+
+        # Filtra únicamente ficheros JSON de caché (sin importar mayúsculas).
+        if archivo.suffix.lower() != ".json":
+            # Ignora archivos no cacheables.
+            continue
+
         # Elimina archivo actual.
         archivo.unlink(missing_ok=True)
 

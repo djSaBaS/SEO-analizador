@@ -2,10 +2,16 @@
 from seo_auditor.models import HallazgoSeo, ResultadoAuditoria, ResultadoUrl
 
 # Importa funciones a validar del analizador.
-from seo_auditor.analyzer import _clasificar_canonical, _es_redireccion_solo_slash, _normalizar_url_comparable, clasificar_hallazgo
+from seo_auditor.analyzer import _clasificar_canonical, _es_redireccion_solo_slash, _normalizar_url_comparable, auditar_url, clasificar_hallazgo
 
 # Importa el exportador tabular para validar la salida.
 from seo_auditor.reporters import construir_filas
+
+# Importa parser HTML para pruebas de auditoría end-to-end.
+from bs4 import BeautifulSoup
+
+# Importa utilidades ligeras para simular respuestas HTTP.
+from types import SimpleNamespace
 
 
 # Verifica que la exportación tabular conserve campos clave.
@@ -140,3 +146,35 @@ def test_normalizar_url_comparable_tolera_puerto_invalido() -> None:
 
     # Verifica que se conserve una URL comparable utilizable.
     assert normalizada == "https://ejemplo.com/ruta"
+
+
+# Verifica que una canonical equivalente no añada hallazgos de diferencia menor.
+def test_auditar_url_no_reporta_canonical_menor_si_coincide(monkeypatch) -> None:
+    """Comprueba que canonical autorreferente (incluyendo formato relativo) no se marque como incidencia."""
+
+    # Define HTML con canonical relativa equivalente a la URL final.
+    html = BeautifulSoup(
+        """
+        <html>
+          <head>
+            <title>Página de prueba SEO</title>
+            <meta name="description" content="Descripción suficientemente larga para evitar incidencias de longitud en esta prueba puntual.">
+            <link rel="canonical" href="/pagina">
+          </head>
+          <body><h1>Encabezado principal válido</h1></body>
+        </html>
+        """,
+        "html.parser",
+    )
+
+    # Simula respuesta HTTP estable sin redirecciones problemáticas.
+    respuesta = SimpleNamespace(status_code=200, url="https://ejemplo.com/pagina")
+
+    # Sustituye descarga real por fixture controlada.
+    monkeypatch.setattr("seo_auditor.analyzer.obtener_metadatos_html", lambda *_args, **_kwargs: (respuesta, html))
+
+    # Ejecuta auditoría de URL.
+    resultado = auditar_url("https://ejemplo.com/pagina", timeout=5)
+
+    # Asegura que no se reporta hallazgo de canonical menor.
+    assert all("Canonical con diferencia menor" not in hallazgo.descripcion for hallazgo in resultado.hallazgos)
