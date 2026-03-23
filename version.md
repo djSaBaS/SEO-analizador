@@ -1,5 +1,12 @@
 # version.md
 
+## 0.6.0 - 2026-03-23
+- Se integra análisis de contenido real con trafilatura (palabras, densidad, ratio texto/HTML, calidad de contenido y thin content) con detección de duplicidad aproximada por hash.
+- Se añade análisis de indexación y rastreo con advertools sobre robots.txt y coherencia sitemap vs robots, incluyendo sección dedicada en narrativa de informes.
+- Se amplía el modelo de datos por URL con métricas de contenido, estructura de headings, lazy-load e imágenes sin ALT para reporting accionable.
+- Se agrega hoja Excel `Contenido` y se extiende `Errores` con categoría para priorización operativa.
+- Se mantiene compatibilidad CLI permitiendo ejecución sin `--output` mediante fallback automático a `./salidas`.
+
 ## 0.5.3 - 2026-03-23
 - Se corrige Quick Wins para agrupar por URL (problemas y recomendaciones deduplicadas), calcular impacto máximo y esfuerzo mínimo, y limitar la salida ejecutiva a un conjunto útil.
 - Se actualiza la visualización de Quick Wins en Word/PDF/HTML a formato tipo tarjeta en lugar de tabla plana.

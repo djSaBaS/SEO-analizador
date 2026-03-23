@@ -65,6 +65,7 @@ JERARQUIA_INFORME = [
     "Acciones técnicas",
     "Acciones de contenido",
     "Rendimiento y experiencia de usuario",
+    "Indexación y rastreo",
     "Roadmap",
 ]
 
@@ -409,6 +410,15 @@ def construir_filas(resultado: ResultadoAuditoria) -> list[dict]:
             "meta_description": item.meta_description,
             "canonical": item.canonical or "",
             "noindex": "Sí" if item.noindex else "No",
+            "palabras": getattr(item, "palabras", 0),
+            "calidad_contenido": getattr(item, "calidad_contenido", "baja"),
+            "thin_content": "Sí" if getattr(item, "thin_content", False) else "No",
+            "densidad_texto": getattr(item, "densidad_texto", 0.0),
+            "ratio_texto_html": getattr(item, "ratio_texto_html", 0.0),
+            "h1_unico": "Sí" if getattr(item, "h1_unico", False) else "No",
+            "estructura_headings_correcta": "Sí" if getattr(item, "estructura_headings_correcta", True) else "No",
+            "imagenes_sin_alt": getattr(item, "imagenes_sin_alt", 0),
+            "lazy_load_detectado": "Sí" if getattr(item, "lazy_load_detectado", False) else "No",
             "estado": "Pendiente",
             "resuelto": "No",
             "responsable": "",
@@ -421,6 +431,8 @@ def construir_filas(resultado: ResultadoAuditoria) -> list[dict]:
 
             # Completa datos por defecto para URL sin incidencias.
             fila.update({"problema": "", "recomendacion": "", "severidad": "informativa", "area": "Calidad", "impacto": "Bajo", "esfuerzo": "Bajo", "prioridad": "P4", "observaciones": item.error or "Sin incidencias críticas"})
+            # Añade categoría ejecutiva derivada para reporting.
+            fila["categoria"] = "Calidad"
 
             # Añade fila informativa final a la colección.
             filas.append(fila)
@@ -432,6 +444,8 @@ def construir_filas(resultado: ResultadoAuditoria) -> list[dict]:
 
             # Completa datos de hallazgo para esta fila.
             fila.update({"problema": hallazgo.descripcion, "recomendacion": hallazgo.recomendacion, "severidad": hallazgo.severidad, "area": hallazgo.area, "impacto": hallazgo.impacto, "esfuerzo": hallazgo.esfuerzo, "prioridad": hallazgo.prioridad, "observaciones": item.error or ""})
+            # Añade categoría operativa alineada al tipo de hallazgo.
+            fila["categoria"] = hallazgo.tipo
 
             # Añade una fila por hallazgo detectado.
             filas.append(fila)
@@ -575,7 +589,20 @@ def calcular_metricas(resultado: ResultadoAuditoria) -> dict[str, int | float | 
     scores_rendimiento = [item.performance_score for item in resultado.rendimiento if isinstance(item.performance_score, (int, float))]
 
     # Calcula score de rendimiento con fallback al global si no hay datos.
-    score_rendimiento = round(sum(scores_rendimiento) / len(scores_rendimiento), 1) if scores_rendimiento else score
+    score_rendimiento = round(sum(scores_rendimiento) / len(scores_rendimiento), 1) if scores_rendimiento else float(resultado.score_rendimiento or score)
+
+    # Resuelve score técnico preferente desde resultado consolidado.
+    score_tecnico = float(resultado.score_tecnico) if isinstance(resultado.score_tecnico, (int, float)) else score_indexacion
+
+    # Resuelve score de contenido preferente desde resultado consolidado.
+    score_contenido_final = float(resultado.score_contenido) if isinstance(resultado.score_contenido, (int, float)) else score_contenido
+
+    # Resuelve score global preferente desde resultado consolidado.
+    seo_score_global = (
+        float(resultado.seo_score_global)
+        if isinstance(resultado.seo_score_global, (int, float))
+        else round((score_tecnico * 0.4) + (score_contenido_final * 0.4) + (score_rendimiento * 0.2), 1)
+    )
 
     # Devuelve métricas calculadas.
     return {
@@ -587,7 +614,10 @@ def calcular_metricas(resultado: ResultadoAuditoria) -> dict[str, int | float | 
         "tipos": dict(tipos),
         "areas": dict(areas),
         "urls_sanas": urls_sanas,
-        "score": score,
+        "score": seo_score_global,
+        "score_tecnico": score_tecnico,
+        "score_contenido": score_contenido_final,
+        "score_rendimiento": score_rendimiento,
         "score_bloques": {
             "indexacion_arquitectura": {"score": score_indexacion, "peso": 0.35},
             "contenido_onpage": {"score": score_contenido, "peso": 0.30},
@@ -703,6 +733,31 @@ def _construir_bloques_narrativos(resultado: ResultadoAuditoria) -> dict[str, li
                 else "No se han recibido datos de PageSpeed en esta ejecución."
             )
 
+    # Construye fallback de indexación y rastreo con datos técnicos reales.
+    if not bloques["Indexación y rastreo"]:
+        # Obtiene resumen de indexación si está disponible.
+        resumen_indexacion = resultado.indexacion_rastreo if isinstance(resultado.indexacion_rastreo, dict) else {}
+
+        # Lee disponibilidad de robots en formato seguro.
+        robots_disponible = bool(resumen_indexacion.get("robots_disponible", False))
+
+        # Lee volumen de URLs bloqueadas detectadas.
+        urls_bloqueadas = resumen_indexacion.get("urls_bloqueadas", [])
+
+        # Lee volumen de incoherencias sitemap vs robots.
+        incoherencias = resumen_indexacion.get("incoherencias_sitemap_robots", [])
+
+        # Inserta línea de estado principal de rastreo.
+        bloques["Indexación y rastreo"].append(f"robots.txt disponible: {'sí' if robots_disponible else 'no'}; URLs bloqueadas: {len(urls_bloqueadas)}.")
+
+        # Inserta incoherencias cuando existan.
+        if incoherencias:
+            # Añade recomendación concreta basada en incoherencias.
+            bloques["Indexación y rastreo"].append("Existen incoherencias entre sitemap y robots: revisar URLs bloqueadas listadas en sitemap.")
+        else:
+            # Añade estado estable cuando no hay incoherencias detectadas.
+            bloques["Indexación y rastreo"].append("No se detectaron incoherencias críticas entre sitemap y robots en esta ejecución.")
+
     # Construye fallback de roadmap cuando IA no lo entregue.
     if not bloques["Roadmap"]:
         # Añade fase corta de estabilización.
@@ -779,6 +834,9 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     # Crea hojas auxiliares de trabajo.
     hoja_errores = libro.create_sheet("Errores")
 
+    # Crea hoja específica de contenido on-page.
+    hoja_contenido = libro.create_sheet("Contenido")
+
     # Crea hoja específica de rendimiento.
     hoja_rendimiento = libro.create_sheet("Rendimiento")
 
@@ -792,7 +850,7 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     filas_rendimiento = construir_filas_rendimiento(resultado)
 
     # Define columnas fijas de la hoja de errores para mantener estructura estable.
-    columnas_errores = ["url", "url_final", "tipo", "estado_http", "redirecciona", "title", "h1", "meta_description", "canonical", "noindex", "problema", "recomendacion", "severidad", "area", "impacto", "esfuerzo", "prioridad", "estado", "resuelto", "responsable", "observaciones"]
+    columnas_errores = ["url", "url_final", "tipo", "estado_http", "redirecciona", "title", "h1", "meta_description", "canonical", "noindex", "problema", "recomendacion", "severidad", "categoria", "area", "impacto", "esfuerzo", "prioridad", "estado", "resuelto", "responsable", "observaciones"]
 
     # Usa columnas fijas como encabezados para escritura tabular.
     encabezados = columnas_errores
@@ -818,7 +876,7 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
         celda.fill = PatternFill(fill_type="solid", fgColor="1F4E78")
 
     # Configura ancho de columnas de errores con foco en legibilidad.
-    anchos_errores = {"A": 48, "B": 48, "C": 14, "D": 12, "E": 12, "F": 26, "G": 26, "H": 36, "I": 36, "J": 10, "K": 52, "L": 52, "M": 12, "N": 18, "O": 12, "P": 12, "Q": 12, "R": 14, "S": 10, "T": 20, "U": 36}
+    anchos_errores = {"A": 48, "B": 48, "C": 14, "D": 12, "E": 12, "F": 26, "G": 26, "H": 36, "I": 36, "J": 10, "K": 52, "L": 52, "M": 12, "N": 14, "O": 18, "P": 12, "Q": 12, "R": 12, "S": 14, "T": 10, "U": 20, "V": 36}
 
     # Recorre anchos definidos y los aplica.
     for columna, ancho in anchos_errores.items():
@@ -866,10 +924,10 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     hoja_errores.add_data_validation(validacion_resuelto)
 
     # Aplica validación al rango de seguimiento.
-    validacion_resuelto.add(f"S2:S{max(2, len(filas) + 1)}")
+    validacion_resuelto.add(f"T2:T{max(2, len(filas) + 1)}")
 
     # Activa filtros en la hoja de errores.
-    hoja_errores.auto_filter.ref = f"A1:U{max(2, len(filas) + 1)}"
+    hoja_errores.auto_filter.ref = f"A1:V{max(2, len(filas) + 1)}"
 
     # Congela paneles para mejorar navegación.
     hoja_errores.freeze_panes = "A2"
@@ -1854,3 +1912,36 @@ def exportar_html(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
 
     # Devuelve la ruta del HTML generado.
     return destino
+    # Define columnas de hoja de contenido para seguimiento editorial.
+    columnas_contenido = ["url", "palabras", "calidad_contenido", "h1", "title", "meta_description", "imagenes_sin_alt", "thin_content", "densidad_texto", "ratio_texto_html"]
+
+    # Recorre encabezados de contenido.
+    for columna, encabezado in enumerate(columnas_contenido, start=1):
+        # Escribe encabezado en hoja de contenido.
+        hoja_contenido.cell(row=1, column=columna, value=encabezado)
+
+    # Recorre filas técnicas para poblar hoja de contenido.
+    for fila_indice, fila in enumerate(filas, start=2):
+        # Escribe columnas de contenido en cada fila.
+        for columna, encabezado in enumerate(columnas_contenido, start=1):
+            # Inserta valor correspondiente con fallback vacío.
+            hoja_contenido.cell(row=fila_indice, column=columna, value=fila.get(encabezado, ""))
+
+    # Estiliza encabezado de contenido.
+    for celda in hoja_contenido[1]:
+        # Define estilo visual coherente con el resto de hojas.
+        celda.font = Font(bold=True, color="FFFFFF")
+
+        # Aplica color corporativo del encabezado.
+        celda.fill = PatternFill(fill_type="solid", fgColor="1F4E78")
+
+    # Ajusta formato visual de la hoja de contenido.
+    for indice in range(1, len(columnas_contenido) + 1):
+        # Configura ancho homogéneo en todas las columnas.
+        hoja_contenido.column_dimensions[chr(64 + indice)].width = 24
+
+    # Activa filtros en la hoja de contenido.
+    hoja_contenido.auto_filter.ref = f"A1:J{max(2, len(filas) + 1)}"
+
+    # Congela paneles de contenido para navegación.
+    hoja_contenido.freeze_panes = "A2"

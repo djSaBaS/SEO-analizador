@@ -82,6 +82,9 @@ def construir_contexto_ia(resultado: ResultadoAuditoria, max_muestras: int) -> d
             }
         )
 
+    # Deduplica quick wins por combinación URL-problema para ahorrar tokens.
+    quick_wins_deduplicados = list({f"{item['url']}|{item['problema']}": item for item in quick_wins}.values())
+
     # Devuelve el contexto agregado y limitado para IA.
     return {
         "cliente": resultado.cliente,
@@ -105,9 +108,16 @@ def construir_contexto_ia(resultado: ResultadoAuditoria, max_muestras: int) -> d
             }
             for item in resultado.resultados[:max_muestras]
         ],
-        "quick_wins": quick_wins[:max_muestras],
+        "quick_wins": quick_wins_deduplicados[:max_muestras],
         "rendimiento": resumen_rendimiento,
         "pagespeed_estado": resultado.pagespeed_estado,
+        "indexacion_rastreo": resultado.indexacion_rastreo,
+        "scores": {
+            "tecnico": resultado.score_tecnico,
+            "contenido": resultado.score_contenido,
+            "rendimiento": resultado.score_rendimiento,
+            "global": resultado.seo_score_global,
+        },
     }
 
 
