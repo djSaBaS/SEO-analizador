@@ -7,6 +7,9 @@ from pathlib import Path
 # Importa el motor de auditoría SEO.
 from seo_auditor.analyzer import auditar_urls
 
+# Importa utilidades de caché local para invalidación opcional.
+from seo_auditor.cache import invalidar_cache
+
 # Importa la carga de configuración del entorno.
 from seo_auditor.config import cargar_configuracion
 
@@ -23,7 +26,7 @@ from seo_auditor.models import ResultadoRendimiento
 from seo_auditor.pagespeed import analizar_pagespeed_url, detectar_home
 
 # Importa los exportadores de salida del proyecto.
-from seo_auditor.reporters import exportar_excel, exportar_json, exportar_markdown_ia, exportar_pdf, exportar_word
+from seo_auditor.reporters import exportar_excel, exportar_html, exportar_json, exportar_markdown_ia, exportar_pdf, exportar_word
 
 # Importa utilidades de entrada, fecha y estructura de salida.
 from seo_auditor.utils import es_url_http_valida, fecha_ejecucion_iso, inferir_cliente_desde_slug, iterar_con_progreso, slug_dominio_desde_url
@@ -96,7 +99,14 @@ def _resolver_urls_pagespeed(argumentos: argparse.Namespace, sitemap: str, urls_
 
 
 # Ejecuta las consultas de PageSpeed para móvil y escritorio por URL.
-def _ejecutar_pagespeed(urls: list[str], api_key: str, timeout: int, reintentos: int) -> list[ResultadoRendimiento]:
+def _ejecutar_pagespeed(
+    urls: list[str],
+    api_key: str,
+    timeout: int,
+    reintentos: int,
+    cache_dir: Path | None = None,
+    cache_ttl_segundos: int = 0,
+) -> list[ResultadoRendimiento]:
     """
     Ejecuta PageSpeed de forma resiliente y sin detener la auditoría global.
     """
@@ -115,7 +125,7 @@ def _ejecutar_pagespeed(urls: list[str], api_key: str, timeout: int, reintentos:
             print(f"    · estrategia={estrategia} | intento máximo={reintentos + 1}")
 
             # Ejecuta análisis y acumula resultado con manejo interno de errores.
-            resultado = analizar_pagespeed_url(url, api_key, estrategia, timeout, reintentos)
+            resultado = analizar_pagespeed_url(url, api_key, estrategia, timeout, reintentos, cache_dir, cache_ttl_segundos)
 
             # Informa error controlado por URL/estrategia sin detener flujo.
             if resultado.error:
@@ -176,6 +186,15 @@ def crear_parser() -> argparse.ArgumentParser:
 
     # Añade parámetro para controlar muestras enviadas a IA.
     parser.add_argument("--max-muestras-ia", type=int, default=15, help="Número máximo de muestras agregadas para la IA.")
+
+    # Añade modo rápido para demos y validaciones internas.
+    parser.add_argument("--modo-rapido", action="store_true", help="Limita volumen de URLs para una auditoría rápida.")
+
+    # Añade parámetro de TTL para caché local en segundos.
+    parser.add_argument("--cache-ttl", type=int, default=0, help="TTL de caché local en segundos (0 usa configuración).")
+
+    # Añade flag para invalidar caché local antes de ejecutar.
+    parser.add_argument("--invalidar-cache", action="store_true", help="Elimina la caché local antes de iniciar la auditoría.")
 
     # Devuelve el parser ya configurado.
     return parser
@@ -304,6 +323,17 @@ def main() -> int:
     # Deriva nombre del cliente desde el slug del dominio.
     cliente = inferir_cliente_desde_slug(slug_dominio)
 
+    # Define carpeta local de caché para llamadas costosas.
+    carpeta_cache = Path(argumentos.output) / ".cache"
+
+    # Aplica invalidación explícita de caché cuando el usuario lo solicite.
+    if argumentos.invalidar_cache:
+        # Elimina entradas cacheadas y muestra trazabilidad.
+        total_eliminado = invalidar_cache(carpeta_cache)
+
+        # Informa total eliminado para control operativo.
+        print(f"[cache] Entradas eliminadas: {total_eliminado}")
+
     # Construye la ruta de salida profesional por dominio y fecha.
     carpeta_salida = Path(argumentos.output) / slug_dominio / fecha
 
@@ -312,6 +342,11 @@ def main() -> int:
 
     # Extrae las URLs desde el sitemap indicado por el usuario.
     urls = extraer_urls_sitemap(argumentos.sitemap, configuracion.http_timeout, configuracion.max_urls)
+
+    # Aplica modo rápido con muestra reducida para demos o QA.
+    if argumentos.modo_rapido:
+        # Limita el análisis a una muestra útil y liviana.
+        urls = urls[: min(25, len(urls))]
 
     # Comprueba que el sitemap ha devuelto URLs útiles.
     if not urls:
@@ -336,6 +371,9 @@ def main() -> int:
     # Calcula reintentos efectivos de PageSpeed.
     pagespeed_reintentos = argumentos.pagepsi_reintentos if argumentos.pagepsi_reintentos >= 0 else configuracion.pagespeed_reintentos
 
+    # Calcula TTL efectivo de caché local.
+    cache_ttl = argumentos.cache_ttl if argumentos.cache_ttl > 0 else configuracion.cache_ttl_segundos
+
     # Ejecuta PageSpeed si existe clave API configurada.
     if configuracion.pagespeed_api_key:
         # Informa progreso del bloque de rendimiento.
@@ -345,7 +383,14 @@ def main() -> int:
         urls_pagespeed = _resolver_urls_pagespeed(argumentos, argumentos.sitemap, urls, max_pagepsi_urls)
 
         # Ejecuta análisis de rendimiento y guarda resultados.
-        resultado.rendimiento = _ejecutar_pagespeed(urls_pagespeed, configuracion.pagespeed_api_key, pagespeed_timeout, pagespeed_reintentos)
+        resultado.rendimiento = _ejecutar_pagespeed(
+            urls_pagespeed,
+            configuracion.pagespeed_api_key,
+            pagespeed_timeout,
+            pagespeed_reintentos,
+            carpeta_cache / "pagespeed",
+            cache_ttl,
+        )
 
         # Inicializa estado de ejecución de PageSpeed por URL.
         estado_pagespeed: dict[str, dict[str, str]] = {}
@@ -402,7 +447,14 @@ def main() -> int:
         # Ejecuta generación IA con degradación elegante ante errores.
         try:
             # Genera resumen narrativo optimizado en tokens.
-            resultado.resumen_ia = generar_resumen_ia(resultado, configuracion.gemini_api_key, modelo_ia, argumentos.max_muestras_ia)
+            resultado.resumen_ia = generar_resumen_ia(
+                resultado,
+                configuracion.gemini_api_key,
+                modelo_ia,
+                argumentos.max_muestras_ia,
+                carpeta_cache / "ia",
+                cache_ttl,
+            )
 
             # Añade fuente IA si la generación se completa.
             resultado.fuentes_activas.append("ia")
@@ -421,6 +473,7 @@ def main() -> int:
         ("Excel", lambda: exportar_excel(resultado, carpeta_salida)),
         ("Word", lambda: exportar_word(resultado, carpeta_salida)),
         ("PDF", lambda: exportar_pdf(resultado, carpeta_salida)),
+        ("HTML", lambda: exportar_html(resultado, carpeta_salida)),
         ("Markdown IA", lambda: exportar_markdown_ia(resultado, carpeta_salida)),
     ]
 
@@ -434,6 +487,29 @@ def main() -> int:
 
     # Finaliza con mensaje de éxito y ruta final.
     print(f"[6/6] Auditoría completada. Archivos generados en: {carpeta_salida.resolve()}")
+
+    # Calcula score y promedios de rendimiento para resumen de cierre.
+    total_incidencias = sum(len(item.hallazgos) for item in resultado.resultados)
+
+    # Calcula score global replicando fórmula de reporters.
+    score_estimado = round(max(5.0, min(100.0, 100.0 - (total_incidencias / max(1, resultado.total_urls * 2)) * 10.0)), 1)
+
+    # Calcula score móvil promedio si existe.
+    scores_mobile = [item.performance_score for item in resultado.rendimiento if item.estrategia == "mobile" and isinstance(item.performance_score, (int, float))]
+
+    # Calcula score escritorio promedio si existe.
+    scores_desktop = [item.performance_score for item in resultado.rendimiento if item.estrategia == "desktop" and isinstance(item.performance_score, (int, float))]
+
+    # Emite resumen corto en consola para UX de cierre.
+    print(
+        "Resumen: "
+        f"urls={resultado.total_urls} | "
+        f"incidencias={total_incidencias} | "
+        f"score={score_estimado} | "
+        f"mobile={round(sum(scores_mobile) / len(scores_mobile), 1) if scores_mobile else 'N/D'} | "
+        f"desktop={round(sum(scores_desktop) / len(scores_desktop), 1) if scores_desktop else 'N/D'} | "
+        f"salida={carpeta_salida.resolve()}"
+    )
 
     # Devuelve éxito al sistema operativo.
     return 0

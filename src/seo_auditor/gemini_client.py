@@ -4,8 +4,14 @@ import json
 # Importa contador para resumir hallazgos por frecuencia.
 from collections import Counter
 
+# Importa Path para caché local opcional.
+from pathlib import Path
+
 # Importa el cliente oficial actual de Google Gemini.
 from google import genai
+
+# Importa utilidades de caché local reutilizable.
+from seo_auditor.cache import construir_clave_cache, escribir_cache, leer_cache
 
 # Importa el modelo de resultado global para tipado claro.
 from seo_auditor.models import ResultadoAuditoria
@@ -130,7 +136,14 @@ def probar_conexion_ia(api_key: str, model_name: str) -> str:
 
 
 # Convierte el resultado técnico en un resumen narrativo con IA.
-def generar_resumen_ia(resultado: ResultadoAuditoria, api_key: str, model_name: str, max_muestras: int) -> str:
+def generar_resumen_ia(
+    resultado: ResultadoAuditoria,
+    api_key: str,
+    model_name: str,
+    max_muestras: int,
+    cache_dir: Path | None = None,
+    cache_ttl_segundos: int = 0,
+) -> str:
     """
     Genera un resumen ejecutivo SEO usando Google AI Studio.
     """
@@ -145,6 +158,19 @@ def generar_resumen_ia(resultado: ResultadoAuditoria, api_key: str, model_name: 
 
     # Construye el contexto resumido de IA con límite de muestras.
     datos = construir_contexto_ia(resultado, max_muestras)
+
+    # Revisa caché local cuando se habilite explícitamente.
+    if cache_dir is not None:
+        # Construye clave estable de la consulta IA.
+        clave_cache = construir_clave_cache("ia", {"modelo": model_name, "datos": datos})
+
+        # Intenta recuperar respuesta previa dentro del TTL.
+        respuesta_cache = leer_cache(cache_dir, clave_cache, cache_ttl_segundos)
+
+        # Devuelve respuesta cacheada cuando exista.
+        if isinstance(respuesta_cache, str) and respuesta_cache.strip():
+            # Retorna texto cacheado para ahorrar coste y latencia.
+            return respuesta_cache
 
     # Define un prompt orientado a negocio y con restricciones de fuentes.
     prompt = (
@@ -163,5 +189,13 @@ def generar_resumen_ia(resultado: ResultadoAuditoria, api_key: str, model_name: 
     # Ejecuta la generación del contenido con el modelo indicado.
     respuesta = cliente.models.generate_content(model=model_name, contents=prompt)
 
+    # Obtiene texto final con fallback controlado.
+    texto = getattr(respuesta, "text", "") or "No se pudo generar el informe con IA."
+
+    # Guarda respuesta en caché local cuando se habilite.
+    if cache_dir is not None:
+        # Persiste texto para reutilización posterior.
+        escribir_cache(cache_dir, clave_cache, texto)
+
     # Devuelve el texto generado de forma segura y directa.
-    return getattr(respuesta, "text", "") or "No se pudo generar el informe con IA."
+    return texto

@@ -1,5 +1,35 @@
 # version.md
 
+## 0.5.3 - 2026-03-23
+- Se corrige Quick Wins para agrupar por URL (problemas y recomendaciones deduplicadas), calcular impacto máximo y esfuerzo mínimo, y limitar la salida ejecutiva a un conjunto útil.
+- Se actualiza la visualización de Quick Wins en Word/PDF/HTML a formato tipo tarjeta en lugar de tabla plana.
+- Se asegura fallback obligatorio de Roadmap en fase de medio plazo para evitar contenido vacío.
+- Se añade gráfico de comparación entre incidencias técnicas e incidencias agrupadas en dashboard Excel.
+- Se ajustan colores por severidad del Excel a esquema ejecutivo solicitado (rojo/naranja/amarillo/azul).
+
+## 0.5.2 - 2026-03-23
+- Se mejora la presentación de rendimiento en Word/PDF/HTML con formato compacto por métrica (vertical), evitando tablas excesivamente horizontales y manteniendo `No disponible` para datos ausentes.
+- Se rehace la capa de quick wins para deduplicar por URL/acción, filtrar entradas incompletas y mostrar estructura consistente (URL, problema, recomendación, impacto, esfuerzo).
+- Se añade capa de incidencias agrupadas ejecutivas para mantener coherencia entre resumen ejecutivo y detalle técnico de Excel/anexo.
+- Se amplía el análisis on-page con detección de duplicados de `title` y `meta description` a nivel conjunto auditado, además de H1 vacío y conteo agregado de imágenes sin alt útil.
+- Se incorpora desglose del score por bloques (`indexacion_arquitectura`, `contenido_onpage`, `rendimiento`, `multimedia_accesibilidad`) para mejorar interpretabilidad en JSON y dashboard.
+- Se evoluciona el dashboard Excel con KPIs adicionales (agrupadas, score por bloques, métricas on-page clave) y gráfico de score por bloques.
+
+## 0.5.1 - 2026-03-23
+- Se corrige una regresión en canonical: las canonicals plenamente coherentes ya no se marcan como hallazgo de diferencia menor.
+- Se robustece la normalización de URL para tolerar puertos inválidos en canonicals sin romper la auditoría completa de la URL.
+- Se corrige `--invalidar-cache` para eliminar entradas JSON de forma recursiva en subcarpetas (`.cache/pagespeed` y `.cache/ia`).
+- Se añaden tests de regresión para canonical coherente, tolerancia a puerto inválido e invalidación recursiva de caché.
+
+## 0.5.0 - 2026-03-20
+- Se corrige la lógica de canonical para reducir falsos positivos: comparación robusta con normalización de esquema, host, puertos por defecto, slash final, query y fragmentos.
+- Se introducen niveles de canonical (`diferencia menor`, `potencialmente incoherente`, `realmente incoherente`) con severidad/prioridad más realistas.
+- Se amplía el análisis on-page con validación de longitudes de `title` y `meta description`, detección de múltiples H1 e imágenes sin `alt`.
+- Se profesionaliza la sección de rendimiento en Word/PDF con tabla comparativa mobile vs desktop, interpretación visual y listado estructurado de oportunidades.
+- Se evoluciona el dashboard Excel con nuevas KPI cards (incidencias por severidad, URLs sanas, % con incidencias, % resueltas, oportunidades y medias de rendimiento).
+- Se añade caché local reutilizable para IA y PageSpeed con TTL configurable e invalidación por CLI.
+- Se añade `--modo-rapido` para auditorías ligeras y exportación adicional a HTML.
+
 ## 0.4.3 - 2026-03-20
 - Se corrige el tratamiento de PageSpeed cuando falla por timeout/red: no se marca como fuente activa sin métricas válidas y se registra en `fuentes_fallidas` con `pagespeed_estado` estructurado.
 - Se añaden timeout y reintentos configurables para PageSpeed (`PAGESPEED_TIMEOUT`, `PAGESPEED_REINTENTOS`, `--pagepsi-timeout`, `--pagepsi-reintentos`) con backoff simple y logs de intentos.

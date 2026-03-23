@@ -29,6 +29,9 @@ def test_main_persiste_rendimiento_y_fuente_pagespeed(monkeypatch, tmp_path) -> 
         pagepsi_reintentos=-1,
         gestor="Gestor",
         max_muestras_ia=5,
+        modo_rapido=False,
+        cache_ttl=0,
+        invalidar_cache=False,
     )
 
     # Define parser simulado para evitar CLI real.
@@ -102,6 +105,7 @@ def test_main_persiste_rendimiento_y_fuente_pagespeed(monkeypatch, tmp_path) -> 
             max_pagepsi_urls=5,
             pagespeed_timeout=45,
             pagespeed_reintentos=2,
+            cache_ttl_segundos=21600,
         ),
     )
 
@@ -160,6 +164,9 @@ def test_main_no_marca_pagespeed_como_activa_si_falla(monkeypatch, tmp_path) -> 
         pagepsi_reintentos=-1,
         gestor="Gestor",
         max_muestras_ia=5,
+        modo_rapido=False,
+        cache_ttl=0,
+        invalidar_cache=False,
     )
 
     # Define parser simulado para evitar CLI real.
@@ -234,6 +241,7 @@ def test_main_no_marca_pagespeed_como_activa_si_falla(monkeypatch, tmp_path) -> 
             max_pagepsi_urls=5,
             pagespeed_timeout=45,
             pagespeed_reintentos=2,
+            cache_ttl_segundos=21600,
         ),
     )
 
