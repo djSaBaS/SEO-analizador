@@ -22,6 +22,7 @@ El sistema sigue una arquitectura modular evolutiva, con separación clara por c
 5. Se genera IA solo si `--usar-ia`.
 6. Se exporta documentación final sin markdown crudo en DOCX/PDF.
 7. Se calcula capa ejecutiva (incidencias agrupadas, quick wins deduplicados y score por bloques) sin perder el detalle técnico.
+8. Los quick wins ejecutivos se renderizan como tarjetas por URL en Word/PDF/HTML para mejorar legibilidad.
 
 ## Preparación para futura API propia
 - La orquestación de CLI mantiene separación respecto a dominio (`models.py` + `analyzer.py`).

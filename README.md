@@ -91,6 +91,8 @@ python src/main.py --testia --modelo-ia gemini-2.0-flash
   - incidencias agrupadas por familia de problema
   - presentación de rendimiento en formato más legible por métrica
 - El score incluye desglose por bloques para interpretación de negocio.
+- Quick Wins se agrupa por URL y se presenta en tarjetas (Word/PDF/HTML) con problemas, acciones, impacto y esfuerzo.
+- Roadmap incluye fallback obligatorio de fase de medio plazo para evitar bloques vacíos.
 
 ## Calidad documental
 - Jerarquía fija del informe: portada, resumen, KPIs, hallazgos, quick wins, acciones, rendimiento, roadmap y anexo.

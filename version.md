@@ -1,5 +1,12 @@
 # version.md
 
+## 0.5.3 - 2026-03-23
+- Se corrige Quick Wins para agrupar por URL (problemas y recomendaciones deduplicadas), calcular impacto máximo y esfuerzo mínimo, y limitar la salida ejecutiva a un conjunto útil.
+- Se actualiza la visualización de Quick Wins en Word/PDF/HTML a formato tipo tarjeta en lugar de tabla plana.
+- Se asegura fallback obligatorio de Roadmap en fase de medio plazo para evitar contenido vacío.
+- Se añade gráfico de comparación entre incidencias técnicas e incidencias agrupadas en dashboard Excel.
+- Se ajustan colores por severidad del Excel a esquema ejecutivo solicitado (rojo/naranja/amarillo/azul).
+
 ## 0.5.2 - 2026-03-23
 - Se mejora la presentación de rendimiento en Word/PDF/HTML con formato compacto por métrica (vertical), evitando tablas excesivamente horizontales y manteniendo `No disponible` para datos ausentes.
 - Se rehace la capa de quick wins para deduplicar por URL/acción, filtrar entradas incompletas y mostrar estructura consistente (URL, problema, recomendación, impacto, esfuerzo).

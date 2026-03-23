@@ -105,64 +105,108 @@ def _interpretacion_rendimiento(score: float | None, estrategia: str) -> str:
     return f"{estrategia.title()}: correcto."
 
 
-# Construye quick wins deduplicados y ordenados para capa ejecutiva.
-def _construir_quick_wins(filas: list[dict], limite: int = 12) -> list[dict[str, str]]:
-    """Devuelve quick wins sin repeticiones torpes y priorizados por utilidad."""
+# Construye quick wins agrupados por URL para capa ejecutiva clara.
+def _construir_quick_wins(filas: list[dict], limite: int = 7) -> list[dict[str, object]]:
+    """Devuelve quick wins agrupados por URL con impacto máximo y esfuerzo mínimo."""
 
-    # Inicializa índice de deduplicación por URL y recomendación.
-    vistos: set[tuple[str, str]] = set()
+    # Define escala de impacto para seleccionar el máximo por URL.
+    escala_impacto = {"Muy alto": 4, "Alto": 3, "Medio": 2, "Bajo": 1}
 
-    # Inicializa colección de quick wins ejecutivos.
-    quick_wins: list[dict[str, str]] = []
+    # Define escala de esfuerzo para seleccionar el mínimo por URL.
+    escala_esfuerzo = {"Bajo": 1, "Medio": 2, "Alto": 3}
 
-    # Recorre filas para localizar acciones de bajo esfuerzo y alto impacto.
+    # Inicializa contenedor de agrupación por URL.
+    agrupados: dict[str, dict[str, object]] = {}
+
+    # Recorre filas para construir quick wins agrupados.
     for fila in filas:
-        # Obtiene campos base de la fila actual.
+        # Obtiene URL base de la fila.
         url = str(fila.get("url", "")).strip()
 
-        # Obtiene problema resumido.
+        # Obtiene problema principal.
         problema = str(fila.get("problema", "")).strip()
 
         # Obtiene recomendación asociada.
         recomendacion = str(fila.get("recomendacion", "")).strip()
 
-        # Obtiene impacto estimado.
+        # Obtiene impacto declarado.
         impacto = str(fila.get("impacto", "")).strip()
 
-        # Obtiene esfuerzo estimado.
+        # Obtiene esfuerzo declarado.
         esfuerzo = str(fila.get("esfuerzo", "")).strip()
 
-        # Descarta filas incompletas para evitar ruido visual.
+        # Descarta filas incompletas para evitar tarjetas vacías.
         if not url or not problema or not recomendacion:
-            # Continúa con siguiente fila útil.
+            # Continúa con la siguiente fila útil.
             continue
 
-        # Filtra quick wins reales por esfuerzo bajo e impacto relevante.
-        if esfuerzo != "Bajo" or impacto not in {"Muy alto", "Alto", "Medio"}:
-            # Continúa cuando no cumpla criterio de quick win.
+        # Filtra quick wins priorizando acciones de bajo esfuerzo.
+        if esfuerzo not in {"Bajo", "Medio"} or impacto not in {"Muy alto", "Alto", "Medio"}:
+            # Continúa cuando no cumpla criterio ejecutivo.
             continue
 
-        # Construye clave de deduplicación por URL+acción.
-        clave = (url, recomendacion)
+        # Inicializa estructura de la URL cuando no exista.
+        if url not in agrupados:
+            # Crea tarjeta base de quick win por URL.
+            agrupados[url] = {"url": url, "problemas": [], "recomendaciones": [], "impacto_maximo": impacto or "Medio", "esfuerzo_maximo": esfuerzo or "Medio", "prioridad": 0}
 
-        # Descarta duplicados repetitivos en el informe ejecutivo.
-        if clave in vistos:
-            # Continúa con la siguiente fila.
-            continue
+        # Obtiene tarjeta actual de la URL.
+        tarjeta = agrupados[url]
 
-        # Registra clave ya utilizada.
-        vistos.add(clave)
+        # Añade problema evitando duplicados.
+        if problema not in tarjeta["problemas"]:
+            # Inserta problema único en la tarjeta.
+            tarjeta["problemas"].append(problema)
 
-        # Añade quick win estructurado para render de tabla/tarjeta.
-        quick_wins.append({"url": url, "problema": problema, "recomendacion": recomendacion, "impacto": impacto, "esfuerzo": esfuerzo})
+        # Añade recomendación evitando duplicados.
+        if recomendacion not in tarjeta["recomendaciones"]:
+            # Inserta recomendación única en la tarjeta.
+            tarjeta["recomendaciones"].append(recomendacion)
 
-        # Finaliza cuando se alcance el límite operativo.
-        if len(quick_wins) >= limite:
-            # Rompe el bucle al cubrir cupo máximo.
-            break
+        # Actualiza impacto máximo detectado.
+        if escala_impacto.get(impacto, 0) > escala_impacto.get(str(tarjeta["impacto_maximo"]), 0):
+            # Guarda nuevo impacto máximo de la URL.
+            tarjeta["impacto_maximo"] = impacto
 
-    # Devuelve colección final de quick wins deduplicados.
-    return quick_wins
+        # Actualiza esfuerzo mínimo detectado.
+        if escala_esfuerzo.get(esfuerzo, 99) < escala_esfuerzo.get(str(tarjeta["esfuerzo_maximo"]), 99):
+            # Guarda nuevo esfuerzo mínimo de la URL.
+            tarjeta["esfuerzo_maximo"] = esfuerzo
+
+        # Calcula prioridad combinada para orden final.
+        tarjeta["prioridad"] = escala_impacto.get(str(tarjeta["impacto_maximo"]), 0) * 10 - escala_esfuerzo.get(str(tarjeta["esfuerzo_maximo"]), 99)
+
+    # Convierte agrupación a lista para ordenar.
+    quick_wins = list(agrupados.values())
+
+    # Ordena quick wins por prioridad descendente y URL estable.
+    quick_wins_ordenados = sorted(quick_wins, key=lambda item: (-int(item.get("prioridad", 0)), str(item.get("url", ""))))
+
+    # Devuelve subconjunto máximo solicitado.
+    return quick_wins_ordenados[:limite]
+
+
+# Devuelve color de tarjeta según impacto para salida visual coherente.
+def _color_por_impacto(impacto: str) -> str:
+    """Asigna un color sobrio por nivel de impacto."""
+
+    # Mapea impacto muy alto a rojo suave.
+    if impacto == "Muy alto":
+        # Devuelve rojo suave para destacar urgencia.
+        return "#FDECEA"
+
+    # Mapea impacto alto a naranja suave.
+    if impacto == "Alto":
+        # Devuelve naranja suave de prioridad.
+        return "#FCE8E6"
+
+    # Mapea impacto medio a amarillo suave.
+    if impacto == "Medio":
+        # Devuelve amarillo suave para atención moderada.
+        return "#FFF4E5"
+
+    # Devuelve azul suave para resto de casos.
+    return "#E8F0FE"
 
 
 # Calcula incidencias agrupadas para capa ejecutiva sin perder detalle técnico.
@@ -610,7 +654,7 @@ def _construir_bloques_narrativos(resultado: ResultadoAuditoria) -> dict[str, li
         # Inserta recomendaciones rápidas priorizadas.
         for fila in quick_wins:
             # Añade quick win concreto.
-            bloques["Quick wins"].append(f"{fila['recomendacion']} ({fila['url']})")
+            bloques["Quick wins"].append(f"{', '.join(fila['recomendaciones'][:2])} ({fila['url']})")
 
     # Construye fallback de acciones técnicas cuando no haya bloque IA.
     if not bloques["Acciones técnicas"]:
@@ -667,6 +711,14 @@ def _construir_bloques_narrativos(resultado: ResultadoAuditoria) -> dict[str, li
         bloques["Roadmap"].append("60 días: ejecutar quick wins y completar mejoras on-page.")
         # Añade fase de consolidación.
         bloques["Roadmap"].append("90 días: consolidar rendimiento, calidad de contenido y control SEO continuo.")
+
+    # Verifica presencia de fase de medio plazo en roadmap.
+    contiene_medio_plazo = any("60" in linea or "medio plazo" in linea.lower() for linea in bloques["Roadmap"])
+
+    # Añade fallback obligatorio de medio plazo cuando falte.
+    if not contiene_medio_plazo:
+        # Inserta bloque estándar de medio plazo con foco en rendimiento.
+        bloques["Roadmap"].append("Fase Medio Plazo: optimización de Time to Interactive, reducción de recursos JS/CSS, mejora de LCP mobile y optimización de renderizado.")
 
     # Devuelve bloques listos para render narrativo.
     return bloques
@@ -786,7 +838,7 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
         hoja_errores.row_dimensions[indice_fila].height = 38
 
     # Aplica color suave por severidad en la hoja de errores.
-    colores_severidad = {"crítica": "FDECEA", "alta": "FCE8E6", "media": "FFF4E5", "baja": "EAF4EC", "informativa": "E8F0FE"}
+    colores_severidad = {"crítica": "FADBD8", "alta": "FADBD8", "media": "F8C471", "baja": "FCF3CF", "informativa": "D6EAF8"}
 
     # Recorre filas para aplicar color según severidad.
     for indice_fila in range(2, max(3, len(filas) + 2)):
@@ -1015,6 +1067,14 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     hoja_aux["J1"] = "Bloque score"
     hoja_aux["K1"] = "Score"
 
+    # Escribe bloque de comparación técnico vs agrupado en hoja auxiliar.
+    hoja_aux["M1"] = "Tipo conteo"
+    hoja_aux["N1"] = "Cantidad"
+    hoja_aux["M2"] = "Incidencias técnicas"
+    hoja_aux["N2"] = metricas["total_incidencias"]
+    hoja_aux["M3"] = "Incidencias agrupadas"
+    hoja_aux["N3"] = metricas.get("total_incidencias_agrupadas", 0)
+
     # Define pares de score por bloques para visualización.
     bloques_score = [
         ("Indexación/arquitectura", score_bloques.get("indexacion_arquitectura", {}).get("score", 0)),
@@ -1134,6 +1194,27 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     # Inserta gráfico de score por bloques en dashboard.
     hoja_dashboard.add_chart(grafico_score_bloques, "L25")
 
+    # Crea gráfico de comparación entre incidencias técnicas y agrupadas.
+    grafico_agrupadas = PieChart()
+
+    # Define título del gráfico de comparación.
+    grafico_agrupadas.title = "Incidencias técnicas vs agrupadas"
+
+    # Carga datos para gráfico de comparación.
+    grafico_agrupadas.add_data(Reference(hoja_aux, min_col=14, min_row=1, max_row=3), titles_from_data=True)
+
+    # Carga categorías para gráfico de comparación.
+    grafico_agrupadas.set_categories(Reference(hoja_aux, min_col=13, min_row=2, max_row=3))
+
+    # Ajusta ancho del gráfico comparativo.
+    grafico_agrupadas.width = 7.2
+
+    # Ajusta alto del gráfico comparativo.
+    grafico_agrupadas.height = 5.4
+
+    # Inserta gráfico comparativo en dashboard.
+    hoja_dashboard.add_chart(grafico_agrupadas, "D40")
+
     # Oculta la hoja auxiliar para no contaminar entregable final.
     hoja_aux.sheet_state = "hidden"
 
@@ -1243,30 +1324,36 @@ def exportar_word(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
                 # Añade mensaje informativo al documento.
                 documento.add_paragraph("No se identificaron quick wins claros de bajo esfuerzo y alto impacto.")
             else:
-                # Crea tabla de quick wins con formato ejecutivo.
-                tabla_qw = documento.add_table(rows=1, cols=5)
-
-                # Aplica estilo visual de tabla.
-                tabla_qw.style = "Table Grid"
-
-                # Escribe encabezados de quick wins.
-                tabla_qw.rows[0].cells[0].text = "URL"
-                tabla_qw.rows[0].cells[1].text = "Problema principal"
-                tabla_qw.rows[0].cells[2].text = "Recomendación"
-                tabla_qw.rows[0].cells[3].text = "Impacto esperado"
-                tabla_qw.rows[0].cells[4].text = "Esfuerzo"
-
-                # Recorre quick wins para poblar tabla.
+                # Recorre quick wins para render en tarjetas textuales.
                 for quick_win in quick_wins:
-                    # Inserta nueva fila de quick win.
-                    fila_qw = tabla_qw.add_row().cells
+                    # Inserta separador visual de tarjeta.
+                    documento.add_paragraph("-----------------------------------")
 
-                    # Escribe campos normalizados.
-                    fila_qw[0].text = quick_win["url"]
-                    fila_qw[1].text = quick_win["problema"]
-                    fila_qw[2].text = quick_win["recomendacion"]
-                    fila_qw[3].text = quick_win["impacto"]
-                    fila_qw[4].text = quick_win["esfuerzo"]
+                    # Inserta URL de la tarjeta.
+                    documento.add_paragraph(f"URL: {quick_win['url']}")
+
+                    # Inserta cabecera de problemas.
+                    documento.add_paragraph("Problemas:")
+
+                    # Recorre problemas de la tarjeta.
+                    for problema in quick_win["problemas"]:
+                        # Añade problema en viñeta.
+                        documento.add_paragraph(str(problema), style="List Bullet")
+
+                    # Inserta cabecera de acción recomendada.
+                    documento.add_paragraph("Acción recomendada:")
+
+                    # Recorre recomendaciones de la tarjeta.
+                    for recomendacion in quick_win["recomendaciones"]:
+                        # Añade recomendación en viñeta.
+                        documento.add_paragraph(str(recomendacion), style="List Bullet")
+
+                    # Inserta impacto y esfuerzo de la tarjeta.
+                    documento.add_paragraph(f"Impacto: {quick_win['impacto_maximo']}")
+                    documento.add_paragraph(f"Esfuerzo: {quick_win['esfuerzo_maximo']}")
+
+                    # Inserta cierre visual de tarjeta.
+                    documento.add_paragraph("-----------------------------------")
 
             # Continúa con la siguiente sección.
             continue
@@ -1462,25 +1549,38 @@ def exportar_pdf(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
                 # Añade mensaje informativo en PDF.
                 elementos.append(Paragraph("No se identificaron quick wins claros de bajo esfuerzo y alto impacto.", estilos["Normal"]))
             else:
-                # Construye tabla de quick wins con estructura ejecutiva.
-                tabla_quick_wins = Table(
-                    [["URL", "Problema principal", "Recomendación", "Impacto esperado", "Esfuerzo"]]
-                    + [[item["url"], item["problema"], item["recomendacion"], item["impacto"], item["esfuerzo"]] for item in quick_wins]
-                )
+                # Recorre quick wins para render en tarjetas verticales.
+                for item in quick_wins:
+                    # Inserta separador visual superior.
+                    elementos.append(Paragraph("-----------------------------------", estilos["Normal"]))
 
-                # Aplica estilo visual sobrio de quick wins.
-                tabla_quick_wins.setStyle(
-                    TableStyle(
-                        [
-                            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1F4E78")),
-                            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                            ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#D9D9D9")),
-                        ]
-                    )
-                )
+                    # Inserta URL de la tarjeta.
+                    elementos.append(Paragraph(sanear_texto_para_pdf(f"URL: {item['url']}"), estilos["Normal"]))
 
-                # Inserta tabla de quick wins en el flujo.
-                elementos.append(tabla_quick_wins)
+                    # Inserta cabecera de problemas.
+                    elementos.append(Paragraph("Problemas:", estilos["Normal"]))
+
+                    # Recorre problemas para viñetas.
+                    for problema in item["problemas"]:
+                        # Inserta problema en formato limpio.
+                        elementos.append(Paragraph(sanear_texto_para_pdf(f"• {problema}"), estilos["Normal"]))
+
+                    # Inserta cabecera de recomendaciones.
+                    elementos.append(Paragraph("Acción recomendada:", estilos["Normal"]))
+
+                    # Recorre recomendaciones para viñetas.
+                    for recomendacion in item["recomendaciones"]:
+                        # Inserta recomendación en formato limpio.
+                        elementos.append(Paragraph(sanear_texto_para_pdf(f"• {recomendacion}"), estilos["Normal"]))
+
+                    # Inserta impacto de la tarjeta.
+                    elementos.append(Paragraph(sanear_texto_para_pdf(f"Impacto: {item['impacto_maximo']}"), estilos["Normal"]))
+
+                    # Inserta esfuerzo de la tarjeta.
+                    elementos.append(Paragraph(sanear_texto_para_pdf(f"Esfuerzo: {item['esfuerzo_maximo']}"), estilos["Normal"]))
+
+                    # Inserta separador visual inferior.
+                    elementos.append(Paragraph("-----------------------------------", estilos["Normal"]))
 
             # Salta a siguiente sección.
             continue
@@ -1675,8 +1775,10 @@ def exportar_html(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     .kpis {{ display: grid; grid-template-columns: repeat(4, minmax(160px, 1fr)); gap: 12px; }}
     .kpi {{ background: #eef4fb; padding: 10px; border-radius: 8px; border-left: 4px solid #1F4E78; }}
     .bloque {{ margin-top: 18px; padding: 14px; border: 1px solid #e5e7eb; border-radius: 10px; }}
-    .tarjetas {{ display: grid; grid-template-columns: repeat(2, minmax(220px, 1fr)); gap: 12px; }}
-    .tarjeta {{ background: #f8fafc; border: 1px solid #dbeafe; border-radius: 8px; padding: 10px; }}
+    .tarjetas {{ display: grid; grid-template-columns: repeat(2, minmax(260px, 1fr)); gap: 12px; }}
+    .tarjeta {{ background: #f8fafc; border: 1px solid #dbeafe; border-radius: 8px; padding: 12px; }}
+    .tarjeta h3 {{ margin: 0 0 8px 0; color: #1F4E78; font-size: 14px; }}
+    .tarjeta ul {{ margin: 4px 0 8px 18px; padding: 0; }}
     table {{ border-collapse: collapse; width: 100%; margin-top: 12px; }}
     th, td {{ border: 1px solid #d1d5db; padding: 8px; font-size: 12px; text-align: left; }}
     th {{ background: #1F4E78; color: white; }}
@@ -1695,12 +1797,17 @@ def exportar_html(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
   </div>
   <div class="bloque">
     <h2>Quick wins</h2>
-    <table>
-      <thead><tr><th>URL</th><th>Problema principal</th><th>Recomendación</th><th>Impacto esperado</th><th>Esfuerzo</th></tr></thead>
-      <tbody>
-        {''.join(f"<tr><td>{item['url']}</td><td>{item['problema']}</td><td>{item['recomendacion']}</td><td>{item['impacto']}</td><td>{item['esfuerzo']}</td></tr>" for item in quick_wins) or '<tr><td colspan=\"5\">No se identificaron quick wins claros.</td></tr>'}
-      </tbody>
-    </table>
+    <div class="tarjetas">
+      {''.join(
+        f"<div class='tarjeta' style='background:{_color_por_impacto(str(item.get('impacto_maximo','')))}'>"
+        f"<h3>URL: {item['url']}</h3>"
+        f"<b>Problemas:</b><ul>{''.join(f'<li>{problema}</li>' for problema in item['problemas'])}</ul>"
+        f"<b>Acción recomendada:</b><ul>{''.join(f'<li>{recomendacion}</li>' for recomendacion in item['recomendaciones'])}</ul>"
+        f"<p><b>Impacto:</b> {item['impacto_maximo']}<br><b>Esfuerzo:</b> {item['esfuerzo_maximo']}</p>"
+        f"</div>"
+        for item in quick_wins
+      ) or '<p>No se identificaron quick wins claros.</p>'}
+    </div>
   </div>
   <div class="bloque">
     <h2>Incidencias agrupadas ejecutivas</h2>

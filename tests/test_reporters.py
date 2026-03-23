@@ -146,6 +146,9 @@ def test_construir_bloques_narrativos_generar_fallback_completo() -> None:
     # Verifica que cada sección obligatoria tenga al menos una línea.
     assert all(len(items) > 0 for items in bloques.values())
 
+    # Verifica que roadmap incluya fase de medio plazo.
+    assert any("60" in linea or "medio plazo" in linea.lower() for linea in bloques["Roadmap"])
+
 
 # Verifica que quick wins elimine duplicados y filas incompletas.
 def test_construir_quick_wins_deduplica_y_filtra() -> None:
@@ -161,8 +164,14 @@ def test_construir_quick_wins_deduplica_y_filtra() -> None:
     # Construye quick wins deduplicados.
     quick_wins = _construir_quick_wins(filas, limite=10)
 
-    # Verifica que solo quede una entrada válida.
+    # Verifica que solo quede una URL agrupada válida.
     assert len(quick_wins) == 1
+
+    # Verifica que se agrupen problemas en lista.
+    assert isinstance(quick_wins[0]["problemas"], list)
+
+    # Verifica que se agrupen recomendaciones en lista.
+    assert isinstance(quick_wins[0]["recomendaciones"], list)
 
 
 # Verifica que la media de score de dashboard use ejecuciones únicas.
@@ -349,7 +358,7 @@ def test_exportar_excel_aplica_color_por_severidad(tmp_path: Path) -> None:
     color = errores["A2"].fill.fgColor.rgb or ""
 
     # Verifica que se haya aplicado un color distinto a blanco.
-    assert "FDECEA" in color
+    assert "FADBD8" in color
 
 
 # Verifica que la sección de rendimiento no use valores None como datos reales.
