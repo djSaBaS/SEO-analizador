@@ -4,6 +4,9 @@ from bs4 import BeautifulSoup
 # Importa utilidades estándar para normalización robusta de URL.
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
+# Importa contador para reglas transversales del conjunto auditado.
+from collections import Counter
+
 # Importa funciones de obtención de HTML.
 from seo_auditor.fetcher import obtener_metadatos_html
 
@@ -191,10 +194,10 @@ def auditar_url(url: str, timeout: int) -> ResultadoUrl:
         # Extrae el título si existe dentro del documento.
         title = html.title.get_text(strip=True) if html.title else ""
 
-        # Busca el primer H1 útil del documento.
+        # Busca todos los H1 del documento para validaciones estructurales.
         h1_tags = html.find_all("h1")
 
-        # Extrae el texto del H1 si se ha localizado.
+        # Extrae el texto del H1 principal si se ha localizado.
         h1 = h1_tags[0].get_text(strip=True) if h1_tags else ""
 
         # Extrae la meta descripción para evaluar completitud on-page.
@@ -290,8 +293,8 @@ def auditar_url(url: str, timeout: int) -> ResultadoUrl:
                 )
             )
 
-        # Añade hallazgo si el H1 está vacío.
-        if not h1:
+        # Añade hallazgo si no existe ningún H1.
+        if not h1_tags:
             # Señala una carencia estructural importante.
             hallazgos.append(
                 crear_hallazgo(
@@ -300,8 +303,18 @@ def auditar_url(url: str, timeout: int) -> ResultadoUrl:
                     recomendacion="Añadir un H1 único que resuma el propósito principal de la página.",
                 )
             )
+        # Añade hallazgo si existe H1 pero está vacío.
+        elif not h1:
+            # Señala estructura incompleta de encabezado principal.
+            hallazgos.append(
+                crear_hallazgo(
+                    tipo="contenido",
+                    descripcion="El H1 existe pero está vacío.",
+                    recomendacion="Completar el H1 con un texto principal claro y descriptivo.",
+                )
+            )
         # Añade hallazgo cuando se detectan múltiples H1 en una misma URL.
-        elif len(h1_tags) > 1:
+        if len(h1_tags) > 1:
             # Señala potencial conflicto jerárquico de encabezados.
             hallazgos.append(
                 crear_hallazgo(
@@ -391,23 +404,29 @@ def auditar_url(url: str, timeout: int) -> ResultadoUrl:
                     )
                 )
 
+        # Inicializa contador de imágenes sin alt útil.
+        imagenes_sin_alt = 0
+
         # Revisa imágenes sin atributo alt para accesibilidad y SEO semántico.
         for imagen in html.find_all("img"):
             # Obtiene atributo alt cuando exista.
             alt = (imagen.get("alt") or "").strip()
 
-            # Señala imagen sin alt explícito.
+            # Incrementa contador cuando el alt no aporte valor.
             if not alt:
-                # Añade hallazgo de contenido por accesibilidad/SEO.
-                hallazgos.append(
-                    crear_hallazgo(
-                        tipo="contenido",
-                        descripcion="Imagen sin atributo alt detectada.",
-                        recomendacion="Añadir texto alt descriptivo y contextual en todas las imágenes informativas.",
-                    )
+                # Suma incidencia detectada en la página.
+                imagenes_sin_alt += 1
+
+        # Añade hallazgo agregado de imágenes sin alt.
+        if imagenes_sin_alt > 0:
+            # Añade hallazgo de contenido por accesibilidad/SEO.
+            hallazgos.append(
+                crear_hallazgo(
+                    tipo="contenido",
+                    descripcion=f"Se detectaron {imagenes_sin_alt} imágenes sin atributo alt útil.",
+                    recomendacion="Añadir texto alt descriptivo y contextual en todas las imágenes informativas.",
                 )
-                # Limita ruido de hallazgos repetidos por página.
-                break
+            )
 
         # Añade hallazgo si la página está marcada como noindex.
         if noindex:
@@ -473,6 +492,36 @@ def auditar_urls(sitemap: str, urls: list[str], timeout: int, cliente: str, fech
     for url in iterar_con_progreso(urls, "Auditoría técnica", "URL"):
         # Ejecuta auditoría de la URL actual.
         resultados.append(auditar_url(url, timeout))
+
+    # Inicializa contadores de títulos para detectar duplicados globales.
+    contador_titles = Counter(item.title.strip().lower() for item in resultados if item.title.strip())
+
+    # Inicializa contadores de metas para detectar duplicados globales.
+    contador_metas = Counter(item.meta_description.strip().lower() for item in resultados if item.meta_description.strip())
+
+    # Recorre resultados para marcar duplicidades on-page entre URLs.
+    for item in resultados:
+        # Evalúa si el title está duplicado en el conjunto.
+        if item.title.strip() and contador_titles[item.title.strip().lower()] > 1:
+            # Añade hallazgo de title duplicado.
+            item.hallazgos.append(
+                crear_hallazgo(
+                    tipo="contenido",
+                    descripcion="Title duplicado detectado en múltiples URLs auditadas.",
+                    recomendacion="Definir titles únicos por URL para evitar canibalización y ambigüedad semántica.",
+                )
+            )
+
+        # Evalúa si la meta description está duplicada en el conjunto.
+        if item.meta_description.strip() and contador_metas[item.meta_description.strip().lower()] > 1:
+            # Añade hallazgo de meta description duplicada.
+            item.hallazgos.append(
+                crear_hallazgo(
+                    tipo="contenido",
+                    descripcion="Meta description duplicada detectada en múltiples URLs auditadas.",
+                    recomendacion="Redactar metas únicas por URL para mejorar relevancia y CTR potencial.",
+                )
+            )
 
     # Devuelve el agregado final de la auditoría.
     return ResultadoAuditoria(

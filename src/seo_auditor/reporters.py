@@ -105,6 +105,125 @@ def _interpretacion_rendimiento(score: float | None, estrategia: str) -> str:
     return f"{estrategia.title()}: correcto."
 
 
+# Construye quick wins deduplicados y ordenados para capa ejecutiva.
+def _construir_quick_wins(filas: list[dict], limite: int = 12) -> list[dict[str, str]]:
+    """Devuelve quick wins sin repeticiones torpes y priorizados por utilidad."""
+
+    # Inicializa índice de deduplicación por URL y recomendación.
+    vistos: set[tuple[str, str]] = set()
+
+    # Inicializa colección de quick wins ejecutivos.
+    quick_wins: list[dict[str, str]] = []
+
+    # Recorre filas para localizar acciones de bajo esfuerzo y alto impacto.
+    for fila in filas:
+        # Obtiene campos base de la fila actual.
+        url = str(fila.get("url", "")).strip()
+
+        # Obtiene problema resumido.
+        problema = str(fila.get("problema", "")).strip()
+
+        # Obtiene recomendación asociada.
+        recomendacion = str(fila.get("recomendacion", "")).strip()
+
+        # Obtiene impacto estimado.
+        impacto = str(fila.get("impacto", "")).strip()
+
+        # Obtiene esfuerzo estimado.
+        esfuerzo = str(fila.get("esfuerzo", "")).strip()
+
+        # Descarta filas incompletas para evitar ruido visual.
+        if not url or not problema or not recomendacion:
+            # Continúa con siguiente fila útil.
+            continue
+
+        # Filtra quick wins reales por esfuerzo bajo e impacto relevante.
+        if esfuerzo != "Bajo" or impacto not in {"Muy alto", "Alto", "Medio"}:
+            # Continúa cuando no cumpla criterio de quick win.
+            continue
+
+        # Construye clave de deduplicación por URL+acción.
+        clave = (url, recomendacion)
+
+        # Descarta duplicados repetitivos en el informe ejecutivo.
+        if clave in vistos:
+            # Continúa con la siguiente fila.
+            continue
+
+        # Registra clave ya utilizada.
+        vistos.add(clave)
+
+        # Añade quick win estructurado para render de tabla/tarjeta.
+        quick_wins.append({"url": url, "problema": problema, "recomendacion": recomendacion, "impacto": impacto, "esfuerzo": esfuerzo})
+
+        # Finaliza cuando se alcance el límite operativo.
+        if len(quick_wins) >= limite:
+            # Rompe el bucle al cubrir cupo máximo.
+            break
+
+    # Devuelve colección final de quick wins deduplicados.
+    return quick_wins
+
+
+# Calcula incidencias agrupadas para capa ejecutiva sin perder detalle técnico.
+def _calcular_incidencias_agrupadas(filas: list[dict]) -> dict[str, int]:
+    """Agrupa incidencias por tipología para resumen ejecutivo coherente."""
+
+    # Inicializa contador agregado por familia de problema.
+    agregadas: Counter[str] = Counter()
+
+    # Recorre filas de incidencias técnicas.
+    for fila in filas:
+        # Obtiene descripción del problema actual.
+        problema = str(fila.get("problema", "")).lower().strip()
+
+        # Descarta filas informativas sin problema.
+        if not problema:
+            # Continúa al siguiente registro.
+            continue
+
+        # Agrupa normalizaciones de slash para evitar sobredimensionar resumen.
+        if "slash final" in problema:
+            # Cuenta una familia ejecutiva de normalización de URL.
+            agregadas["Normalización URL (slash final)"] += 1
+            # Continúa para evitar doble conteo.
+            continue
+
+        # Agrupa incidencias de imágenes sin alt en una misma familia.
+        if "imágenes sin atributo alt" in problema or "imagen sin atributo alt" in problema:
+            # Cuenta familia multimedia/accesibilidad.
+            agregadas["Imágenes sin ALT"] += 1
+            # Continúa para evitar doble conteo.
+            continue
+
+        # Agrupa problemas de titles en una familia ejecutiva.
+        if "title" in problema:
+            # Cuenta familia de títulos on-page.
+            agregadas["Titles"] += 1
+            # Continúa para evitar doble conteo.
+            continue
+
+        # Agrupa problemas de meta description en su familia.
+        if "meta description" in problema:
+            # Cuenta familia de metas on-page.
+            agregadas["Meta descriptions"] += 1
+            # Continúa para evitar doble conteo.
+            continue
+
+        # Agrupa problemas de h1 y headings.
+        if "h1" in problema:
+            # Cuenta familia de headings.
+            agregadas["Headings"] += 1
+            # Continúa para evitar doble conteo.
+            continue
+
+        # Registra resto de problemas como categoría literal normalizada.
+        agregadas[problema[:90]] += 1
+
+    # Devuelve incidencias agrupadas para capa ejecutiva.
+    return dict(agregadas)
+
+
 # Construye un prefijo de nombre de archivo legible y consistente.
 def construir_prefijo_archivo(resultado: ResultadoAuditoria) -> str:
     """Genera un prefijo de naming profesional para entregables."""
@@ -390,8 +509,49 @@ def calcular_metricas(resultado: ResultadoAuditoria) -> dict[str, int | float | 
     # Calcula score SEO global acotado entre 5 y 100.
     score = round(max(5.0, min(100.0, 100.0 - (penalizacion / max_penalizacion) * 100.0)), 1)
 
+    # Construye filas técnicas para agregación ejecutiva coherente.
+    filas = construir_filas(resultado)
+
+    # Calcula incidencias agrupadas para capa ejecutiva.
+    incidencias_agrupadas = _calcular_incidencias_agrupadas(filas)
+
+    # Cuenta total de incidencias agrupadas para resumen ejecutivo.
+    total_agrupadas = sum(incidencias_agrupadas.values())
+
+    # Calcula score de bloque de indexación y arquitectura.
+    score_indexacion = round(max(5.0, min(100.0, 100.0 - ((areas.get("Indexación", 0) + areas.get("Arquitectura", 0)) * 4.0))), 1)
+
+    # Calcula score de bloque de contenido on-page.
+    score_contenido = round(max(5.0, min(100.0, 100.0 - (areas.get("Contenido", 0) * 3.5))), 1)
+
+    # Calcula score de bloque multimedia/accesibilidad básica.
+    score_multimedia = round(max(5.0, min(100.0, 100.0 - (incidencias_agrupadas.get("Imágenes sin ALT", 0) * 5.0))), 1)
+
+    # Obtiene scores de rendimiento disponibles.
+    scores_rendimiento = [item.performance_score for item in resultado.rendimiento if isinstance(item.performance_score, (int, float))]
+
+    # Calcula score de rendimiento con fallback al global si no hay datos.
+    score_rendimiento = round(sum(scores_rendimiento) / len(scores_rendimiento), 1) if scores_rendimiento else score
+
     # Devuelve métricas calculadas.
-    return {"total_urls": resultado.total_urls, "total_incidencias": total_incidencias, "severidades": dict(severidades), "tipos": dict(tipos), "areas": dict(areas), "urls_sanas": urls_sanas, "score": score, "formula_score": "Score = 100 - (penalización_ponderada/(total_urls*10))*100"}
+    return {
+        "total_urls": resultado.total_urls,
+        "total_incidencias": total_incidencias,
+        "total_incidencias_agrupadas": total_agrupadas,
+        "incidencias_agrupadas": incidencias_agrupadas,
+        "severidades": dict(severidades),
+        "tipos": dict(tipos),
+        "areas": dict(areas),
+        "urls_sanas": urls_sanas,
+        "score": score,
+        "score_bloques": {
+            "indexacion_arquitectura": {"score": score_indexacion, "peso": 0.35},
+            "contenido_onpage": {"score": score_contenido, "peso": 0.30},
+            "rendimiento": {"score": score_rendimiento, "peso": 0.20},
+            "multimedia_accesibilidad": {"score": score_multimedia, "peso": 0.15},
+        },
+        "formula_score": "Score = 100 - (penalización_ponderada/(total_urls*10))*100",
+    }
 
 
 # Construye la narrativa final sin duplicar secciones.
@@ -444,11 +604,11 @@ def _construir_bloques_narrativos(resultado: ResultadoAuditoria) -> dict[str, li
 
     # Construye fallback de quick wins cuando no exista narrativa IA.
     if not bloques["Quick wins"]:
-        # Filtra acciones de bajo esfuerzo y alto impacto.
-        quick_wins = [fila for fila in filas if fila.get("esfuerzo") == "Bajo" and fila.get("impacto") in {"Muy alto", "Alto", "Medio"} and fila.get("recomendacion")]
+        # Calcula quick wins deduplicados y accionables.
+        quick_wins = _construir_quick_wins(filas, limite=8)
 
         # Inserta recomendaciones rápidas priorizadas.
-        for fila in quick_wins[:5]:
+        for fila in quick_wins:
             # Añade quick win concreto.
             bloques["Quick wins"].append(f"{fila['recomendacion']} ({fila['url']})")
 
@@ -755,16 +915,41 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     # Calcula porcentaje real de incidencias resueltas.
     porcentaje_resueltas = round((incidencias_resueltas / max(1, metricas["total_incidencias"])) * 100.0, 1)
 
+    # Cuenta imágenes sin alt dentro del detalle técnico.
+    total_imagenes_sin_alt = len([fila for fila in filas if "imágenes sin atributo alt" in str(fila.get("problema", "")).lower()])
+
+    # Cuenta titles demasiado largos dentro del detalle técnico.
+    total_titles_largos = len([fila for fila in filas if "title demasiado largo" in str(fila.get("problema", "")).lower()])
+
+    # Cuenta metas vacías dentro del detalle técnico.
+    total_metas_vacias = len([fila for fila in filas if "no tiene meta description" in str(fila.get("problema", "")).lower()])
+
+    # Cuenta páginas con problemas de H1.
+    total_h1_problematico = len([fila for fila in filas if "h1" in str(fila.get("problema", "")).lower()])
+
+    # Obtiene score por bloques para dashboard explicable.
+    score_bloques = metricas.get("score_bloques", {}) if isinstance(metricas.get("score_bloques", {}), dict) else {}
+
     # Define tarjetas KPI ampliadas para dashboard profesional.
     kpis_dashboard = [
         ("Total URLs auditadas", metricas["total_urls"]),
         ("Total incidencias", metricas["total_incidencias"]),
+        ("Total incidencias agrupadas", metricas.get("total_incidencias_agrupadas", 0)),
         ("URLs sanas", metricas["urls_sanas"]),
         ("Score SEO global", metricas["score"]),
+        ("Score indexación/arquitectura", score_bloques.get("indexacion_arquitectura", {}).get("score", "No disponible")),
+        ("Score contenido on-page", score_bloques.get("contenido_onpage", {}).get("score", "No disponible")),
+        ("Score rendimiento", score_bloques.get("rendimiento", {}).get("score", "No disponible")),
+        ("Score multimedia/accesibilidad", score_bloques.get("multimedia_accesibilidad", {}).get("score", "No disponible")),
         ("Incidencias críticas", incidencias_criticas),
         ("Incidencias altas", incidencias_altas),
         ("Incidencias medias", incidencias_medias),
         ("Incidencias bajas", incidencias_bajas),
+        ("Incidencias informativas", metricas["severidades"].get("informativa", 0)),
+        ("Total imágenes sin alt", total_imagenes_sin_alt),
+        ("Total titles largos", total_titles_largos),
+        ("Total metas vacías", total_metas_vacias),
+        ("Páginas con H1 problemático", total_h1_problematico),
         ("Total oportunidades PageSpeed", total_oportunidades),
         ("Score medio móvil", score_medio_mobile),
         ("Score medio escritorio", score_medio_desktop),
@@ -825,6 +1010,26 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     # Escribe bloque de tipos de mejora en hoja auxiliar.
     hoja_aux["G1"] = "Tipo de mejora"
     hoja_aux["H1"] = "Cantidad"
+
+    # Escribe bloque de score por bloques en hoja auxiliar.
+    hoja_aux["J1"] = "Bloque score"
+    hoja_aux["K1"] = "Score"
+
+    # Define pares de score por bloques para visualización.
+    bloques_score = [
+        ("Indexación/arquitectura", score_bloques.get("indexacion_arquitectura", {}).get("score", 0)),
+        ("Contenido on-page", score_bloques.get("contenido_onpage", {}).get("score", 0)),
+        ("Rendimiento", score_bloques.get("rendimiento", {}).get("score", 0)),
+        ("Multimedia/accesibilidad", score_bloques.get("multimedia_accesibilidad", {}).get("score", 0)),
+    ]
+
+    # Recorre scores por bloque para poblar auxiliar.
+    for indice, (bloque, score_bloque) in enumerate(bloques_score, start=2):
+        # Escribe nombre del bloque de score.
+        hoja_aux[f"J{indice}"] = bloque
+
+        # Escribe score del bloque.
+        hoja_aux[f"K{indice}"] = score_bloque
 
     # Recorre tipos de mejora más frecuentes.
     for indice, (tipo, cantidad) in enumerate(tipos_mejora.most_common(6), start=2):
@@ -907,6 +1112,27 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
 
     # Inserta gráfico en posición explícita.
     hoja_dashboard.add_chart(grafico_tipos_mejora, "D25")
+
+    # Crea gráfico de score por bloques para explicar score global.
+    grafico_score_bloques = BarChart()
+
+    # Define título del gráfico de score por bloques.
+    grafico_score_bloques.title = "Score SEO por bloques"
+
+    # Carga datos del gráfico de score por bloques.
+    grafico_score_bloques.add_data(Reference(hoja_aux, min_col=11, min_row=1, max_row=5), titles_from_data=True)
+
+    # Carga categorías del gráfico de score por bloques.
+    grafico_score_bloques.set_categories(Reference(hoja_aux, min_col=10, min_row=2, max_row=5))
+
+    # Ajusta tamaño visual del gráfico.
+    grafico_score_bloques.width = 7.5
+
+    # Ajusta alto visual del gráfico.
+    grafico_score_bloques.height = 5.4
+
+    # Inserta gráfico de score por bloques en dashboard.
+    hoja_dashboard.add_chart(grafico_score_bloques, "L25")
 
     # Oculta la hoja auxiliar para no contaminar entregable final.
     hoja_aux.sheet_state = "hidden"
@@ -1007,6 +1233,44 @@ def exportar_word(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
             # Continúa con siguiente sección.
             continue
 
+        # Inserta bloque visual de quick wins deduplicados.
+        if titulo_seccion == "Quick wins":
+            # Construye quick wins desde filas técnicas.
+            quick_wins = _construir_quick_wins(construir_filas(resultado), limite=10)
+
+            # Renderiza mensaje de ausencia cuando no haya quick wins.
+            if not quick_wins:
+                # Añade mensaje informativo al documento.
+                documento.add_paragraph("No se identificaron quick wins claros de bajo esfuerzo y alto impacto.")
+            else:
+                # Crea tabla de quick wins con formato ejecutivo.
+                tabla_qw = documento.add_table(rows=1, cols=5)
+
+                # Aplica estilo visual de tabla.
+                tabla_qw.style = "Table Grid"
+
+                # Escribe encabezados de quick wins.
+                tabla_qw.rows[0].cells[0].text = "URL"
+                tabla_qw.rows[0].cells[1].text = "Problema principal"
+                tabla_qw.rows[0].cells[2].text = "Recomendación"
+                tabla_qw.rows[0].cells[3].text = "Impacto esperado"
+                tabla_qw.rows[0].cells[4].text = "Esfuerzo"
+
+                # Recorre quick wins para poblar tabla.
+                for quick_win in quick_wins:
+                    # Inserta nueva fila de quick win.
+                    fila_qw = tabla_qw.add_row().cells
+
+                    # Escribe campos normalizados.
+                    fila_qw[0].text = quick_win["url"]
+                    fila_qw[1].text = quick_win["problema"]
+                    fila_qw[2].text = quick_win["recomendacion"]
+                    fila_qw[3].text = quick_win["impacto"]
+                    fila_qw[4].text = quick_win["esfuerzo"]
+
+            # Continúa con la siguiente sección.
+            continue
+
         # Inserta bloque específico de rendimiento.
         if titulo_seccion == "Rendimiento y experiencia de usuario":
             # Agrupa resultados por URL para comparar mobile vs desktop.
@@ -1032,22 +1296,17 @@ def exportar_word(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
                 # Añade mensaje al documento.
                 documento.add_paragraph(mensaje)
             else:
-                # Crea tabla comparativa principal mobile vs desktop.
-                tabla_rend = documento.add_table(rows=1, cols=9)
+                # Crea tabla compacta de rendimiento por métrica.
+                tabla_rend = documento.add_table(rows=1, cols=4)
 
                 # Aplica estilo visual de tabla.
                 tabla_rend.style = "Table Grid"
 
                 # Escribe encabezados obligatorios de la tabla.
                 tabla_rend.rows[0].cells[0].text = "URL / Estrategia"
-                tabla_rend.rows[0].cells[1].text = "Performance"
-                tabla_rend.rows[0].cells[2].text = "SEO"
-                tabla_rend.rows[0].cells[3].text = "LCP"
-                tabla_rend.rows[0].cells[4].text = "CLS"
-                tabla_rend.rows[0].cells[5].text = "INP"
-                tabla_rend.rows[0].cells[6].text = "FCP"
-                tabla_rend.rows[0].cells[7].text = "Speed Index"
-                tabla_rend.rows[0].cells[8].text = "Observación"
+                tabla_rend.rows[0].cells[1].text = "Métrica"
+                tabla_rend.rows[0].cells[2].text = "Valor"
+                tabla_rend.rows[0].cells[3].text = "Observación"
 
                 # Recorre URLs para insertar filas comparativas.
                 for url_actual, bloque in list(rendimiento_por_url.items())[:4]:
@@ -1056,21 +1315,33 @@ def exportar_word(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
                         # Obtiene resultado por estrategia cuando exista.
                         item = bloque.get(estrategia)
 
-                        # Inserta nueva fila en tabla comparativa.
-                        fila = tabla_rend.add_row().cells
+                        # Construye lista vertical de métricas para mejor legibilidad.
+                        metricas_item = [
+                            ("Performance", _valor_metrica(getattr(item, "performance_score", None))),
+                            ("SEO", _valor_metrica(getattr(item, "seo_score", None))),
+                            ("LCP", _valor_metrica(getattr(item, "lcp", None))),
+                            ("CLS", _valor_metrica(getattr(item, "cls", None))),
+                            ("INP", _valor_metrica(getattr(item, "inp", None))),
+                            ("FCP", _valor_metrica(getattr(item, "fcp", None))),
+                            ("Speed Index", _valor_metrica(getattr(item, "speed_index", None))),
+                        ]
 
-                        # Escribe etiqueta de URL y estrategia.
-                        fila[0].text = f"{url_actual} [{estrategia}]"
+                        # Recorre métricas para render vertical compacto.
+                        for indice_metrica, (nombre_metrica, valor_metrica) in enumerate(metricas_item):
+                            # Inserta nueva fila en tabla vertical.
+                            fila = tabla_rend.add_row().cells
 
-                        # Completa métricas evitando `None`.
-                        fila[1].text = _valor_metrica(getattr(item, "performance_score", None))
-                        fila[2].text = _valor_metrica(getattr(item, "seo_score", None))
-                        fila[3].text = _valor_metrica(getattr(item, "lcp", None))
-                        fila[4].text = _valor_metrica(getattr(item, "cls", None))
-                        fila[5].text = _valor_metrica(getattr(item, "inp", None))
-                        fila[6].text = _valor_metrica(getattr(item, "fcp", None))
-                        fila[7].text = _valor_metrica(getattr(item, "speed_index", None))
-                        fila[8].text = _interpretacion_rendimiento(getattr(item, "performance_score", None), estrategia)
+                            # Escribe URL solo en la primera métrica del bloque.
+                            fila[0].text = f"{url_actual} [{estrategia}]" if indice_metrica == 0 else ""
+
+                            # Escribe nombre de métrica.
+                            fila[1].text = nombre_metrica
+
+                            # Escribe valor de métrica.
+                            fila[2].text = valor_metrica
+
+                            # Escribe observación solo en primera línea del bloque.
+                            fila[3].text = _interpretacion_rendimiento(getattr(item, "performance_score", None), estrategia) if indice_metrica == 0 else ""
 
                 # Inserta subtítulo de oportunidades para lectura accionable.
                 documento.add_paragraph("Oportunidades PageSpeed priorizadas:")
@@ -1181,6 +1452,39 @@ def exportar_pdf(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
             # Salta a siguiente sección.
             continue
 
+        # Inserta bloque visual de quick wins deduplicados.
+        if titulo_seccion == "Quick wins":
+            # Construye quick wins desde incidencias técnicas.
+            quick_wins = _construir_quick_wins(construir_filas(resultado), limite=10)
+
+            # Renderiza mensaje cuando no existan quick wins claros.
+            if not quick_wins:
+                # Añade mensaje informativo en PDF.
+                elementos.append(Paragraph("No se identificaron quick wins claros de bajo esfuerzo y alto impacto.", estilos["Normal"]))
+            else:
+                # Construye tabla de quick wins con estructura ejecutiva.
+                tabla_quick_wins = Table(
+                    [["URL", "Problema principal", "Recomendación", "Impacto esperado", "Esfuerzo"]]
+                    + [[item["url"], item["problema"], item["recomendacion"], item["impacto"], item["esfuerzo"]] for item in quick_wins]
+                )
+
+                # Aplica estilo visual sobrio de quick wins.
+                tabla_quick_wins.setStyle(
+                    TableStyle(
+                        [
+                            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1F4E78")),
+                            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                            ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#D9D9D9")),
+                        ]
+                    )
+                )
+
+                # Inserta tabla de quick wins en el flujo.
+                elementos.append(tabla_quick_wins)
+
+            # Salta a siguiente sección.
+            continue
+
         # Inserta resumen de rendimiento.
         if titulo_seccion == "Rendimiento y experiencia de usuario":
             # Agrupa resultados por URL para comparación mobile/desktop.
@@ -1206,8 +1510,8 @@ def exportar_pdf(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
                 # Añade mensaje saneado al PDF.
                 elementos.append(Paragraph(sanear_texto_para_pdf(mensaje), estilos["Normal"]))
             else:
-                # Construye cabecera de tabla comparativa.
-                tabla_datos = [["URL / Estrategia", "Performance", "SEO", "LCP", "CLS", "INP", "FCP", "Speed Index", "Observación"]]
+                # Construye cabecera de tabla compacta por métrica.
+                tabla_datos = [["URL / Estrategia", "Métrica", "Valor", "Observación"]]
 
                 # Recorre muestra de URLs para tabla de rendimiento.
                 for url_actual, bloque in list(rendimiento_por_url.items())[:4]:
@@ -1216,20 +1520,28 @@ def exportar_pdf(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
                         # Obtiene registro por estrategia.
                         item = bloque.get(estrategia)
 
-                        # Añade fila comparativa saneada.
-                        tabla_datos.append(
-                            [
-                                sanear_texto_para_pdf(f"{url_actual} [{estrategia}]"),
-                                _valor_metrica(getattr(item, "performance_score", None)),
-                                _valor_metrica(getattr(item, "seo_score", None)),
-                                _valor_metrica(getattr(item, "lcp", None)),
-                                _valor_metrica(getattr(item, "cls", None)),
-                                _valor_metrica(getattr(item, "inp", None)),
-                                _valor_metrica(getattr(item, "fcp", None)),
-                                _valor_metrica(getattr(item, "speed_index", None)),
-                                _interpretacion_rendimiento(getattr(item, "performance_score", None), estrategia),
-                            ]
-                        )
+                        # Construye métricas verticales para mejor lectura.
+                        metricas_item = [
+                            ("Performance", _valor_metrica(getattr(item, "performance_score", None))),
+                            ("SEO", _valor_metrica(getattr(item, "seo_score", None))),
+                            ("LCP", _valor_metrica(getattr(item, "lcp", None))),
+                            ("CLS", _valor_metrica(getattr(item, "cls", None))),
+                            ("INP", _valor_metrica(getattr(item, "inp", None))),
+                            ("FCP", _valor_metrica(getattr(item, "fcp", None))),
+                            ("Speed Index", _valor_metrica(getattr(item, "speed_index", None))),
+                        ]
+
+                        # Recorre métricas para añadir filas compactas.
+                        for indice_metrica, (nombre_metrica, valor_metrica) in enumerate(metricas_item):
+                            # Añade fila vertical de métrica.
+                            tabla_datos.append(
+                                [
+                                    sanear_texto_para_pdf(f"{url_actual} [{estrategia}]") if indice_metrica == 0 else "",
+                                    nombre_metrica,
+                                    valor_metrica,
+                                    _interpretacion_rendimiento(getattr(item, "performance_score", None), estrategia) if indice_metrica == 0 else "",
+                                ]
+                            )
 
                 # Crea tabla visual de rendimiento.
                 tabla_rend = Table(tabla_datos, repeatRows=1)
@@ -1334,6 +1646,23 @@ def exportar_html(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     # Obtiene filas de incidencias para la tabla técnica.
     filas = construir_filas(resultado)
 
+    # Construye quick wins deduplicados para bloque visual.
+    quick_wins = _construir_quick_wins(filas, limite=10)
+
+    # Construye incidencias agrupadas para capa ejecutiva.
+    incidencias_agrupadas = metricas.get("incidencias_agrupadas", {}) if isinstance(metricas.get("incidencias_agrupadas", {}), dict) else {}
+
+    # Agrupa resultados de rendimiento por URL/estrategia.
+    rendimiento_por_url: dict[str, dict[str, object]] = {}
+
+    # Recorre resultados de rendimiento para agrupación.
+    for item in resultado.rendimiento:
+        # Inicializa diccionario por URL.
+        rendimiento_por_url.setdefault(item.url, {})
+
+        # Guarda item por estrategia.
+        rendimiento_por_url[item.url][item.estrategia] = item
+
     # Construye contenido HTML básico y portable.
     contenido = f"""<!doctype html>
 <html lang="es">
@@ -1344,7 +1673,10 @@ def exportar_html(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     body {{ font-family: Arial, sans-serif; margin: 24px; color: #1f2937; }}
     h1, h2 {{ color: #1F4E78; }}
     .kpis {{ display: grid; grid-template-columns: repeat(4, minmax(160px, 1fr)); gap: 12px; }}
-    .kpi {{ background: #eef4fb; padding: 10px; border-radius: 8px; }}
+    .kpi {{ background: #eef4fb; padding: 10px; border-radius: 8px; border-left: 4px solid #1F4E78; }}
+    .bloque {{ margin-top: 18px; padding: 14px; border: 1px solid #e5e7eb; border-radius: 10px; }}
+    .tarjetas {{ display: grid; grid-template-columns: repeat(2, minmax(220px, 1fr)); gap: 12px; }}
+    .tarjeta {{ background: #f8fafc; border: 1px solid #dbeafe; border-radius: 8px; padding: 10px; }}
     table {{ border-collapse: collapse; width: 100%; margin-top: 12px; }}
     th, td {{ border: 1px solid #d1d5db; padding: 8px; font-size: 12px; text-align: left; }}
     th {{ background: #1F4E78; color: white; }}
@@ -1357,10 +1689,50 @@ def exportar_html(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
   <div class="kpis">
     <div class="kpi"><b>Total URLs</b><br>{metricas["total_urls"]}</div>
     <div class="kpi"><b>Total incidencias</b><br>{metricas["total_incidencias"]}</div>
+    <div class="kpi"><b>Incidencias agrupadas</b><br>{metricas.get("total_incidencias_agrupadas", 0)}</div>
     <div class="kpi"><b>URLs sanas</b><br>{metricas["urls_sanas"]}</div>
     <div class="kpi"><b>Score SEO</b><br>{metricas["score"]}</div>
   </div>
-  <h2>Incidencias principales</h2>
+  <div class="bloque">
+    <h2>Quick wins</h2>
+    <table>
+      <thead><tr><th>URL</th><th>Problema principal</th><th>Recomendación</th><th>Impacto esperado</th><th>Esfuerzo</th></tr></thead>
+      <tbody>
+        {''.join(f"<tr><td>{item['url']}</td><td>{item['problema']}</td><td>{item['recomendacion']}</td><td>{item['impacto']}</td><td>{item['esfuerzo']}</td></tr>" for item in quick_wins) or '<tr><td colspan=\"5\">No se identificaron quick wins claros.</td></tr>'}
+      </tbody>
+    </table>
+  </div>
+  <div class="bloque">
+    <h2>Incidencias agrupadas ejecutivas</h2>
+    <table>
+      <thead><tr><th>Familia</th><th>Total</th></tr></thead>
+      <tbody>
+        {''.join(f"<tr><td>{familia}</td><td>{total}</td></tr>" for familia, total in incidencias_agrupadas.items()) or '<tr><td colspan=\"2\">No disponible</td></tr>'}
+      </tbody>
+    </table>
+  </div>
+  <div class="bloque">
+    <h2>Rendimiento (PageSpeed)</h2>
+    <div class="tarjetas">
+      {''.join(
+        ''.join(
+          f"<div class=\"tarjeta\"><b>{url} [{estrategia}]</b><table><tbody>"
+          f"<tr><th>Métrica</th><th>Valor</th></tr>"
+          f"<tr><td>Performance</td><td>{_valor_metrica(getattr(item, 'performance_score', None))}</td></tr>"
+          f"<tr><td>SEO</td><td>{_valor_metrica(getattr(item, 'seo_score', None))}</td></tr>"
+          f"<tr><td>LCP</td><td>{_valor_metrica(getattr(item, 'lcp', None))}</td></tr>"
+          f"<tr><td>CLS</td><td>{_valor_metrica(getattr(item, 'cls', None))}</td></tr>"
+          f"<tr><td>INP</td><td>{_valor_metrica(getattr(item, 'inp', None))}</td></tr>"
+          f"<tr><td>FCP</td><td>{_valor_metrica(getattr(item, 'fcp', None))}</td></tr>"
+          f"<tr><td>Speed Index</td><td>{_valor_metrica(getattr(item, 'speed_index', None))}</td></tr>"
+          f"</tbody></table></div>"
+          for estrategia, item in bloque.items()
+        )
+        for url, bloque in list(rendimiento_por_url.items())[:6]
+      ) or '<p>No disponible</p>'}
+    </div>
+  </div>
+  <h2>Incidencias técnicas (detalle)</h2>
   <table>
     <thead><tr><th>URL</th><th>Severidad</th><th>Área</th><th>Problema</th><th>Recomendación</th></tr></thead>
     <tbody>

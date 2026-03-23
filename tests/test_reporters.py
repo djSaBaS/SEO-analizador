@@ -5,7 +5,7 @@ from pathlib import Path
 from seo_auditor.models import HallazgoSeo, OportunidadRendimiento, ResultadoAuditoria, ResultadoRendimiento, ResultadoUrl
 
 # Importa funciones de reporters bajo prueba.
-from seo_auditor.reporters import _construir_bloques_narrativos, calcular_metricas, construir_secciones_desde_ia, exportar_excel, sanear_texto_para_pdf
+from seo_auditor.reporters import _construir_bloques_narrativos, _construir_quick_wins, calcular_metricas, construir_secciones_desde_ia, exportar_excel, sanear_texto_para_pdf
 
 # Importa lector de libros Excel para validar KPIs.
 from openpyxl import load_workbook
@@ -92,6 +92,12 @@ def test_calcular_metricas_score_ponderado() -> None:
     # Verifica que el score esté en el rango operativo esperado.
     assert 5.0 <= float(metricas["score"]) <= 100.0
 
+    # Verifica que exista el desglose de score por bloques.
+    assert "score_bloques" in metricas
+
+    # Verifica que exista total de incidencias agrupadas.
+    assert "total_incidencias_agrupadas" in metricas
+
 
 # Verifica que se rellenen secciones obligatorias cuando no haya IA.
 def test_construir_bloques_narrativos_generar_fallback_completo() -> None:
@@ -139,6 +145,24 @@ def test_construir_bloques_narrativos_generar_fallback_completo() -> None:
 
     # Verifica que cada sección obligatoria tenga al menos una línea.
     assert all(len(items) > 0 for items in bloques.values())
+
+
+# Verifica que quick wins elimine duplicados y filas incompletas.
+def test_construir_quick_wins_deduplica_y_filtra() -> None:
+    """Comprueba que la lista de quick wins sea consistente y sin repeticiones torpes."""
+
+    # Define filas con duplicado y fila incompleta.
+    filas = [
+        {"url": "https://ejemplo.com/a", "problema": "Falta title", "recomendacion": "Añadir title", "impacto": "Alto", "esfuerzo": "Bajo"},
+        {"url": "https://ejemplo.com/a", "problema": "Falta title", "recomendacion": "Añadir title", "impacto": "Alto", "esfuerzo": "Bajo"},
+        {"url": "", "problema": "Sin meta", "recomendacion": "Añadir meta", "impacto": "Alto", "esfuerzo": "Bajo"},
+    ]
+
+    # Construye quick wins deduplicados.
+    quick_wins = _construir_quick_wins(filas, limite=10)
+
+    # Verifica que solo quede una entrada válida.
+    assert len(quick_wins) == 1
 
 
 # Verifica que la media de score de dashboard use ejecuciones únicas.
@@ -227,7 +251,7 @@ def test_exportar_excel_score_medio_desde_ejecuciones_unicas(tmp_path: Path) -> 
     hoja_dashboard = libro["Dashboard"]
 
     # Verifica score medio móvil basado en ejecuciones únicas: (50 + 100) / 2 = 75.
-    assert hoja_dashboard["B12"].value == 75.0
+    assert hoja_dashboard["B22"].value == 75.0
 
 
 # Verifica que el dashboard conserve los gráficos esperados.

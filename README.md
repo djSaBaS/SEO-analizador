@@ -8,6 +8,7 @@ Herramienta de auditoría SEO técnica y ejecutiva para agencia, con exportació
 - Integrar PageSpeed Insights (móvil/escritorio) con control de alcance.
 - Cachear resultados costosos (PageSpeed e IA) con TTL configurable.
 - Clasificar incidencias automáticamente por severidad, área, impacto, esfuerzo y prioridad.
+- Diferenciar capa técnica (detalle) y capa ejecutiva (incidencias agrupadas).
 - Generar entregables orientados a cliente final sin markdown crudo en DOCX/PDF.
 - Exportar adicionalmente un informe HTML reutilizable.
 - Reducir consumo de tokens en IA mediante contexto agregado.
@@ -82,6 +83,14 @@ python src/main.py --testia --modelo-ia gemini-2.0-flash
   - `canonical potencialmente incoherente` (media severidad)
   - `canonical realmente incoherente` (alta severidad)
 - Si la diferencia es solo slash final y la URL auditada responde 200, no escala automáticamente a alta severidad.
+
+## Capa ejecutiva vs capa técnica
+- Excel y anexo técnico mantienen el detalle de incidencias individuales.
+- Word/PDF/HTML añaden una capa ejecutiva con:
+  - quick wins deduplicados y estructurados
+  - incidencias agrupadas por familia de problema
+  - presentación de rendimiento en formato más legible por métrica
+- El score incluye desglose por bloques para interpretación de negocio.
 
 ## Calidad documental
 - Jerarquía fija del informe: portada, resumen, KPIs, hallazgos, quick wins, acciones, rendimiento, roadmap y anexo.
