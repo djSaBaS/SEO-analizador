@@ -969,13 +969,30 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     # Define columnas de hoja de contenido para seguimiento editorial.
     columnas_contenido = ["url", "palabras", "calidad_contenido", "h1", "title", "meta_description", "imagenes_sin_alt", "thin_content", "densidad_texto", "ratio_texto_html"]
 
+    # Construye filas de contenido directamente desde resultados por URL.
+    filas_contenido = [
+        {
+            "url": item.url,
+            "palabras": getattr(item, "palabras", 0),
+            "calidad_contenido": getattr(item, "calidad_contenido", "baja"),
+            "h1": item.h1,
+            "title": item.title,
+            "meta_description": item.meta_description,
+            "imagenes_sin_alt": getattr(item, "imagenes_sin_alt", 0),
+            "thin_content": "Sí" if getattr(item, "thin_content", False) else "No",
+            "densidad_texto": getattr(item, "densidad_texto", 0.0),
+            "ratio_texto_html": getattr(item, "ratio_texto_html", 0.0),
+        }
+        for item in resultado.resultados
+    ]
+
     # Recorre encabezados de contenido.
     for columna, encabezado in enumerate(columnas_contenido, start=1):
         # Escribe encabezado en hoja de contenido.
         hoja_contenido.cell(row=1, column=columna, value=encabezado)
 
-    # Recorre filas técnicas para poblar hoja de contenido.
-    for fila_indice, fila in enumerate(filas, start=2):
+    # Recorre filas de contenido por URL para poblar hoja de contenido.
+    for fila_indice, fila in enumerate(filas_contenido, start=2):
         # Escribe columnas de contenido en cada fila.
         for columna, encabezado in enumerate(columnas_contenido, start=1):
             # Inserta valor correspondiente con fallback vacío.
@@ -995,7 +1012,7 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
         hoja_contenido.column_dimensions[chr(64 + indice)].width = 24
 
     # Activa filtros en la hoja de contenido.
-    hoja_contenido.auto_filter.ref = f"A1:J{max(2, len(filas) + 1)}"
+    hoja_contenido.auto_filter.ref = f"A1:J{max(2, len(filas_contenido) + 1)}"
 
     # Congela paneles de contenido para navegación.
     hoja_contenido.freeze_panes = "A2"

@@ -70,6 +70,9 @@ def _esta_bloqueada_por_patrones(url: str, patrones_disallow: list[str]) -> bool
 def _extraer_disallow_por_user_agent(robots_df, user_agent_objetivo: str = "*") -> list[str]:
     """Filtra directivas Disallow únicamente para bloques del user-agent objetivo."""
 
+    # Normaliza el user-agent objetivo para comparar sin sesgos de formato.
+    agente_objetivo = user_agent_objetivo.strip().lower()
+
     # Inicializa lista de user-agents activos del bloque actual.
     agentes_activos: list[str] = []
 
@@ -87,9 +90,20 @@ def _extraer_disallow_por_user_agent(robots_df, user_agent_objetivo: str = "*") 
         # Lee contenido asociado a la directiva.
         contenido = str(fila.get("content", "")).strip()
 
+        # Reinicia estado en líneas vacías o directivas desconocidas.
+        if not directiva or directiva == "nan":
+            # Evita arrastrar user-agents entre bloques no relacionados.
+            agentes_activos = []
+
+            # Limpia referencia de última directiva para próximo bloque.
+            ultima_directiva = ""
+
+            # Continúa con la siguiente fila útil.
+            continue
+
         # Actualiza user-agent activo cuando se detecta bloque nuevo.
         if directiva == "user-agent":
-            # Reinicia bloque cuando aparece un nuevo user-agent tras reglas previas.
+            # Reinicia bloque cuando aparece un user-agent tras reglas previas.
             if ultima_directiva != "user-agent":
                 # Limpia agentes para evitar mezcla de bloques.
                 agentes_activos = []
@@ -103,15 +117,15 @@ def _extraer_disallow_por_user_agent(robots_df, user_agent_objetivo: str = "*") 
             # Continúa con la siguiente fila.
             continue
 
-        # Reinicia bloque cuando aparezcan directivas no asociadas a user-agent previo.
+        # Cierra bloque cuando aparezcan directivas globales ajenas al grupo.
         if directiva in {"sitemap", "host"}:
             # Limpia estado para evitar arrastre entre bloques.
             agentes_activos = []
 
         # Filtra solo disallow con contenido no vacío.
         if directiva == "disallow" and contenido:
-            # Evalúa si el bloque aplica al user-agent objetivo o wildcard.
-            if user_agent_objetivo.lower() in agentes_activos or "*" in agentes_activos:
+            # Evalúa si el bloque aplica exactamente al user-agent objetivo.
+            if agente_objetivo in agentes_activos:
                 # Añade patrón aplicable al conjunto final.
                 patrones_disallow.append(contenido)
 
