@@ -16,9 +16,25 @@ from seo_auditor.cache import construir_clave_cache, escribir_cache, leer_cache
 # Importa el modelo de resultado global para tipado claro.
 from seo_auditor.models import ResultadoAuditoria
 
-
 # Define la ruta del archivo de prompt editable del proyecto.
 RUTA_PROMPT_IA = Path(__file__).resolve().parents[2] / "Prompt" / "consulta_ia_prompt.txt"
+
+
+# Define el marcador obligatorio para inyectar el JSON de auditoría.
+PLACEHOLDER_DATOS_JSON = "{datos_json}"
+
+
+# Define fallback interno con el mismo formato multilínea del archivo editable.
+PROMPT_IA_FALLBACK = """Actúa como consultor SEO senior de agencia.
+Redacta un informe en español profesional natural, sin frases vacías ni repeticiones.
+Usa solo los datos proporcionados, sin inventar información.
+No menciones fuentes no activas ni herramientas no conectadas.
+No uses Markdown ni símbolos como **, ### o ---.
+Estructura obligatoria exacta:
+Resumen ejecutivo; Hallazgos críticos; Quick wins; Acciones técnicas; Acciones de contenido; Rendimiento y experiencia de usuario; Roadmap.
+Datos de auditoría en JSON:
+{datos_json}
+"""
 
 
 # Carga la plantilla de prompt desde archivo externo para facilitar su edición.
@@ -26,23 +42,33 @@ def cargar_plantilla_prompt_ia() -> str:
     """Lee la plantilla del prompt desde disco con fallback seguro."""
 
     # Intenta leer el prompt externo configurable por el equipo.
-    if RUTA_PROMPT_IA.exists():
-        # Devuelve el contenido tal cual para máxima editabilidad.
-        return RUTA_PROMPT_IA.read_text(encoding="utf-8")
+    try:
+        # Verifica que la ruta sea un archivo regular.
+        if RUTA_PROMPT_IA.is_file():
+            # Devuelve el contenido tal cual para máxima editabilidad.
+            return RUTA_PROMPT_IA.read_text(encoding="utf-8")
+    except OSError:
+        # Ignora errores de sistema y aplica fallback seguro.
+        pass
 
-    # Usa plantilla interna si el archivo externo no está disponible.
-    return (
-        "Actúa como consultor SEO senior de agencia. "
-        "Redacta un informe en español profesional natural, sin frases vacías ni repeticiones. "
-        "Usa solo los datos proporcionados, sin inventar información. "
-        "No menciones fuentes no activas ni herramientas no conectadas. "
-        "No uses Markdown ni símbolos como **, ### o ---. "
-        "Estructura obligatoria exacta: "
-        "Resumen ejecutivo; Hallazgos críticos; Quick wins; Acciones técnicas; "
-        "Acciones de contenido; Rendimiento y experiencia de usuario; Roadmap. "
-        "Datos de auditoría en JSON:\n"
-        "{datos_json}"
-    )
+    # Usa plantilla interna si el archivo externo no está disponible o no se puede leer.
+    return PROMPT_IA_FALLBACK
+
+
+# Inserta los datos sin evaluar otras llaves literales del prompt editable.
+def construir_prompt_ia(plantilla_prompt: str, datos: dict) -> str:
+    """Compone el prompt final validando el marcador obligatorio de datos."""
+
+    # Exige marcador para evitar llamadas IA sin contexto técnico.
+    if PLACEHOLDER_DATOS_JSON not in plantilla_prompt:
+        # Lanza error explícito para evitar salidas ambiguas o genéricas.
+        raise ValueError("La plantilla de prompt debe incluir el marcador {datos_json}.")
+
+    # Serializa datos SEO conservando caracteres en español.
+    datos_json = json.dumps(datos, ensure_ascii=False)
+
+    # Reemplaza solo el marcador previsto sin usar str.format.
+    return plantilla_prompt.replace(PLACEHOLDER_DATOS_JSON, datos_json, 1)
 
 
 # Construye un resumen optimizado para consumo eficiente de tokens en IA.
