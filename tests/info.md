@@ -13,4 +13,5 @@ Contiene pruebas unitarias y de regresión.
 - Verificar existencia de gráficos y formato visual de severidad en el Excel final.
 
 - `test_indexacion.py`: valida filtrado de directivas Disallow por User-agent para evitar falsos positivos en robots.
+- `test_indexacion.py`: valida filtrado de directivas Disallow por User-agent y clasificación inteligente de indexación (INDEXABLE/REVISAR/NO_INDEXAR) con señales de URL/contenido/SEO/GSC.
 - `test_html_export.py`: valida orden por severidad en exportación HTML (alta arriba, informativa abajo).

@@ -1,5 +1,12 @@
 # version.md
 
+## 0.8.0 - 2026-03-24
+- Se añade gestión de indexación inteligente con clasificación por URL en `INDEXABLE`, `REVISAR` y `NO_INDEXAR`, aplicando reglas por patrones de URL, contenido, señales SEO y datos de Search Console.
+- Se incorpora el modelo de datos de decisiones de indexación (`url`, `clasificacion`, `motivo`, `accion_recomendada`, `prioridad`) dentro del resultado consolidado de la auditoría.
+- Se amplían los reportes con nueva sección narrativa `Gestión de indexación` (resumen global, URLs no indexables, URLs a revisar y recomendaciones claras).
+- Se añade hoja Excel `Indexacion` y KPIs de gestión de indexación en `Dashboard`.
+- Se integra la nueva capa de indexación inteligente en `Quick wins`, `Roadmap` y exportación JSON.
+
 ## 0.7.0 - 2026-03-24
 - Se integra Google Search Console como fuente autenticada opcional con degradación elegante: si falla por credenciales/permisos/propiedad, la auditoría no se rompe y se registra en `fuentes_fallidas`.
 - Se añade argumento CLI `--noGSC` para omitir GSC en una ejecución concreta aunque esté configurado en entorno.

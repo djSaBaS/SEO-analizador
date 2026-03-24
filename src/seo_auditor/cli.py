@@ -17,7 +17,7 @@ from seo_auditor.config import cargar_configuracion
 from seo_auditor.gemini_client import generar_resumen_ia, probar_conexion_ia
 
 # Importa análisis de indexación y rastreo basado en robots/sitemap.
-from seo_auditor.indexacion import analizar_indexacion_rastreo
+from seo_auditor.indexacion import analizar_indexacion_rastreo, generar_gestion_indexacion_inteligente
 
 # Importa el extractor de URLs desde sitemap.
 from seo_auditor.fetcher import extraer_urls_sitemap
@@ -374,6 +374,9 @@ def main() -> int:
     # Ejecuta análisis de indexación y rastreo con robots/sitemap.
     resultado.indexacion_rastreo = analizar_indexacion_rastreo(argumentos.sitemap, urls, configuracion.http_timeout)
 
+    # Calcula clasificación inicial de gestión de indexación sin señales GSC.
+    resultado.gestion_indexacion = generar_gestion_indexacion_inteligente(resultado.resultados)
+
     # Calcula el límite efectivo de URLs para PageSpeed.
     max_pagepsi_urls = argumentos.max_pagepsi_urls if argumentos.max_pagepsi_urls > 0 else configuracion.max_pagepsi_urls
 
@@ -484,6 +487,9 @@ def main() -> int:
 
             # Guarda datos GSC en resultado consolidado.
             resultado.search_console = datos_search_console
+
+            # Recalcula gestión de indexación con señales GSC cuando existan datos.
+            resultado.gestion_indexacion = generar_gestion_indexacion_inteligente(resultado.resultados, datos_search_console.paginas)
 
             # Registra fuente activa cuando existan datos válidos.
             if datos_search_console.activo and (datos_search_console.paginas or datos_search_console.queries):
