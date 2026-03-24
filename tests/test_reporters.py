@@ -263,6 +263,60 @@ def test_exportar_excel_score_medio_desde_ejecuciones_unicas(tmp_path: Path) -> 
     assert hoja_dashboard["B22"].value == 75.0
 
 
+# Verifica que la hoja Contenido se rellene antes de devolver el Excel.
+def test_exportar_excel_rellena_hoja_contenido(tmp_path: Path) -> None:
+    """Comprueba que la pestaña Contenido exporte métricas on-page por URL."""
+
+    # Construye resultado URL con métricas de contenido representativas.
+    resultado_url = ResultadoUrl(
+        url="https://ejemplo.com/articulo",
+        tipo="page",
+        estado_http=200,
+        redirecciona=False,
+        url_final="https://ejemplo.com/articulo",
+        title="Artículo",
+        h1="Guía SEO",
+        meta_description="Descripción",
+        canonical="https://ejemplo.com/articulo",
+        noindex=False,
+        hallazgos=[],
+        palabras=850,
+        densidad_texto=0.22,
+        ratio_texto_html=0.31,
+        calidad_contenido="alta",
+        thin_content=False,
+        imagenes_sin_alt=1,
+    )
+
+    # Construye auditoría mínima para exportación.
+    auditoria = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=1,
+        resultados=[resultado_url],
+        cliente="Ejemplo",
+        fecha_ejecucion="2026-03-20",
+        gestor="Gestor",
+    )
+
+    # Exporta el Excel de prueba.
+    ruta_excel = exportar_excel(auditoria, tmp_path)
+
+    # Carga libro exportado para validar hoja de contenido.
+    libro = load_workbook(ruta_excel)
+
+    # Obtiene la hoja de contenido.
+    contenido = libro["Contenido"]
+
+    # Verifica encabezados esperados de la pestaña.
+    assert contenido["A1"].value == "url"
+    assert contenido["B1"].value == "palabras"
+
+    # Verifica que la primera fila de datos se haya escrito correctamente.
+    assert contenido["A2"].value == "https://ejemplo.com/articulo"
+    assert contenido["B2"].value == 850
+    assert contenido["C2"].value == "alta"
+
+
 # Verifica que el dashboard conserve los gráficos esperados.
 def test_exportar_excel_dashboard_contiene_graficos(tmp_path: Path) -> None:
     """Comprueba que el Dashboard exportado tenga gráficos visibles y cargados."""
