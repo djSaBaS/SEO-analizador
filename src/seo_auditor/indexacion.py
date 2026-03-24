@@ -1,6 +1,9 @@
 # Importa parser de URL para derivar robots.txt.
 from urllib.parse import urlparse
 
+# Importa parser estándar de robots para evaluación precisa allow/disallow.
+from urllib.robotparser import RobotFileParser
+
 # Importa utilidades para dependencias opcionales.
 import importlib
 
@@ -63,6 +66,62 @@ def _esta_bloqueada_por_patrones(url: str, patrones_disallow: list[str]) -> bool
     return False
 
 
+# Extrae patrones Disallow aplicables al user-agent objetivo desde advertools.
+def _extraer_disallow_por_user_agent(robots_df, user_agent_objetivo: str = "*") -> list[str]:
+    """Filtra directivas Disallow únicamente para bloques del user-agent objetivo."""
+
+    # Inicializa lista de user-agents activos del bloque actual.
+    agentes_activos: list[str] = []
+
+    # Inicializa lista de patrones disallow aplicables.
+    patrones_disallow: list[str] = []
+
+    # Inicializa marcador de última directiva procesada.
+    ultima_directiva = ""
+
+    # Recorre filas respetando el orden del robots original.
+    for _, fila in robots_df.iterrows():
+        # Lee directiva normalizada de la fila.
+        directiva = str(fila.get("directive", "")).strip().lower()
+
+        # Lee contenido asociado a la directiva.
+        contenido = str(fila.get("content", "")).strip()
+
+        # Actualiza user-agent activo cuando se detecta bloque nuevo.
+        if directiva == "user-agent":
+            # Reinicia bloque cuando aparece un nuevo user-agent tras reglas previas.
+            if ultima_directiva != "user-agent":
+                # Limpia agentes para evitar mezcla de bloques.
+                agentes_activos = []
+
+            # Añade agente al bloque activo en minúsculas.
+            agentes_activos.append(contenido.lower())
+
+            # Actualiza última directiva procesada.
+            ultima_directiva = directiva
+
+            # Continúa con la siguiente fila.
+            continue
+
+        # Reinicia bloque cuando aparezcan directivas no asociadas a user-agent previo.
+        if directiva in {"sitemap", "host"}:
+            # Limpia estado para evitar arrastre entre bloques.
+            agentes_activos = []
+
+        # Filtra solo disallow con contenido no vacío.
+        if directiva == "disallow" and contenido:
+            # Evalúa si el bloque aplica al user-agent objetivo o wildcard.
+            if user_agent_objetivo.lower() in agentes_activos or "*" in agentes_activos:
+                # Añade patrón aplicable al conjunto final.
+                patrones_disallow.append(contenido)
+
+        # Actualiza última directiva tras procesar la fila.
+        ultima_directiva = directiva
+
+    # Devuelve patrones disallow filtrados por user-agent.
+    return patrones_disallow
+
+
 # Analiza indexación/rastreo usando robots y sitemap de forma tolerante.
 def analizar_indexacion_rastreo(sitemap_url: str, urls_sitemap: list[str], timeout: int) -> dict[str, object]:
     """Devuelve un resumen de indexación y rastreo apto para informes ejecutivos."""
@@ -106,8 +165,14 @@ def analizar_indexacion_rastreo(sitemap_url: str, urls_sitemap: list[str], timeo
         # Devuelve resumen parcial sin romper ejecución.
         return resumen
 
-    # Inicializa patrones disallow detectados.
+    # Inicializa patrones disallow detectados para fallback.
     patrones_disallow: list[str] = []
+
+    # Inicializa parser estándar de robots para evaluación precisa.
+    parser_robots = RobotFileParser()
+
+    # Carga contenido de robots en parser estándar.
+    parser_robots.parse(respuesta_robots.text.splitlines())
 
     # Intenta parsear robots con advertools cuando esté disponible.
     if adv is not None:
@@ -116,18 +181,8 @@ def analizar_indexacion_rastreo(sitemap_url: str, urls_sitemap: list[str], timeo
             # Obtiene dataframe de reglas robots para el dominio.
             robots_df = adv.robotstxt_to_df(robots_url)
 
-            # Recorre filas para extraer directivas disallow.
-            for _, fila in robots_df.iterrows():
-                # Lee campo directive por compatibilidad de versión.
-                directiva = str(fila.get("directive", "")).strip().lower()
-
-                # Lee campo content con la ruta afectada.
-                contenido = str(fila.get("content", "")).strip()
-
-                # Agrega solo directivas disallow con contenido útil.
-                if directiva == "disallow" and contenido:
-                    # Añade patrón detectado al conjunto.
-                    patrones_disallow.append(contenido)
+            # Filtra disallow aplicables al user-agent global.
+            patrones_disallow = _extraer_disallow_por_user_agent(robots_df, "*")
         except Exception:
             # Mantiene flujo incluso si advertools no puede parsear robots.
             patrones_disallow = []
@@ -137,8 +192,14 @@ def analizar_indexacion_rastreo(sitemap_url: str, urls_sitemap: list[str], timeo
 
     # Recorre URLs del sitemap para validar coherencia con robots.
     for url in urls_sitemap:
-        # Evalúa bloqueo por patrones básicos.
-        if _esta_bloqueada_por_patrones(normalizar_url(url), patrones_disallow):
+        # Evalúa bloqueo con parser estándar para respetar Allow/Disallow complejos.
+        bloqueada_por_parser = not parser_robots.can_fetch("*", normalizar_url(url))
+
+        # Evalúa bloqueo por patrones simples como fallback complementario.
+        bloqueada_por_patron = _esta_bloqueada_por_patrones(normalizar_url(url), patrones_disallow)
+
+        # Marca URL bloqueada cuando cualquiera de las dos validaciones lo confirme.
+        if bloqueada_por_parser or bloqueada_por_patron:
             # Añade URL bloqueada al listado.
             urls_bloqueadas.append(url)
 

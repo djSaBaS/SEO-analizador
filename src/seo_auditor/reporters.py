@@ -70,6 +70,40 @@ JERARQUIA_INFORME = [
 ]
 
 
+# Devuelve peso de orden para severidades en salida ejecutiva.
+def _peso_severidad(severidad: str) -> int:
+    """Convierte severidad textual en peso numérico de ordenación."""
+
+    # Define mapa de prioridad para ordenar de mayor a menor criticidad.
+    mapa = {"crítica": 0, "alta": 1, "media": 2, "baja": 3, "informativa": 4}
+
+    # Devuelve peso conocido o fallback al final.
+    return mapa.get(severidad.lower().strip(), 5)
+
+
+# Devuelve color pastel de fondo para severidad en HTML.
+def _color_pastel_severidad(severidad: str) -> str:
+    """Asigna color suave por severidad para mejorar legibilidad visual."""
+
+    # Devuelve rojo pastel para severidades críticas.
+    if severidad.lower().strip() in {"crítica", "alta"}:
+        # Retorna color rojo suave.
+        return "#fde8e8"
+
+    # Devuelve naranja pastel para severidad media.
+    if severidad.lower().strip() == "media":
+        # Retorna color naranja suave.
+        return "#fff4e5"
+
+    # Devuelve amarillo pastel para severidad baja.
+    if severidad.lower().strip() == "baja":
+        # Retorna color amarillo suave.
+        return "#fef9c3"
+
+    # Devuelve azul pastel para severidad informativa.
+    return "#e6f0ff"
+
+
 # Devuelve un valor de métrica en formato legible evitando `None`.
 def _valor_metrica(valor: object) -> str:
     """Formatea métricas para documentos sin mostrar valores nulos."""
@@ -931,6 +965,40 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
 
     # Congela paneles para mejorar navegación.
     hoja_errores.freeze_panes = "A2"
+
+    # Define columnas de hoja de contenido para seguimiento editorial.
+    columnas_contenido = ["url", "palabras", "calidad_contenido", "h1", "title", "meta_description", "imagenes_sin_alt", "thin_content", "densidad_texto", "ratio_texto_html"]
+
+    # Recorre encabezados de contenido.
+    for columna, encabezado in enumerate(columnas_contenido, start=1):
+        # Escribe encabezado en hoja de contenido.
+        hoja_contenido.cell(row=1, column=columna, value=encabezado)
+
+    # Recorre filas técnicas para poblar hoja de contenido.
+    for fila_indice, fila in enumerate(filas, start=2):
+        # Escribe columnas de contenido en cada fila.
+        for columna, encabezado in enumerate(columnas_contenido, start=1):
+            # Inserta valor correspondiente con fallback vacío.
+            hoja_contenido.cell(row=fila_indice, column=columna, value=fila.get(encabezado, ""))
+
+    # Estiliza encabezado de contenido.
+    for celda in hoja_contenido[1]:
+        # Define estilo visual coherente con el resto de hojas.
+        celda.font = Font(bold=True, color="FFFFFF")
+
+        # Aplica color corporativo del encabezado.
+        celda.fill = PatternFill(fill_type="solid", fgColor="1F4E78")
+
+    # Ajusta formato visual de la hoja de contenido.
+    for indice in range(1, len(columnas_contenido) + 1):
+        # Configura ancho homogéneo en todas las columnas.
+        hoja_contenido.column_dimensions[chr(64 + indice)].width = 24
+
+    # Activa filtros en la hoja de contenido.
+    hoja_contenido.auto_filter.ref = f"A1:J{max(2, len(filas) + 1)}"
+
+    # Congela paneles de contenido para navegación.
+    hoja_contenido.freeze_panes = "A2"
 
     # Escribe tabla de rendimiento con esquema obligatorio.
     columnas_rendimiento = ["url", "estrategia", "performance_score", "accessibility_score", "best_practices_score", "seo_score", "lcp", "cls", "inp", "fcp", "speed_index", "oportunidad", "descripcion", "ahorro_estimado", "severidad", "recomendacion", "estado", "resuelto", "responsable", "observaciones"]
@@ -1804,6 +1872,12 @@ def exportar_html(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     # Obtiene filas de incidencias para la tabla técnica.
     filas = construir_filas(resultado)
 
+    # Ordena incidencias por severidad (alta arriba, informativa abajo).
+    filas_ordenadas = sorted(
+        filas,
+        key=lambda fila: (_peso_severidad(str(fila.get("severidad", "informativa"))), str(fila.get("url", ""))),
+    )
+
     # Construye quick wins deduplicados para bloque visual.
     quick_wins = _construir_quick_wins(filas, limite=10)
 
@@ -1901,7 +1975,16 @@ def exportar_html(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
   <table>
     <thead><tr><th>URL</th><th>Severidad</th><th>Área</th><th>Problema</th><th>Recomendación</th></tr></thead>
     <tbody>
-      {''.join(f"<tr><td>{fila.get('url','')}</td><td>{fila.get('severidad','')}</td><td>{fila.get('area','')}</td><td>{fila.get('problema','')}</td><td>{fila.get('recomendacion','')}</td></tr>" for fila in filas[:120])}
+      {''.join(
+        f"<tr style='background:{_color_pastel_severidad(str(fila.get('severidad','informativa')))}'>"
+        f"<td>{fila.get('url','')}</td>"
+        f"<td>{fila.get('severidad','')}</td>"
+        f"<td>{fila.get('area','')}</td>"
+        f"<td>{fila.get('problema','')}</td>"
+        f"<td>{fila.get('recomendacion','')}</td>"
+        f"</tr>"
+        for fila in filas_ordenadas[:120]
+      )}
     </tbody>
   </table>
 </body>
@@ -1912,36 +1995,3 @@ def exportar_html(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
 
     # Devuelve la ruta del HTML generado.
     return destino
-    # Define columnas de hoja de contenido para seguimiento editorial.
-    columnas_contenido = ["url", "palabras", "calidad_contenido", "h1", "title", "meta_description", "imagenes_sin_alt", "thin_content", "densidad_texto", "ratio_texto_html"]
-
-    # Recorre encabezados de contenido.
-    for columna, encabezado in enumerate(columnas_contenido, start=1):
-        # Escribe encabezado en hoja de contenido.
-        hoja_contenido.cell(row=1, column=columna, value=encabezado)
-
-    # Recorre filas técnicas para poblar hoja de contenido.
-    for fila_indice, fila in enumerate(filas, start=2):
-        # Escribe columnas de contenido en cada fila.
-        for columna, encabezado in enumerate(columnas_contenido, start=1):
-            # Inserta valor correspondiente con fallback vacío.
-            hoja_contenido.cell(row=fila_indice, column=columna, value=fila.get(encabezado, ""))
-
-    # Estiliza encabezado de contenido.
-    for celda in hoja_contenido[1]:
-        # Define estilo visual coherente con el resto de hojas.
-        celda.font = Font(bold=True, color="FFFFFF")
-
-        # Aplica color corporativo del encabezado.
-        celda.fill = PatternFill(fill_type="solid", fgColor="1F4E78")
-
-    # Ajusta formato visual de la hoja de contenido.
-    for indice in range(1, len(columnas_contenido) + 1):
-        # Configura ancho homogéneo en todas las columnas.
-        hoja_contenido.column_dimensions[chr(64 + indice)].width = 24
-
-    # Activa filtros en la hoja de contenido.
-    hoja_contenido.auto_filter.ref = f"A1:J{max(2, len(filas) + 1)}"
-
-    # Congela paneles de contenido para navegación.
-    hoja_contenido.freeze_panes = "A2"
