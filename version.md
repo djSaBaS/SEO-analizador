@@ -1,5 +1,13 @@
 # version.md
 
+## 0.8.1 - 2026-03-24
+- Se corrige la clasificación de patrones no indexables para evaluar rutas por segmentos (evitando falsos positivos como `/formacion-*` por la regla `/form`).
+- Se mejora el cruce con Search Console normalizando URLs de auditoría y GSC (incluyendo fallback por `url_final`) para aplicar de forma consistente las reglas de `sin impresiones` y `sin clics`.
+- Se alinea la prioridad de gestión de indexación con el número de motivos únicos mostrados en informe.
+- Se optimiza el bloque narrativo de `Gestión de indexación` agrupando filas por clasificación en una sola pasada.
+- Se mejora mantenibilidad en Excel moviendo anchos de `Indexacion` a un diccionario configurable.
+- Se amplían tests para cubrir falsos positivos de patrones, normalización GSC y consistencia de clasificación.
+
 ## 0.8.0 - 2026-03-24
 - Se añade gestión de indexación inteligente con clasificación por URL en `INDEXABLE`, `REVISAR` y `NO_INDEXAR`, aplicando reglas por patrones de URL, contenido, señales SEO y datos de Search Console.
 - Se incorpora el modelo de datos de decisiones de indexación (`url`, `clasificacion`, `motivo`, `accion_recomendada`, `prioridad`) dentro del resultado consolidado de la auditoría.

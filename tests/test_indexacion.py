@@ -124,3 +124,70 @@ def test_generar_gestion_indexacion_inteligente_clasifica_reglas_clave() -> None
 
     # Verifica que URL sana quede INDEXABLE.
     assert indice["https://ejemplo.com/servicios/seo-tecnico"].clasificacion == "INDEXABLE"
+
+
+# Valida que los patrones se evalúen por segmento y no por subcadenas.
+def test_generar_gestion_indexacion_no_marca_formacion_como_form() -> None:
+    """Comprueba que /formacion no se clasifique como NO_INDEXAR por coincidencia parcial."""
+
+    # Crea URL con segmento /formacion que no debe disparar /form.
+    url_formacion = ResultadoUrl(
+        url="https://ejemplo.com/formacion-seo",
+        tipo="page",
+        estado_http=200,
+        redirecciona=False,
+        url_final="https://ejemplo.com/formacion-seo",
+        title="Formación SEO",
+        h1="Formación SEO",
+        meta_description="Curso",
+        canonical="https://ejemplo.com/formacion-seo",
+        noindex=False,
+        hallazgos=[],
+        palabras=700,
+        texto_extraido="Contenido amplio para formación.",
+    )
+
+    # Ejecuta clasificación sobre la URL de prueba.
+    decision = generar_gestion_indexacion_inteligente([url_formacion])[0]
+
+    # Verifica que la URL no se marque como no indexable por falso positivo.
+    assert decision.clasificacion == "INDEXABLE"
+
+
+# Valida cruce GSC con normalización de URL auditada/final.
+def test_generar_gestion_indexacion_aplica_gsc_con_url_normalizada() -> None:
+    """Comprueba lookup GSC con diferencias de slash final o URL final."""
+
+    # Crea URL auditada sin slash final y URL final con slash.
+    url_auditada = ResultadoUrl(
+        url="https://ejemplo.com/about",
+        tipo="page",
+        estado_http=200,
+        redirecciona=True,
+        url_final="https://ejemplo.com/about/",
+        title="About",
+        h1="About",
+        meta_description="Acerca",
+        canonical="https://ejemplo.com/about/",
+        noindex=False,
+        hallazgos=[],
+        palabras=500,
+        texto_extraido="Contenido correcto.",
+    )
+
+    # Define métrica GSC solo con variante de slash final.
+    metricas_gsc = [
+        MetricaGscPagina(
+            url="https://ejemplo.com/about/",
+            clicks=0.0,
+            impresiones=120.0,
+            ctr=0.0,
+            posicion_media=12.0,
+        )
+    ]
+
+    # Ejecuta clasificación con señales GSC.
+    decision = generar_gestion_indexacion_inteligente([url_auditada], metricas_gsc)[0]
+
+    # Verifica que la señal GSC se aplique y fuerce revisión.
+    assert decision.clasificacion == "REVISAR"

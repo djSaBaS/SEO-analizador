@@ -1183,13 +1183,23 @@ def _construir_bloques_narrativos(resultado: ResultadoAuditoria) -> dict[str, li
 
     # Construye fallback de gestión de indexación inteligente.
     if not bloques["Gestión de indexación"]:
-        # Construye filas de gestión de indexación.
-        filas_indexacion = construir_filas_gestion_indexacion(resultado)
+        # Inicializa agrupación por clasificación para evitar múltiples pasadas.
+        filas_por_clasificacion: dict[str, list[dict]] = {"NO_INDEXAR": [], "REVISAR": [], "INDEXABLE": []}
+
+        # Recorre filas de gestión de indexación para agruparlas en una pasada.
+        for fila in construir_filas_gestion_indexacion(resultado):
+            # Obtiene clasificación de la fila actual.
+            clasificacion = str(fila.get("clasificacion", "")).strip()
+
+            # Añade la fila cuando la clasificación sea reconocida.
+            if clasificacion in filas_por_clasificacion:
+                # Inserta fila en su clasificación correspondiente.
+                filas_por_clasificacion[clasificacion].append(fila)
 
         # Calcula totales por clasificación.
-        total_no_indexar = len([fila for fila in filas_indexacion if fila.get("clasificacion") == "NO_INDEXAR"])
-        total_revisar = len([fila for fila in filas_indexacion if fila.get("clasificacion") == "REVISAR"])
-        total_indexable = len([fila for fila in filas_indexacion if fila.get("clasificacion") == "INDEXABLE"])
+        total_no_indexar = len(filas_por_clasificacion["NO_INDEXAR"])
+        total_revisar = len(filas_por_clasificacion["REVISAR"])
+        total_indexable = len(filas_por_clasificacion["INDEXABLE"])
 
         # Añade resumen global de gestión de indexación.
         bloques["Gestión de indexación"].append(
@@ -1197,12 +1207,12 @@ def _construir_bloques_narrativos(resultado: ResultadoAuditoria) -> dict[str, li
         )
 
         # Inserta bloque de no indexables con prioridad.
-        for fila in [item for item in filas_indexacion if item.get("clasificacion") == "NO_INDEXAR"][:5]:
+        for fila in filas_por_clasificacion["NO_INDEXAR"][:5]:
             # Añade línea de URL no indexable.
             bloques["Gestión de indexación"].append(f"NO_INDEXAR: {fila.get('url', '')} | motivo={fila.get('motivo', '')}.")
 
         # Inserta bloque de URLs a revisar.
-        for fila in [item for item in filas_indexacion if item.get("clasificacion") == "REVISAR"][:5]:
+        for fila in filas_por_clasificacion["REVISAR"][:5]:
             # Añade línea de URL a revisar.
             bloques["Gestión de indexación"].append(f"REVISAR: {fila.get('url', '')} | motivo={fila.get('motivo', '')}.")
 
@@ -1607,11 +1617,12 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
         celda.fill = PatternFill(fill_type="solid", fgColor="1F4E78")
 
     # Ajusta ancho de columnas en hoja de indexación.
-    hoja_indexacion.column_dimensions["A"].width = 56
-    hoja_indexacion.column_dimensions["B"].width = 16
-    hoja_indexacion.column_dimensions["C"].width = 62
-    hoja_indexacion.column_dimensions["D"].width = 62
-    hoja_indexacion.column_dimensions["E"].width = 14
+    anchos_indexacion = {"A": 56, "B": 16, "C": 62, "D": 62, "E": 14}
+
+    # Recorre configuración de anchos y la aplica.
+    for columna, ancho in anchos_indexacion.items():
+        # Asigna ancho explícito para la columna.
+        hoja_indexacion.column_dimensions[columna].width = ancho
 
     # Activa filtros en hoja de indexación.
     hoja_indexacion.auto_filter.ref = f"A1:E{max(2, len(filas_gestion_indexacion) + 1)}"

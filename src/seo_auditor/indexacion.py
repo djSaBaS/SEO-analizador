@@ -240,7 +240,7 @@ def _indice_gsc_por_url(metricas_gsc: list[MetricaGscPagina] | None) -> dict[str
     # Recorre métricas de GSC para indexarlas por URL.
     for fila in metricas_gsc:
         # Guarda fila en índice por URL canónica.
-        indice[fila.url] = fila
+        indice[normalizar_url(fila.url)] = fila
 
     # Devuelve índice final para consulta rápida.
     return indice
@@ -256,10 +256,21 @@ def _evaluar_senales_url(url: str) -> list[str]:
     # Normaliza URL en minúsculas para matching robusto.
     url_normalizada = normalizar_url(url).lower()
 
+    # Extrae la ruta para matching por segmentos.
+    ruta = urlparse(url_normalizada).path or "/"
+
     # Recorre patrones directos de no indexación.
     for patron in PATRONES_NO_INDEXAR_URL:
-        # Detecta patrón de ruta no indexable.
-        if patron in url_normalizada:
+        # Evalúa patrón especial de paginación.
+        if patron == "/page/" and patron in ruta:
+            # Registra motivo por patrón de URL.
+            senales.append(f"Patrón de URL detectado: {patron}")
+
+            # Continúa con siguiente patrón para evitar doble conteo.
+            continue
+
+        # Evalúa patrón exacto o por prefijo de segmento.
+        if ruta == patron or ruta.startswith(f"{patron}/"):
             # Registra motivo por patrón de URL.
             senales.append(f"Patrón de URL detectado: {patron}")
 
@@ -377,8 +388,13 @@ def generar_gestion_indexacion_inteligente(
         # Traslada señales de URL a la categoría de no indexación.
         senales_no_indexar.extend(senales_url)
 
-        # Obtiene métricas GSC de la URL cuando existan.
-        metrica_gsc = indice_gsc.get(item.url)
+        # Obtiene métricas GSC de la URL auditada normalizada cuando existan.
+        metrica_gsc = indice_gsc.get(normalizar_url(item.url))
+
+        # Reintenta lookup con URL final para tolerar redirecciones triviales.
+        if metrica_gsc is None:
+            # Busca la URL final normalizada en índice GSC.
+            metrica_gsc = indice_gsc.get(normalizar_url(item.url_final))
 
         # Aplica regla de URL indexada sin impresiones.
         if metrica_gsc and metrica_gsc.impresiones == 0:
@@ -413,11 +429,14 @@ def generar_gestion_indexacion_inteligente(
             # Define motivo de estado saludable.
             motivos = ["Sin señales de riesgo detectadas"]
 
+        # Construye lista de motivos únicos para salida y prioridad consistentes.
+        motivos_unicos = list(dict.fromkeys(motivos))
+
         # Construye motivo textual consolidado para exportación.
-        motivo = "; ".join(dict.fromkeys(motivos))
+        motivo = "; ".join(motivos_unicos)
 
         # Calcula prioridad operativa final.
-        prioridad = _prioridad_por_clasificacion(clasificacion, len(motivos))
+        prioridad = _prioridad_por_clasificacion(clasificacion, len(motivos_unicos))
 
         # Añade decisión final de la URL.
         decisiones.append(
