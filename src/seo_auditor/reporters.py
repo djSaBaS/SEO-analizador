@@ -81,6 +81,27 @@ SECCIONES_GSC = {
     "Keyword / query mapping inicial",
 }
 
+# Define umbral mínimo de impresiones para detectar oportunidad de CTR.
+OPORTUNIDAD_GSC_MIN_IMPRESIONES_CTR = 100.0
+
+# Define umbral máximo de CTR para marcar bajo rendimiento de snippet.
+OPORTUNIDAD_GSC_MAX_CTR = 0.02
+
+# Define límite inferior de posición para oportunidades de ascenso.
+OPORTUNIDAD_GSC_MIN_POSICION = 4.0
+
+# Define límite superior de posición para oportunidades de ascenso.
+OPORTUNIDAD_GSC_MAX_POSICION = 15.0
+
+# Define mínimo de impresiones para oportunidad por posición.
+OPORTUNIDAD_GSC_MIN_IMPRESIONES_POSICION = 50.0
+
+# Define mínimo de impresiones para cruce de visibilidad y on-page.
+OPORTUNIDAD_GSC_MIN_IMPRESIONES_ONPAGE = 50.0
+
+# Define umbral de impresiones para considerar impacto alto.
+OPORTUNIDAD_GSC_IMPRESIONES_ALTO_IMPACTO = 500.0
+
 
 # Devuelve jerarquía visible según fuentes activas de la ejecución.
 def construir_jerarquia_visible(resultado: ResultadoAuditoria) -> list[str]:
@@ -706,15 +727,15 @@ def construir_oportunidades_gsc(resultado: ResultadoAuditoria) -> list[dict]:
         oportunidad = ""
 
         # Clasifica oportunidad por impresiones altas y CTR bajo.
-        if metrica.impresiones >= 100 and metrica.ctr <= 0.02:
+        if metrica.impresiones >= OPORTUNIDAD_GSC_MIN_IMPRESIONES_CTR and metrica.ctr <= OPORTUNIDAD_GSC_MAX_CTR:
             # Define oportunidad prioritaria de CTR.
             oportunidad = "alto volumen con CTR bajo"
         # Clasifica oportunidad por posición de crecimiento rápido.
-        elif 4.0 <= metrica.posicion_media <= 15.0 and metrica.impresiones >= 50:
+        elif OPORTUNIDAD_GSC_MIN_POSICION <= metrica.posicion_media <= OPORTUNIDAD_GSC_MAX_POSICION and metrica.impresiones >= OPORTUNIDAD_GSC_MIN_IMPRESIONES_POSICION:
             # Define oportunidad prioritaria por posición.
             oportunidad = "posición 4-15 con potencial"
         # Clasifica oportunidad por visibilidad y debilidad on-page.
-        elif metrica.impresiones >= 50 and problema_onpage:
+        elif metrica.impresiones >= OPORTUNIDAD_GSC_MIN_IMPRESIONES_ONPAGE and problema_onpage:
             # Define oportunidad de mejora on-page.
             oportunidad = "visibilidad desaprovechada por on-page"
 
@@ -724,7 +745,7 @@ def construir_oportunidades_gsc(resultado: ResultadoAuditoria) -> list[dict]:
             continue
 
         # Calcula impacto de negocio estimado por impresiones.
-        impacto = "Alto" if metrica.impresiones >= 500 else "Medio"
+        impacto = "Alto" if metrica.impresiones >= OPORTUNIDAD_GSC_IMPRESIONES_ALTO_IMPACTO else "Medio"
 
         # Calcula esfuerzo estimado por tipo de problema.
         esfuerzo = "Bajo" if problema_onpage in {"meta description ausente", "title mejorable", "headings deficientes"} else "Medio"
@@ -756,6 +777,35 @@ def construir_oportunidades_gsc(resultado: ResultadoAuditoria) -> list[dict]:
 
     # Ordena oportunidades por prioridad e impresiones descendentes.
     return sorted(oportunidades, key=lambda item: (item["prioridad"], -float(item["impresiones"])))
+
+
+# Calcula métricas agregadas de Search Console para reutilización transversal.
+def _calcular_metricas_gsc(filas_gsc_paginas: list[dict]) -> dict[str, float]:
+    """Devuelve clics, impresiones, CTR y posición media desde filas GSC."""
+
+    # Calcula clics totales agregados de Search Console.
+    clics_totales = round(sum(float(fila.get("clics", 0.0)) for fila in filas_gsc_paginas), 2)
+
+    # Calcula impresiones totales agregadas de Search Console.
+    impresiones_totales = round(sum(float(fila.get("impresiones", 0.0)) for fila in filas_gsc_paginas), 2)
+
+    # Calcula CTR medio ponderado por impresiones.
+    ctr_medio = round((clics_totales / max(1.0, impresiones_totales)), 4) if impresiones_totales > 0 else 0.0
+
+    # Calcula posición media de páginas con datos GSC.
+    posicion_media = (
+        round(sum(float(fila.get("posicion_media", 0.0)) for fila in filas_gsc_paginas) / max(1, len(filas_gsc_paginas)), 2)
+        if filas_gsc_paginas
+        else 0.0
+    )
+
+    # Devuelve conjunto de métricas agregadas de GSC.
+    return {
+        "clics_totales": clics_totales,
+        "impresiones_totales": impresiones_totales,
+        "ctr_medio": ctr_medio,
+        "posicion_media": posicion_media,
+    }
 
 
 # Garantiza que la carpeta de salida exista antes de escribir archivos.
@@ -821,6 +871,12 @@ def calcular_metricas(resultado: ResultadoAuditoria) -> dict[str, int | float | 
     # Construye filas técnicas para agregación ejecutiva coherente.
     filas = construir_filas(resultado)
 
+    # Construye filas GSC por página para métricas agregadas.
+    filas_gsc_paginas = construir_filas_search_console_paginas(resultado)
+
+    # Calcula métricas agregadas de Search Console.
+    metricas_gsc = _calcular_metricas_gsc(filas_gsc_paginas)
+
     # Calcula incidencias agrupadas para capa ejecutiva.
     incidencias_agrupadas = _calcular_incidencias_agrupadas(filas)
 
@@ -875,6 +931,7 @@ def calcular_metricas(resultado: ResultadoAuditoria) -> dict[str, int | float | 
             "rendimiento": {"score": score_rendimiento, "peso": 0.20},
             "multimedia_accesibilidad": {"score": score_multimedia, "peso": 0.15},
         },
+        "gsc": metricas_gsc,
         "formula_score": "Score = 100 - (penalización_ponderada/(total_urls*10))*100",
     }
 
@@ -907,6 +964,12 @@ def _construir_bloques_narrativos(resultado: ResultadoAuditoria) -> dict[str, li
     # Construye vista tabular de rendimiento para secciones de UX.
     filas_rendimiento = construir_filas_rendimiento(resultado)
 
+    # Calcula métricas agregadas para reutilización narrativa.
+    metricas = calcular_metricas(resultado)
+
+    # Obtiene métricas agregadas de Search Console.
+    metricas_gsc = metricas.get("gsc", {}) if isinstance(metricas.get("gsc", {}), dict) else {}
+
     # Construye fallback de resumen ejecutivo cuando IA no aporta contenido.
     if not bloques["Resumen ejecutivo"]:
         # Añade resumen automático con datos técnicos.
@@ -925,17 +988,17 @@ def _construir_bloques_narrativos(resultado: ResultadoAuditoria) -> dict[str, li
         # Construye filas de queries de Search Console.
         filas_gsc_queries = construir_filas_search_console_queries(resultado)
 
-        # Calcula clics totales agregados.
-        clics_totales = round(sum(float(fila.get("clics", 0.0)) for fila in filas_gsc_paginas), 2)
+        # Obtiene clics totales desde métricas centralizadas.
+        clics_totales = float(metricas_gsc.get("clics_totales", 0.0))
 
-        # Calcula impresiones totales agregadas.
-        impresiones_totales = round(sum(float(fila.get("impresiones", 0.0)) for fila in filas_gsc_paginas), 2)
+        # Obtiene impresiones totales desde métricas centralizadas.
+        impresiones_totales = float(metricas_gsc.get("impresiones_totales", 0.0))
 
-        # Calcula CTR medio global.
-        ctr_medio = round((clics_totales / max(1.0, impresiones_totales)), 4) if impresiones_totales > 0 else 0.0
+        # Obtiene CTR medio desde métricas centralizadas.
+        ctr_medio = float(metricas_gsc.get("ctr_medio", 0.0))
 
-        # Calcula posición media de páginas.
-        posicion_media = round(sum(float(fila.get("posicion_media", 0.0)) for fila in filas_gsc_paginas) / max(1, len(filas_gsc_paginas)), 2) if filas_gsc_paginas else 0.0
+        # Obtiene posición media desde métricas centralizadas.
+        posicion_media = float(metricas_gsc.get("posicion_media", 0.0))
 
         # Inserta resumen de visibilidad principal.
         bloques["Visibilidad orgánica real"].append(f"Clics: {clics_totales} | Impresiones: {impresiones_totales} | CTR medio: {ctr_medio} | Posición media: {posicion_media}.")
@@ -1495,17 +1558,20 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     # Cuenta páginas con problemas de H1.
     total_h1_problematico = len([fila for fila in filas if "h1" in str(fila.get("problema", "")).lower()])
 
-    # Calcula clics totales de Search Console cuando exista fuente activa.
-    clics_totales_gsc = round(sum(float(fila.get("clics", 0.0)) for fila in filas_gsc_paginas), 2)
+    # Obtiene métricas GSC centralizadas para evitar duplicación.
+    metricas_gsc = metricas.get("gsc", {}) if isinstance(metricas.get("gsc", {}), dict) else {}
 
-    # Calcula impresiones totales de Search Console cuando exista fuente activa.
-    impresiones_totales_gsc = round(sum(float(fila.get("impresiones", 0.0)) for fila in filas_gsc_paginas), 2)
+    # Obtiene clics totales de GSC desde métrica centralizada.
+    clics_totales_gsc = float(metricas_gsc.get("clics_totales", 0.0))
 
-    # Calcula CTR medio ponderado por impresiones para GSC.
-    ctr_medio_gsc = round((clics_totales_gsc / max(1.0, impresiones_totales_gsc)), 4) if impresiones_totales_gsc > 0 else 0.0
+    # Obtiene impresiones totales de GSC desde métrica centralizada.
+    impresiones_totales_gsc = float(metricas_gsc.get("impresiones_totales", 0.0))
 
-    # Calcula posición media simple de páginas GSC.
-    posicion_media_gsc = round(sum(float(fila.get("posicion_media", 0.0)) for fila in filas_gsc_paginas) / max(1, len(filas_gsc_paginas)), 2) if filas_gsc_paginas else 0.0
+    # Obtiene CTR medio de GSC desde métrica centralizada.
+    ctr_medio_gsc = float(metricas_gsc.get("ctr_medio", 0.0))
+
+    # Obtiene posición media de GSC desde métrica centralizada.
+    posicion_media_gsc = float(metricas_gsc.get("posicion_media", 0.0))
 
     # Cuenta páginas con oportunidad real por GSC.
     total_oportunidades_gsc = len(filas_oportunidades_gsc)

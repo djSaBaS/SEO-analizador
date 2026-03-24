@@ -1,5 +1,5 @@
 # Importa utilidades para gestión robusta de fechas y rutas.
-from datetime import date
+from datetime import date, timedelta
 
 # Importa Path para validar rutas de credenciales de forma portable.
 from pathlib import Path
@@ -86,6 +86,59 @@ def _fila_a_metrica_query(fila: dict[str, Any]) -> MetricaGscQuery:
     )
 
 
+# Construye mapa query->URL principal a partir del cruce query+page.
+def _resolver_url_principal_por_query(filas_query_pagina: list[dict[str, Any]]) -> dict[str, str]:
+    """Resuelve la URL más representativa para cada query en base a clics."""
+
+    # Inicializa mejor fila por query para desempate estable.
+    mejores_por_query: dict[str, tuple[float, float, str]] = {}
+
+    # Recorre filas query+page devueltas por la API.
+    for fila in filas_query_pagina:
+        # Obtiene dimensiones de la fila actual.
+        claves = list(fila.get("keys", []) or [])
+
+        # Descarta filas sin dimensiones esperadas.
+        if len(claves) < 2:
+            # Continúa con siguiente fila válida.
+            continue
+
+        # Obtiene query y URL asociada desde dimensiones.
+        query = str(claves[0]).strip()
+
+        # Obtiene URL asociada desde dimensión de página.
+        url = str(claves[1]).strip()
+
+        # Obtiene clics para priorizar URL principal.
+        clicks = float(fila.get("clicks", 0.0) or 0.0)
+
+        # Obtiene impresiones como segundo criterio.
+        impresiones = float(fila.get("impressions", 0.0) or 0.0)
+
+        # Descarta filas sin query o URL utilizable.
+        if not query or not url:
+            # Continúa con siguiente fila válida.
+            continue
+
+        # Obtiene valor previo para comparación de prioridad.
+        valor_prev = mejores_por_query.get(query)
+
+        # Guarda fila cuando no exista valor previo.
+        if valor_prev is None:
+            # Inserta primer candidato para la query.
+            mejores_por_query[query] = (clicks, impresiones, url)
+            # Continúa con siguiente fila.
+            continue
+
+        # Reemplaza URL cuando mejora clics o impresiones.
+        if (clicks, impresiones) > (valor_prev[0], valor_prev[1]):
+            # Actualiza mejor candidato para la query.
+            mejores_por_query[query] = (clicks, impresiones, url)
+
+    # Devuelve mapa final query->URL principal.
+    return {query: valor[2] for query, valor in mejores_por_query.items()}
+
+
 # Ejecuta consulta estándar de Search Console con control de errores.
 def _consultar_search_analytics(
     servicio: Any,
@@ -150,7 +203,7 @@ def cargar_datos_search_console(configuracion: Configuracion) -> DatosSearchCons
     # Resuelve fecha fin automática cuando no esté definida.
     if not fecha_hasta:
         # Calcula fecha de ayer para evitar datos incompletos del día actual.
-        fecha_hasta = (date.today()).isoformat()
+        fecha_hasta = (date.today() - timedelta(days=1)).isoformat()
 
     # Resuelve fecha inicio automática cuando no esté definida.
     if not fecha_desde:
@@ -254,6 +307,14 @@ def cargar_datos_search_console(configuracion: Configuracion) -> DatosSearchCons
 
     # Convierte filas por query a modelos tipados.
     queries = [_fila_a_metrica_query(fila) for fila in filas_queries]
+
+    # Construye mapa de URL principal por query para enriquecer salidas.
+    mapa_query_url = _resolver_url_principal_por_query(filas_query_pagina)
+
+    # Recorre queries para completar URL asociada cuando exista.
+    for query in queries:
+        # Asigna URL principal según cruce query+page.
+        query.url_asociada = mapa_query_url.get(query.query, "")
 
     # Devuelve dataset consolidado de Search Console.
     return DatosSearchConsole(
