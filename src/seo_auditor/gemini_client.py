@@ -4,7 +4,7 @@ import json
 # Importa contador para resumir hallazgos por frecuencia.
 from collections import Counter
 
-# Importa Path para caché local opcional.
+# Importa Path para caché local opcional y lectura de plantilla de prompt.
 from pathlib import Path
 
 # Importa el cliente oficial actual de Google Gemini.
@@ -15,6 +15,34 @@ from seo_auditor.cache import construir_clave_cache, escribir_cache, leer_cache
 
 # Importa el modelo de resultado global para tipado claro.
 from seo_auditor.models import ResultadoAuditoria
+
+
+# Define la ruta del archivo de prompt editable del proyecto.
+RUTA_PROMPT_IA = Path(__file__).resolve().parents[2] / "Prompt" / "consulta_ia_prompt.txt"
+
+
+# Carga la plantilla de prompt desde archivo externo para facilitar su edición.
+def cargar_plantilla_prompt_ia() -> str:
+    """Lee la plantilla del prompt desde disco con fallback seguro."""
+
+    # Intenta leer el prompt externo configurable por el equipo.
+    if RUTA_PROMPT_IA.exists():
+        # Devuelve el contenido tal cual para máxima editabilidad.
+        return RUTA_PROMPT_IA.read_text(encoding="utf-8")
+
+    # Usa plantilla interna si el archivo externo no está disponible.
+    return (
+        "Actúa como consultor SEO senior de agencia. "
+        "Redacta un informe en español profesional natural, sin frases vacías ni repeticiones. "
+        "Usa solo los datos proporcionados, sin inventar información. "
+        "No menciones fuentes no activas ni herramientas no conectadas. "
+        "No uses Markdown ni símbolos como **, ### o ---. "
+        "Estructura obligatoria exacta: "
+        "Resumen ejecutivo; Hallazgos críticos; Quick wins; Acciones técnicas; "
+        "Acciones de contenido; Rendimiento y experiencia de usuario; Roadmap. "
+        "Datos de auditoría en JSON:\n"
+        "{datos_json}"
+    )
 
 
 # Construye un resumen optimizado para consumo eficiente de tokens en IA.
@@ -182,19 +210,11 @@ def generar_resumen_ia(
             # Retorna texto cacheado para ahorrar coste y latencia.
             return respuesta_cache
 
-    # Define un prompt orientado a negocio y con restricciones de fuentes.
-    prompt = (
-        "Actúa como consultor SEO senior de agencia. "
-        "Redacta un informe en español profesional natural, sin frases vacías ni repeticiones. "
-        "Usa solo los datos proporcionados, sin inventar información. "
-        "No menciones fuentes no activas ni herramientas no conectadas. "
-        "No uses Markdown ni símbolos como **, ### o ---. "
-        "Estructura obligatoria exacta: "
-        "Resumen ejecutivo; Hallazgos críticos; Quick wins; Acciones técnicas; "
-        "Acciones de contenido; Rendimiento y experiencia de usuario; Roadmap. "
-        "Datos de auditoría en JSON:\n"
-        + json.dumps(datos, ensure_ascii=False)
-    )
+    # Carga la plantilla de prompt desde archivo externo editable.
+    plantilla_prompt = cargar_plantilla_prompt_ia()
+
+    # Inserta los datos de auditoría serializados en la plantilla.
+    prompt = plantilla_prompt.format(datos_json=json.dumps(datos, ensure_ascii=False))
 
     # Ejecuta la generación del contenido con el modelo indicado.
     respuesta = cliente.models.generate_content(model=model_name, contents=prompt)
