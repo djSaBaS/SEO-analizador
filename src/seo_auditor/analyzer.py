@@ -7,6 +7,18 @@ from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 # Importa contador para reglas transversales del conjunto auditado.
 from collections import Counter
 
+# Importa hash para deduplicación aproximada de contenido.
+from hashlib import sha1
+
+# Importa expresiones regulares para tokenización estable.
+import re
+
+# Importa utilidades dinámicas para dependencias opcionales.
+import importlib
+
+# Importa utilidades para comprobar disponibilidad de módulos opcionales.
+import importlib.util
+
 # Importa funciones de obtención de HTML.
 from seo_auditor.fetcher import obtener_metadatos_html
 
@@ -15,6 +27,13 @@ from seo_auditor.models import HallazgoSeo, ResultadoAuditoria, ResultadoUrl
 
 # Importa utilidades para clasificación interna y progreso.
 from seo_auditor.utils import inferir_tipo_url, iterar_con_progreso
+
+
+# Resuelve disponibilidad real de trafilatura en tiempo de ejecución.
+TRAFILATURA_DISPONIBLE = importlib.util.find_spec("trafilatura") is not None
+
+# Carga módulo trafilatura de forma controlada cuando exista.
+trafilatura = importlib.import_module("trafilatura") if TRAFILATURA_DISPONIBLE else None
 
 
 # Crea una matriz de clasificación SEO transparente y extensible.
@@ -87,6 +106,107 @@ def extraer_meta(html: BeautifulSoup, nombre: str) -> str:
 
     # Devuelve el contenido si la etiqueta existe y contiene el atributo esperado.
     return etiqueta.get("content", "").strip() if etiqueta else ""
+
+
+# Extrae texto limpio priorizando trafilatura con fallback seguro.
+def _extraer_texto_limpio(html_texto: str, html: BeautifulSoup) -> str:
+    """
+    Extrae contenido textual principal para análisis semántico y de calidad.
+    """
+
+    # Intenta extraer contenido principal con trafilatura cuando esté disponible.
+    texto_extraido = trafilatura.extract(html_texto, include_links=False, include_images=False, output_format="txt") if trafilatura else None
+
+    # Devuelve texto extraído cuando exista contenido útil.
+    if isinstance(texto_extraido, str) and texto_extraido.strip():
+        # Retorna texto limpiado de espacios extremos.
+        return texto_extraido.strip()
+
+    # Aplica fallback a texto visible del DOM cuando trafilatura no devuelva valor.
+    return " ".join(html.stripped_strings).strip()
+
+
+# Calcula métricas de contenido para scoring y diagnóstico.
+def _calcular_metricas_contenido(texto_limpio: str, html_texto: str) -> dict[str, object]:
+    """
+    Calcula métricas de palabras, densidad y calidad para la URL auditada.
+    """
+
+    # Extrae tokens alfabéticos con longitud mínima razonable.
+    tokens = re.findall(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9]+", texto_limpio)
+
+    # Calcula total de palabras detectadas.
+    palabras = len(tokens)
+
+    # Calcula longitud media de palabra con protección ante división por cero.
+    longitud_media = round(sum(len(token) for token in tokens) / palabras, 2) if palabras else 0.0
+
+    # Calcula densidad de texto visible sobre contenido HTML bruto.
+    densidad_texto = round(len(texto_limpio) / max(1, len(html_texto)), 4)
+
+    # Calcula ratio texto/HTML para evaluar carga semántica real.
+    ratio_texto_html = round(len(texto_limpio.encode("utf-8")) / max(1, len(html_texto.encode("utf-8"))), 4)
+
+    # Clasifica contenido como thin content por umbral conservador.
+    thin_content = palabras < 300
+
+    # Determina calidad de contenido por volumen y densidad.
+    if palabras >= 900 and densidad_texto >= 0.2:
+        # Clasifica alta calidad para textos sólidos.
+        calidad = "alta"
+    elif palabras >= 450 and densidad_texto >= 0.12:
+        # Clasifica calidad media para contenido aceptable.
+        calidad = "media"
+    else:
+        # Clasifica calidad baja para contenido escaso o débil.
+        calidad = "baja"
+
+    # Construye hash estable para deduplicación aproximada.
+    hash_contenido = sha1(re.sub(r"\s+", " ", texto_limpio.lower()).strip().encode("utf-8")).hexdigest() if texto_limpio else ""
+
+    # Devuelve métricas consolidadas de contenido.
+    return {
+        "palabras": palabras,
+        "densidad_texto": densidad_texto,
+        "longitud_media_palabra": longitud_media,
+        "ratio_texto_html": ratio_texto_html,
+        "calidad_contenido": calidad,
+        "thin_content": thin_content,
+        "texto_extraido": texto_limpio,
+        "hash_contenido": hash_contenido,
+    }
+
+
+# Evalúa la jerarquía de headings para detectar saltos estructurales.
+def _estructura_headings_correcta(html: BeautifulSoup) -> bool:
+    """
+    Verifica que la secuencia H1-H6 no tenga saltos excesivos de nivel.
+    """
+
+    # Inicializa el último nivel procesado.
+    ultimo_nivel = 0
+
+    # Recorre headings en orden natural del documento.
+    for etiqueta in html.find_all(re.compile(r"^h[1-6]$")):
+        # Obtiene nivel numérico de la etiqueta.
+        nivel = int(etiqueta.name[1])
+
+        # Permite primer heading en cualquier nivel.
+        if ultimo_nivel == 0:
+            # Actualiza último nivel y continúa.
+            ultimo_nivel = nivel
+            continue
+
+        # Detecta salto superior a un nivel.
+        if nivel - ultimo_nivel > 1:
+            # Marca estructura incorrecta por salto brusco.
+            return False
+
+        # Actualiza último nivel válido.
+        ultimo_nivel = nivel
+
+    # Devuelve estructura correcta cuando no hay saltos inválidos.
+    return True
 
 
 # Determina si una redirección es solo normalización de slash final.
@@ -202,6 +322,12 @@ def auditar_url(url: str, timeout: int) -> ResultadoUrl:
 
         # Extrae la meta descripción para evaluar completitud on-page.
         meta_description = extraer_meta(html, "description")
+
+        # Extrae contenido textual limpio para análisis real.
+        texto_extraido = _extraer_texto_limpio(respuesta.text, html)
+
+        # Calcula métricas avanzadas de contenido.
+        metricas_contenido = _calcular_metricas_contenido(texto_extraido, respuesta.text)
 
         # Busca un enlace canonical dentro del head.
         canonical_tag = html.find("link", rel="canonical")
@@ -407,6 +533,12 @@ def auditar_url(url: str, timeout: int) -> ResultadoUrl:
         # Inicializa contador de imágenes sin alt útil.
         imagenes_sin_alt = 0
 
+        # Inicializa acumulador de peso de imágenes estimado en KB.
+        peso_imagenes_estimado_kb = 0.0
+
+        # Inicializa bandera de lazy load detectado.
+        lazy_load_detectado = False
+
         # Revisa imágenes sin atributo alt para accesibilidad y SEO semántico.
         for imagen in html.find_all("img"):
             # Obtiene atributo alt cuando exista.
@@ -417,6 +549,19 @@ def auditar_url(url: str, timeout: int) -> ResultadoUrl:
                 # Suma incidencia detectada en la página.
                 imagenes_sin_alt += 1
 
+            # Lee atributo data-size cuando exista para estimar peso.
+            data_size = str(imagen.get("data-size", "")).strip()
+
+            # Suma peso estimado cuando exista atributo numérico.
+            if data_size.isdigit():
+                # Convierte bytes a KB aproximados.
+                peso_imagenes_estimado_kb += round(int(data_size) / 1024.0, 2)
+
+            # Evalúa atributos comunes de lazy-load.
+            if str(imagen.get("loading", "")).lower() == "lazy" or imagen.get("data-src"):
+                # Marca presencia de lazy-load en la URL.
+                lazy_load_detectado = True
+
         # Añade hallazgo agregado de imágenes sin alt.
         if imagenes_sin_alt > 0:
             # Añade hallazgo de contenido por accesibilidad/SEO.
@@ -425,6 +570,50 @@ def auditar_url(url: str, timeout: int) -> ResultadoUrl:
                     tipo="contenido",
                     descripcion=f"Se detectaron {imagenes_sin_alt} imágenes sin atributo alt útil.",
                     recomendacion="Añadir texto alt descriptivo y contextual en todas las imágenes informativas.",
+                )
+            )
+
+        # Registra hallazgo cuando no se detecta lazy-load en páginas con varias imágenes.
+        if len(html.find_all("img")) >= 3 and not lazy_load_detectado:
+            # Añade hallazgo de mejora de rendimiento visual.
+            hallazgos.append(
+                crear_hallazgo(
+                    tipo="rendimiento",
+                    descripcion="No se detecta lazy load en una página con varias imágenes.",
+                    recomendacion="Habilitar lazy load para imágenes no críticas y reducir carga inicial.",
+                )
+            )
+
+        # Registra hallazgo cuando la estructura de headings no es jerárquica.
+        if not _estructura_headings_correcta(html):
+            # Añade hallazgo de estructura de contenido.
+            hallazgos.append(
+                crear_hallazgo(
+                    tipo="contenido",
+                    descripcion="La jerarquía de headings presenta saltos de nivel (estructura no consistente).",
+                    recomendacion="Ordenar títulos con progresión H1-H2-H3 evitando saltos bruscos.",
+                )
+            )
+
+        # Registra hallazgo de contenido pobre cuando la calidad sea baja.
+        if metricas_contenido["calidad_contenido"] == "baja":
+            # Añade recomendación para reforzar contenido.
+            hallazgos.append(
+                crear_hallazgo(
+                    tipo="contenido",
+                    descripcion="Contenido pobre detectado por baja densidad y escasa profundidad semántica.",
+                    recomendacion="Ampliar contenido útil con cobertura temática, ejemplos y FAQ relevante.",
+                )
+            )
+
+        # Registra hallazgo específico de thin content por bajo número de palabras.
+        if bool(metricas_contenido["thin_content"]):
+            # Añade alerta de canibalización y baja relevancia potencial.
+            hallazgos.append(
+                crear_hallazgo(
+                    tipo="contenido",
+                    descripcion="Thin content detectado por bajo volumen de texto indexable.",
+                    recomendacion="Incrementar texto útil y diferenciador orientado a intención de búsqueda.",
                 )
             )
 
@@ -452,6 +641,19 @@ def auditar_url(url: str, timeout: int) -> ResultadoUrl:
             canonical=canonical,
             noindex=noindex,
             hallazgos=hallazgos,
+            palabras=int(metricas_contenido["palabras"]),
+            densidad_texto=float(metricas_contenido["densidad_texto"]),
+            longitud_media_palabra=float(metricas_contenido["longitud_media_palabra"]),
+            ratio_texto_html=float(metricas_contenido["ratio_texto_html"]),
+            calidad_contenido=str(metricas_contenido["calidad_contenido"]),
+            thin_content=bool(metricas_contenido["thin_content"]),
+            texto_extraido=str(metricas_contenido["texto_extraido"]),
+            hash_contenido=str(metricas_contenido["hash_contenido"]),
+            h1_unico=len(h1_tags) == 1,
+            estructura_headings_correcta=_estructura_headings_correcta(html),
+            imagenes_sin_alt=imagenes_sin_alt,
+            peso_imagenes_estimado_kb=round(peso_imagenes_estimado_kb, 2),
+            lazy_load_detectado=lazy_load_detectado,
         )
 
     # Captura cualquier error controlado sin exponer trazas sensibles al usuario final.
@@ -475,6 +677,19 @@ def auditar_url(url: str, timeout: int) -> ResultadoUrl:
                     recomendacion="Revisar disponibilidad, certificados, bloqueos WAF o errores del servidor.",
                 )
             ],
+            palabras=0,
+            densidad_texto=0.0,
+            longitud_media_palabra=0.0,
+            ratio_texto_html=0.0,
+            calidad_contenido="baja",
+            thin_content=False,
+            texto_extraido="",
+            hash_contenido="",
+            h1_unico=False,
+            estructura_headings_correcta=True,
+            imagenes_sin_alt=0,
+            peso_imagenes_estimado_kb=0.0,
+            lazy_load_detectado=False,
             error=str(exc),
         )
 
@@ -523,6 +738,37 @@ def auditar_urls(sitemap: str, urls: list[str], timeout: int, cliente: str, fech
                 )
             )
 
+    # Inicializa contador de hash de contenido para duplicidad aproximada.
+    contador_hash = Counter(item.hash_contenido for item in resultados if item.hash_contenido)
+
+    # Recorre resultados para etiquetar duplicidad de contenido aproximada.
+    for item in resultados:
+        # Evalúa duplicidad por hash de contenido normalizado.
+        if item.hash_contenido and contador_hash[item.hash_contenido] > 1:
+            # Añade hallazgo de contenido potencialmente duplicado.
+            item.hallazgos.append(
+                crear_hallazgo(
+                    tipo="contenido",
+                    descripcion="Duplicidad aproximada de contenido detectada entre URLs auditadas.",
+                    recomendacion="Diferenciar intención y copy por URL o consolidar mediante canonical/redirect cuando proceda.",
+                )
+            )
+
+    # Calcula score técnico base por incidencias de áreas técnicas.
+    incidencias_tecnicas = sum(1 for item in resultados for hallazgo in item.hallazgos if hallazgo.area in {"Infraestructura", "Indexación", "Arquitectura"})
+
+    # Calcula score técnico en escala 0-100.
+    score_tecnico = round(max(5.0, 100.0 - (incidencias_tecnicas / max(1, len(resultados))) * 8.0), 1)
+
+    # Calcula score de contenido desde calidad media por URL.
+    score_contenido = round(sum({"alta": 92.0, "media": 72.0, "baja": 45.0}.get(item.calidad_contenido, 45.0) for item in resultados) / max(1, len(resultados)), 1)
+
+    # Inicializa score de rendimiento con fallback neutral.
+    score_rendimiento = 70.0
+
+    # Calcula score global compuesto de tres dimensiones.
+    seo_score_global = round((score_tecnico * 0.4) + (score_contenido * 0.4) + (score_rendimiento * 0.2), 1)
+
     # Devuelve el agregado final de la auditoría.
     return ResultadoAuditoria(
         sitemap=sitemap,
@@ -531,4 +777,8 @@ def auditar_urls(sitemap: str, urls: list[str], timeout: int, cliente: str, fech
         cliente=cliente,
         fecha_ejecucion=fecha_ejecucion,
         gestor=gestor,
+        score_tecnico=score_tecnico,
+        score_contenido=score_contenido,
+        score_rendimiento=score_rendimiento,
+        seo_score_global=seo_score_global,
     )

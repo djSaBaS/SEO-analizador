@@ -11,3 +11,6 @@ Contiene pruebas unitarias y de regresión.
 - Validar detección de home para comportamiento por defecto de PageSpeed.
 - Validar persistencia de rendimiento y fuentes activas en el flujo CLI.
 - Verificar existencia de gráficos y formato visual de severidad en el Excel final.
+
+- `test_indexacion.py`: valida filtrado de directivas Disallow por User-agent para evitar falsos positivos en robots.
+- `test_html_export.py`: valida orden por severidad en exportación HTML (alta arriba, informativa abajo).

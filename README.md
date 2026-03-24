@@ -104,3 +104,11 @@ python src/main.py --testia --modelo-ia gemini-2.0-flash
 ```bash
 pytest -q
 ```
+
+
+## Novedades de auditoría avanzada (v0.6.0)
+- Integración de `trafilatura` para extraer contenido limpio y calcular palabras, densidad, ratio texto/HTML, thin content y duplicidad aproximada por hash.
+- Integración de `advertools` para análisis base de `robots.txt` y coherencia sitemap vs reglas Disallow.
+- Nueva sección ejecutiva **Indexación y rastreo** en Word/PDF/HTML.
+- Nueva hoja **Contenido** en Excel con métricas accionables por URL (palabras, calidad, thin content, headings, imágenes sin alt).
+- Compatibilidad CLI: si no se indica `--output`, se usa `./salidas` automáticamente.

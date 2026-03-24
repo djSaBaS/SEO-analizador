@@ -159,6 +159,45 @@ class ResultadoUrl:
     # Guarda todos los hallazgos detectados para la URL.
     hallazgos: List[HallazgoSeo] = field(default_factory=list)
 
+    # Guarda el número total de palabras del contenido extraído.
+    palabras: int = 0
+
+    # Guarda la densidad de texto limpio frente al total de texto bruto.
+    densidad_texto: float = 0.0
+
+    # Guarda la longitud media por palabra detectada.
+    longitud_media_palabra: float = 0.0
+
+    # Guarda el ratio de tamaño entre texto extraído y HTML completo.
+    ratio_texto_html: float = 0.0
+
+    # Guarda una etiqueta cualitativa de calidad de contenido.
+    calidad_contenido: str = "baja"
+
+    # Indica si la URL cae en umbral de thin content.
+    thin_content: bool = False
+
+    # Guarda el texto limpio extraído para análisis posterior.
+    texto_extraido: str = ""
+
+    # Guarda hash estable del contenido para detectar duplicidad aproximada.
+    hash_contenido: str = ""
+
+    # Indica si existe un único H1 en la URL.
+    h1_unico: bool = False
+
+    # Indica si la jerarquía de headings es coherente.
+    estructura_headings_correcta: bool = True
+
+    # Guarda el total de imágenes sin atributo ALT.
+    imagenes_sin_alt: int = 0
+
+    # Guarda el peso estimado de imágenes en kilobytes.
+    peso_imagenes_estimado_kb: float = 0.0
+
+    # Indica si se detecta lazy-load en imágenes.
+    lazy_load_detectado: bool = False
+
     # Guarda un error controlado si la auditoría de la URL falló.
     error: Optional[str] = None
 
@@ -199,6 +238,21 @@ class ResultadoAuditoria:
 
     # Guarda estado por URL y estrategia cuando PageSpeed falla o devuelve datos parciales.
     pagespeed_estado: dict[str, dict[str, str]] = field(default_factory=dict)
+
+    # Guarda resumen de indexación y rastreo (robots/sitemap).
+    indexacion_rastreo: dict[str, object] = field(default_factory=dict)
+
+    # Guarda score técnico agregado en escala 0-100.
+    score_tecnico: Optional[float] = None
+
+    # Guarda score de contenido agregado en escala 0-100.
+    score_contenido: Optional[float] = None
+
+    # Guarda score de rendimiento agregado en escala 0-100.
+    score_rendimiento: Optional[float] = None
+
+    # Guarda SEO score global agregado en escala 0-100.
+    seo_score_global: Optional[float] = None
 
     # Guarda el informe narrativo opcional generado por IA.
     resumen_ia: Optional[str] = None

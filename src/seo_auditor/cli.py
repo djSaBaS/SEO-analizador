@@ -16,6 +16,9 @@ from seo_auditor.config import cargar_configuracion
 # Importa cliente IA y utilidades de prueba.
 from seo_auditor.gemini_client import generar_resumen_ia, probar_conexion_ia
 
+# Importa análisis de indexación y rastreo basado en robots/sitemap.
+from seo_auditor.indexacion import analizar_indexacion_rastreo
+
 # Importa el extractor de URLs desde sitemap.
 from seo_auditor.fetcher import extraer_urls_sitemap
 
@@ -250,13 +253,13 @@ def main() -> int:
         # Devuelve código de error.
         return 1
 
-    # Exige output en modo auditoría normal.
+    # Aplica carpeta de salida por defecto para compatibilidad CLI histórica.
     if not argumentos.output:
-        # Informa falta de argumento obligatorio en este modo.
-        print("Error: --output es obligatorio salvo en modo --testia.")
+        # Informa fallback aplicado para trazabilidad.
+        print("Aviso: no se indicó --output, se usará ./salidas por compatibilidad.")
 
-        # Devuelve código de error.
-        return 1
+        # Asigna ruta por defecto de salida.
+        argumentos.output = "./salidas"
 
     # Valida la URL del sitemap antes de cualquier operación externa.
     if not es_url_http_valida(argumentos.sitemap):
@@ -362,6 +365,9 @@ def main() -> int:
     # Ejecuta la auditoría técnica sobre todas las URLs obtenidas.
     resultado = auditar_urls(argumentos.sitemap, urls, configuracion.http_timeout, cliente, fecha, argumentos.gestor)
 
+    # Ejecuta análisis de indexación y rastreo con robots/sitemap.
+    resultado.indexacion_rastreo = analizar_indexacion_rastreo(argumentos.sitemap, urls, configuracion.http_timeout)
+
     # Calcula el límite efectivo de URLs para PageSpeed.
     max_pagepsi_urls = argumentos.max_pagepsi_urls if argumentos.max_pagepsi_urls > 0 else configuracion.max_pagepsi_urls
 
@@ -405,6 +411,22 @@ def main() -> int:
 
         # Guarda estado de PageSpeed dentro del resultado final.
         resultado.pagespeed_estado = estado_pagespeed
+
+        # Recalcula score de rendimiento desde resultados disponibles.
+        scores_rendimiento_validos = [item.performance_score for item in resultado.rendimiento if isinstance(item.performance_score, (int, float))]
+
+        # Actualiza score de rendimiento cuando existan métricas válidas.
+        if scores_rendimiento_validos:
+            # Guarda promedio real de rendimiento.
+            resultado.score_rendimiento = round(sum(scores_rendimiento_validos) / len(scores_rendimiento_validos), 1)
+
+            # Recalcula SEO score global con componente de rendimiento real.
+            resultado.seo_score_global = round(
+                (float(resultado.score_tecnico or 0.0) * 0.4)
+                + (float(resultado.score_contenido or 0.0) * 0.4)
+                + (float(resultado.score_rendimiento or 0.0) * 0.2),
+                1,
+            )
 
         # Determina si existe al menos un resultado con métricas válidas.
         hay_metricas_validas = any(

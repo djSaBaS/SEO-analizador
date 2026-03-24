@@ -2,7 +2,10 @@
 from seo_auditor.models import HallazgoSeo, ResultadoAuditoria, ResultadoUrl
 
 # Importa funciones a validar del analizador.
-from seo_auditor.analyzer import _clasificar_canonical, _es_redireccion_solo_slash, _normalizar_url_comparable, clasificar_hallazgo
+from bs4 import BeautifulSoup
+
+# Importa funciones internas y públicas del analizador.
+from seo_auditor.analyzer import _calcular_metricas_contenido, _clasificar_canonical, _es_redireccion_solo_slash, _estructura_headings_correcta, _normalizar_url_comparable, clasificar_hallazgo
 
 # Importa el exportador tabular para validar la salida.
 from seo_auditor.reporters import construir_filas
@@ -140,3 +143,37 @@ def test_normalizar_url_comparable_tolera_puerto_invalido() -> None:
 
     # Verifica que se conserve una URL comparable utilizable.
     assert normalizada == "https://ejemplo.com/ruta"
+
+
+# Verifica cálculo de métricas de contenido para thin content.
+def test_calcular_metricas_contenido_detecta_thin_content() -> None:
+    """Comprueba que el cálculo de contenido marque thin content en textos breves."""
+
+    # Define texto breve para simular contenido pobre.
+    texto = "Palabra " * 40
+
+    # Define HTML sintético para ratio de cálculo.
+    html_texto = "<html><body>" + texto + "</body></html>"
+
+    # Calcula métricas de contenido.
+    metricas = _calcular_metricas_contenido(texto, html_texto)
+
+    # Verifica que se detecte thin content.
+    assert metricas["thin_content"] is True
+
+    # Verifica que exista conteo de palabras positivo.
+    assert int(metricas["palabras"]) > 0
+
+
+# Verifica que la jerarquía de headings detecte saltos inválidos.
+def test_estructura_headings_correcta_detecta_salto_invalido() -> None:
+    """Comprueba que H1->H3 sin H2 intermedio se marque como estructura incorrecta."""
+
+    # Construye HTML con salto jerárquico de headings.
+    html = BeautifulSoup("<html><body><h1>Título</h1><h3>Subsección</h3></body></html>", "html.parser")
+
+    # Evalúa la estructura de headings.
+    resultado = _estructura_headings_correcta(html)
+
+    # Verifica detección de salto inválido.
+    assert resultado is False

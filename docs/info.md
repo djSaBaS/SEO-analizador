@@ -12,3 +12,5 @@ Documentación viva del proyecto.
 - La lógica de canonical aplica normalización robusta para reducir falsos positivos por slash final.
 - La capa ejecutiva agrupa incidencias y muestra quick wins deduplicados para evitar incoherencias de presentación.
 - El roadmap mantiene fallback de medio plazo para evitar fases vacías en entregables ejecutivos.
+
+- Se documenta la evolución de análisis de contenido real con trafilatura y capa de indexación/rastreo con advertools.
