@@ -22,6 +22,9 @@ from seo_auditor.indexacion import analizar_indexacion_rastreo
 # Importa el extractor de URLs desde sitemap.
 from seo_auditor.fetcher import extraer_urls_sitemap
 
+# Importa integración opcional con Google Search Console.
+from seo_auditor.gsc import cargar_datos_search_console
+
 # Importa modelo de resultado de rendimiento.
 from seo_auditor.models import ResultadoRendimiento
 
@@ -198,6 +201,9 @@ def crear_parser() -> argparse.ArgumentParser:
 
     # Añade flag para invalidar caché local antes de ejecutar.
     parser.add_argument("--invalidar-cache", action="store_true", help="Elimina la caché local antes de iniciar la auditoría.")
+
+    # Añade flag para omitir explícitamente Search Console en esta ejecución.
+    parser.add_argument("--noGSC", action="store_true", help="Desactiva Google Search Console para esta ejecución, aunque esté configurado.")
 
     # Devuelve el parser ya configurado.
     return parser
@@ -460,6 +466,43 @@ def main() -> int:
     else:
         # Muestra mensaje informativo para evitar confusión.
         print("[3/6] PageSpeed omitido: no existe PAGESPEED_API_KEY en entorno.")
+
+    # Evalúa si GSC debe desactivarse por argumento puntual.
+    if argumentos.noGSC:
+        # Informa desactivación manual para trazabilidad.
+        print("[3.5/6] Search Console omitido por argumento --noGSC.")
+
+    # Ejecuta Search Console solo cuando esté habilitado y no se fuerce omisión.
+    elif configuracion.gsc_enabled:
+        # Informa progreso de integración opcional autenticada.
+        print("[3.5/6] Consultando Google Search Console...")
+
+        # Intenta consultar Search Console sin romper flujo global.
+        try:
+            # Carga dataset opcional de Search Console.
+            datos_search_console = cargar_datos_search_console(configuracion)
+
+            # Guarda datos GSC en resultado consolidado.
+            resultado.search_console = datos_search_console
+
+            # Registra fuente activa cuando existan datos válidos.
+            if datos_search_console.activo and (datos_search_console.paginas or datos_search_console.queries):
+                # Añade Search Console a fuentes activas.
+                resultado.fuentes_activas.append("search_console")
+            else:
+                # Añade Search Console a fuentes fallidas para trazabilidad.
+                resultado.fuentes_fallidas.append("search_console")
+
+                # Informa motivo de degradación elegante en consola.
+                print(f"Aviso: Search Console no devolvió datos útiles: {datos_search_console.error or 'sin filas en el rango.'}")
+
+        # Captura error inesperado de integración sin detener auditoría.
+        except Exception as exc:
+            # Registra fuente fallida por error de integración.
+            resultado.fuentes_fallidas.append("search_console")
+
+            # Informa fallo no bloqueante con contexto.
+            print(f"Aviso: fallo no bloqueante en Search Console: {exc}")
 
     # Genera el resumen con IA solo si el usuario lo solicita.
     if argumentos.usar_ia:

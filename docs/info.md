@@ -14,3 +14,5 @@ Documentación viva del proyecto.
 - El roadmap mantiene fallback de medio plazo para evitar fases vacías en entregables ejecutivos.
 
 - Se documenta la evolución de análisis de contenido real con trafilatura y capa de indexación/rastreo con advertools.
+
+- Se documenta la nueva capa de visibilidad orgánica autenticada con Google Search Console y su ejecución opcional sin romper el flujo técnico base.

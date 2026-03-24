@@ -32,6 +32,7 @@ def test_main_persiste_rendimiento_y_fuente_pagespeed(monkeypatch, tmp_path) -> 
         modo_rapido=False,
         cache_ttl=0,
         invalidar_cache=False,
+        noGSC=False,
     )
 
     # Define parser simulado para evitar CLI real.
@@ -106,6 +107,12 @@ def test_main_persiste_rendimiento_y_fuente_pagespeed(monkeypatch, tmp_path) -> 
             pagespeed_timeout=45,
             pagespeed_reintentos=2,
             cache_ttl_segundos=21600,
+            gsc_enabled=False,
+            gsc_site_url="",
+            gsc_credentials_file="",
+            gsc_date_from="",
+            gsc_date_to="",
+            gsc_row_limit=250,
         ),
     )
 
@@ -167,6 +174,7 @@ def test_main_no_marca_pagespeed_como_activa_si_falla(monkeypatch, tmp_path) -> 
         modo_rapido=False,
         cache_ttl=0,
         invalidar_cache=False,
+        noGSC=False,
     )
 
     # Define parser simulado para evitar CLI real.
@@ -242,6 +250,12 @@ def test_main_no_marca_pagespeed_como_activa_si_falla(monkeypatch, tmp_path) -> 
             pagespeed_timeout=45,
             pagespeed_reintentos=2,
             cache_ttl_segundos=21600,
+            gsc_enabled=False,
+            gsc_site_url="",
+            gsc_credentials_file="",
+            gsc_date_from="",
+            gsc_date_to="",
+            gsc_row_limit=250,
         ),
     )
 
@@ -280,3 +294,113 @@ def test_main_no_marca_pagespeed_como_activa_si_falla(monkeypatch, tmp_path) -> 
 
     # Verifica que PageSpeed sí quede registrado como fuente fallida.
     assert "pagespeed" in capturado["resultado"].fuentes_fallidas
+
+
+# Verifica que --noGSC omita por completo la consulta a Search Console.
+def test_main_omite_gsc_si_se_usa_bandera_no_gsc(monkeypatch, tmp_path) -> None:
+    """Comprueba que la bandera --noGSC evite llamadas a la integración GSC."""
+
+    # Construye argumentos simulados con omisión explícita de GSC.
+    argumentos = SimpleNamespace(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        output=str(tmp_path),
+        usar_ia=False,
+        testia=False,
+        modelo_ia="",
+        pagepsi="",
+        pagepsi_list="",
+        max_pagepsi_urls=0,
+        pagepsi_timeout=0,
+        pagepsi_reintentos=-1,
+        gestor="Gestor",
+        max_muestras_ia=5,
+        modo_rapido=False,
+        cache_ttl=0,
+        invalidar_cache=False,
+        noGSC=True,
+    )
+
+    # Define parser simulado para evitar CLI real.
+    class _ParserFalso:
+        """Parser mínimo que devuelve argumentos simulados."""
+
+        # Devuelve argumentos preconstruidos.
+        def parse_args(self):
+            """Retorna argumentos simulados de forma estable."""
+            return argumentos
+
+    # Crea un resultado técnico base para el flujo.
+    resultado_base = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=1,
+        resultados=[
+            ResultadoUrl(
+                url="https://ejemplo.com/",
+                tipo="page",
+                estado_http=200,
+                redirecciona=False,
+                url_final="https://ejemplo.com/",
+                title="Inicio",
+                h1="Inicio",
+                meta_description="Meta",
+                canonical="https://ejemplo.com/",
+                noindex=False,
+                hallazgos=[],
+            )
+        ],
+        cliente="Ejemplo",
+        fecha_ejecucion="2026-03-24",
+        gestor="Gestor",
+    )
+
+    # Inyecta parser falso en el módulo CLI.
+    monkeypatch.setattr(cli, "crear_parser", lambda: _ParserFalso())
+
+    # Inyecta configuración con GSC habilitado para validar omisión por bandera.
+    monkeypatch.setattr(
+        cli,
+        "cargar_configuracion",
+        lambda: Configuracion(
+            gemini_api_key="",
+            gemini_model="gemini-2.0-flash",
+            pagespeed_api_key="",
+            http_timeout=10,
+            max_urls=10,
+            max_pagepsi_urls=5,
+            pagespeed_timeout=45,
+            pagespeed_reintentos=2,
+            cache_ttl_segundos=21600,
+            gsc_enabled=True,
+            gsc_site_url="https://ejemplo.com/",
+            gsc_credentials_file="./credenciales/gsc.json",
+            gsc_date_from="2026-02-01",
+            gsc_date_to="2026-03-01",
+            gsc_row_limit=250,
+        ),
+    )
+
+    # Simula extracción de URLs desde sitemap.
+    monkeypatch.setattr(cli, "extraer_urls_sitemap", lambda *args, **kwargs: ["https://ejemplo.com/"])
+
+    # Simula auditoría técnica devolviendo el resultado base.
+    monkeypatch.setattr(cli, "auditar_urls", lambda *args, **kwargs: resultado_base)
+
+    # Simula análisis de indexación para no depender de red.
+    monkeypatch.setattr(cli, "analizar_indexacion_rastreo", lambda *args, **kwargs: {})
+
+    # Define llamada prohibida para GSC cuando exista --noGSC.
+    monkeypatch.setattr(cli, "cargar_datos_search_console", lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("No debe llamarse GSC con --noGSC")))
+
+    # Inyecta exportadores como no-op para aislar la prueba.
+    monkeypatch.setattr(cli, "exportar_json", lambda *args, **kwargs: None)
+    monkeypatch.setattr(cli, "exportar_excel", lambda *args, **kwargs: None)
+    monkeypatch.setattr(cli, "exportar_word", lambda *args, **kwargs: None)
+    monkeypatch.setattr(cli, "exportar_pdf", lambda *args, **kwargs: None)
+    monkeypatch.setattr(cli, "exportar_html", lambda *args, **kwargs: None)
+    monkeypatch.setattr(cli, "exportar_markdown_ia", lambda *args, **kwargs: None)
+
+    # Ejecuta flujo principal.
+    codigo = cli.main()
+
+    # Verifica ejecución correcta sin consulta GSC.
+    assert codigo == 0

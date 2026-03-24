@@ -17,3 +17,5 @@ Contiene el código fuente principal del auditor SEO.
 - `seo_auditor/gemini_client.py`: generación de resumen IA optimizado en tokens y validación de conectividad con `--testia`.
 
 - `seo_auditor/indexacion.py`: análisis de indexación y rastreo con robots/sitemap usando advertools.
+
+- `seo_auditor/gsc.py`: integración opcional con Google Search Console (service account), consultas por página/query y degradación elegante.

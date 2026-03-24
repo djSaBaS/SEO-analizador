@@ -1,5 +1,12 @@
 # version.md
 
+## 0.7.0 - 2026-03-24
+- Se integra Google Search Console como fuente autenticada opcional con degradación elegante: si falla por credenciales/permisos/propiedad, la auditoría no se rompe y se registra en `fuentes_fallidas`.
+- Se añade argumento CLI `--noGSC` para omitir GSC en una ejecución concreta aunque esté configurado en entorno.
+- Se amplían exportaciones JSON/Excel/Word/PDF/HTML con capa de visibilidad orgánica real, oportunidades SEO prioritarias y cruce técnico+GSC cuando la fuente está activa.
+- Se añaden hojas Excel `Search_Console_Paginas`, `Search_Console_Queries` y `Oportunidades_GSC`, además de nuevos KPIs de clics, impresiones, CTR y posición media.
+- Se evoluciona la priorización de quick wins y roadmap hacia enfoque de crecimiento SEO real por impacto y oportunidad.
+
 ## 0.6.1 - 2026-03-23
 - Se corrige el análisis de robots para respetar el alcance por `User-agent` y evitar falsos positivos de bloqueo en sitemap.
 - Se mejora la detección de bloqueo combinando parser estándar de robots (allow/disallow completo) con fallback por patrones.
