@@ -5,7 +5,15 @@ from pathlib import Path
 from seo_auditor.models import HallazgoSeo, OportunidadRendimiento, ResultadoAuditoria, ResultadoRendimiento, ResultadoUrl
 
 # Importa funciones de reporters bajo prueba.
-from seo_auditor.reporters import _construir_bloques_narrativos, _construir_quick_wins, calcular_metricas, construir_secciones_desde_ia, exportar_excel, sanear_texto_para_pdf
+from seo_auditor.reporters import (
+    _construir_bloques_narrativos,
+    _construir_quick_wins,
+    calcular_metricas,
+    construir_jerarquia_visible,
+    construir_secciones_desde_ia,
+    exportar_excel,
+    sanear_texto_para_pdf,
+)
 
 # Importa lector de libros Excel para validar KPIs.
 from openpyxl import load_workbook
@@ -143,8 +151,8 @@ def test_construir_bloques_narrativos_generar_fallback_completo() -> None:
     # Genera bloques narrativos por fallback.
     bloques = _construir_bloques_narrativos(auditoria)
 
-    # Verifica que cada sección obligatoria tenga al menos una línea.
-    assert all(len(items) > 0 for items in bloques.values())
+    # Verifica que cada sección visible obligatoria tenga al menos una línea.
+    assert all(len(bloques[seccion]) > 0 for seccion in construir_jerarquia_visible(auditoria))
 
     # Verifica que roadmap incluya fase de medio plazo.
     assert any("60" in linea or "medio plazo" in linea.lower() for linea in bloques["Roadmap"])
@@ -259,8 +267,14 @@ def test_exportar_excel_score_medio_desde_ejecuciones_unicas(tmp_path: Path) -> 
     # Obtiene hoja Dashboard.
     hoja_dashboard = libro["Dashboard"]
 
+    # Busca fila del KPI de score medio móvil para evitar acoplamiento por posición.
+    fila_score_mobile = next((fila for fila in range(3, 60) if hoja_dashboard[f"A{fila}"].value == "Score medio móvil"), None)
+
+    # Verifica que la fila del KPI exista en el dashboard.
+    assert fila_score_mobile is not None
+
     # Verifica score medio móvil basado en ejecuciones únicas: (50 + 100) / 2 = 75.
-    assert hoja_dashboard["B22"].value == 75.0
+    assert hoja_dashboard[f"B{fila_score_mobile}"].value == 75.0
 
 
 # Verifica que el dashboard conserve los gráficos esperados.
@@ -302,6 +316,46 @@ def test_exportar_excel_dashboard_contiene_graficos(tmp_path: Path) -> None:
 
     # Verifica que existan al menos tres gráficos.
     assert len(dashboard._charts) >= 3
+
+
+# Verifica que Excel incluya hojas nuevas de Search Console.
+def test_exportar_excel_incluye_hojas_gsc(tmp_path: Path) -> None:
+    """Comprueba que la exportación Excel cree hojas GSC aunque no haya datos."""
+
+    # Construye auditoría mínima para exportar Excel.
+    auditoria = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=1,
+        resultados=[
+            ResultadoUrl(
+                url="https://ejemplo.com",
+                tipo="page",
+                estado_http=200,
+                redirecciona=False,
+                url_final="https://ejemplo.com",
+                title="Home",
+                h1="Inicio",
+                meta_description="Meta",
+                canonical="https://ejemplo.com",
+                noindex=False,
+                hallazgos=[],
+            )
+        ],
+        cliente="Ejemplo",
+        fecha_ejecucion="2026-03-24",
+        gestor="Gestor",
+    )
+
+    # Exporta libro para inspeccionar estructura.
+    ruta_excel = exportar_excel(auditoria, tmp_path)
+
+    # Carga libro recién exportado.
+    libro = load_workbook(ruta_excel)
+
+    # Verifica que existan hojas nuevas de Search Console.
+    assert "Search_Console_Paginas" in libro.sheetnames
+    assert "Search_Console_Queries" in libro.sheetnames
+    assert "Oportunidades_GSC" in libro.sheetnames
 
 
 # Verifica que la hoja de errores mantenga color por severidad.

@@ -26,6 +26,12 @@ Herramienta de auditoría SEO técnica y ejecutiva para agencia, con exportació
   - `PAGESPEED_TIMEOUT` (opcional, recomendado `45`)
   - `PAGESPEED_REINTENTOS` (opcional, recomendado `2`)
   - `CACHE_TTL_SEGUNDOS` (opcional, recomendado `21600`)
+  - `GSC_ENABLED` (opcional)
+  - `GSC_SITE_URL` (opcional)
+  - `GSC_CREDENTIALS_FILE` (opcional)
+  - `GSC_DATE_FROM` (opcional)
+  - `GSC_DATE_TO` (opcional)
+  - `GSC_ROW_LIMIT` (opcional, recomendado `250`)
 
 ## Dónde configurar las API keys
 - Debes definir las claves en tu archivo `.env` (o en variables de entorno del sistema), **no** en `config.py`.
@@ -52,17 +58,40 @@ python src/main.py --testia
 python src/main.py --testia --modelo-ia gemini-2.0-flash
 ```
 
-## Parámetros CLI clave
-- `--gestor "Nombre Apellidos"`: define gestor del informe.
-- `--max-muestras-ia 15`: limita muestras agregadas enviadas a Gemini.
-- `--modo-rapido`: limita la auditoría técnica a una muestra ligera para demos.
-- `--cache-ttl N`: define TTL de caché local para IA y PageSpeed.
-- `--invalidar-cache`: elimina la caché local antes de ejecutar.
-- `--pagepsi <url>`: analiza solo esa URL en PageSpeed (mobile+desktop).
-- `--pagepsi-list <archivo>`: analiza lista de URLs (una por línea).
-- `--max-pagepsi-urls N`: limita URLs de PageSpeed para esa ejecución.
-- `--pagepsi-timeout N`: timeout de PageSpeed para esa ejecución.
-- `--pagepsi-reintentos N`: reintentos de PageSpeed para esa ejecución.
+## Parámetros CLI (listado completo)
+- `--sitemap <url>`: URL del sitemap XML que se auditará (obligatorio salvo `--testia`).
+- `--output <ruta>`: carpeta raíz de salida de informes (`./salidas` por defecto).
+- `--usar-ia`: activa resumen narrativo con IA (si hay `GEMINI_API_KEY`).
+- `--testia`: ejecuta prueba mínima de conectividad del modelo IA.
+- `--modelo-ia <modelo>`: sobrescribe el modelo IA para esa ejecución.
+- `--pagepsi <url>`: ejecuta PageSpeed sobre una URL concreta.
+- `--pagepsi-list <archivo>`: ejecuta PageSpeed sobre URLs desde archivo (una por línea).
+- `--max-pagepsi-urls <N>`: limita URLs de PageSpeed para la ejecución.
+- `--pagepsi-timeout <N>`: timeout de PageSpeed en segundos para la ejecución.
+- `--pagepsi-reintentos <N>`: reintentos de PageSpeed para la ejecución.
+- `--gestor "Nombre Apellidos"`: define responsable del informe.
+- `--max-muestras-ia <N>`: limita muestras agregadas enviadas a IA.
+- `--modo-rapido`: reduce volumen de URLs para auditoría rápida.
+- `--cache-ttl <segundos>`: TTL de caché local para IA y PageSpeed.
+- `--invalidar-cache`: elimina caché local antes de arrancar.
+- `--noGSC`: desactiva Search Console en esa ejecución aunque esté configurado.
+
+## Configuración opcional de Google Search Console
+1. Instala dependencias (`google-api-python-client` y `google-auth`).
+2. Crea una service account en Google Cloud.
+3. Comparte la propiedad de Search Console con el email de la service account (permiso lectura).
+4. Configura en `.env`:
+   - `GSC_ENABLED=true`
+   - `GSC_SITE_URL=https://www.midominio.com/`
+   - `GSC_CREDENTIALS_FILE=./credenciales/gsc-service-account.json`
+   - `GSC_DATE_FROM=2026-02-01`
+   - `GSC_DATE_TO=2026-03-01`
+   - `GSC_ROW_LIMIT=250`
+
+Comportamiento:
+- Si GSC está bien configurado, se añade capa de visibilidad y oportunidades al informe.
+- Si falla por permisos, credenciales o propiedad, se registra en `fuentes_fallidas` y la auditoría sigue.
+- Si no está configurado, el flujo se mantiene igual que antes (sin capa GSC).
 
 ## Comportamiento de PageSpeed
 - Si existe `PAGESPEED_API_KEY` y no se indica nada, analiza solo la HOME.

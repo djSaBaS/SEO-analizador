@@ -10,3 +10,5 @@ google-genai>=1.0.0,<2.0.0
 trafilatura>=2.0.0,<3.0.0
 advertools>=0.16.0,<1.0.0
 pytest>=8.2.0,<9.0.0
+google-api-python-client>=2.170.0,<3.0.0
+google-auth>=2.40.0,<3.0.0

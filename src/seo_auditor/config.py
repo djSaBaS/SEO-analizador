@@ -12,6 +12,14 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+# Convierte valores textuales a booleano de forma robusta.
+def _a_booleano(valor: str) -> bool:
+    """Normaliza textos de entorno para evaluar banderas booleanas."""
+
+    # Devuelve verdadero para literales habituales de activación.
+    return valor.strip().lower() in {"1", "true", "t", "si", "sí", "yes", "y", "on"}
+
+
 # Define la configuración central del proyecto.
 @dataclass(slots=True)
 class Configuracion:
@@ -46,6 +54,24 @@ class Configuracion:
     # Guarda el TTL por defecto de caché local en segundos.
     cache_ttl_segundos: int
 
+    # Guarda si Search Console está habilitado de forma opcional.
+    gsc_enabled: bool
+
+    # Guarda la propiedad verificada de Search Console.
+    gsc_site_url: str
+
+    # Guarda la ruta al JSON de service account de GSC.
+    gsc_credentials_file: str
+
+    # Guarda fecha de inicio del rango GSC.
+    gsc_date_from: str
+
+    # Guarda fecha final del rango GSC.
+    gsc_date_to: str
+
+    # Guarda el máximo de filas por consulta GSC.
+    gsc_row_limit: int
+
 
 # Carga y valida la configuración desde entorno.
 def cargar_configuracion() -> Configuracion:
@@ -70,6 +96,9 @@ def cargar_configuracion() -> Configuracion:
 
     # Lee TTL de caché local o aplica valor equilibrado.
     cache_ttl_texto = os.getenv("CACHE_TTL_SEGUNDOS", "21600")
+
+    # Lee límite de filas de Search Console o aplica valor operativo.
+    gsc_row_limit_texto = os.getenv("GSC_ROW_LIMIT", "250")
 
     # Valida que el timeout sea un entero positivo razonable.
     if not timeout_texto.isdigit() or int(timeout_texto) <= 0:
@@ -101,6 +130,11 @@ def cargar_configuracion() -> Configuracion:
         # Corta la ejecución con mensaje claro y accionable.
         raise ValueError("CACHE_TTL_SEGUNDOS debe ser un entero igual o mayor que cero.")
 
+    # Valida que el límite de filas GSC sea entero positivo.
+    if not gsc_row_limit_texto.isdigit() or int(gsc_row_limit_texto) <= 0:
+        # Corta la ejecución con mensaje claro y accionable.
+        raise ValueError("GSC_ROW_LIMIT debe ser un entero positivo.")
+
     # Devuelve la configuración consolidada del proyecto.
     return Configuracion(
         # Carga la clave de Gemini o deja cadena vacía si no existe.
@@ -121,4 +155,16 @@ def cargar_configuracion() -> Configuracion:
         pagespeed_reintentos=int(pagespeed_reintentos_texto),
         # Convierte TTL de caché a entero.
         cache_ttl_segundos=int(cache_ttl_texto),
+        # Evalúa bandera booleana de activación GSC.
+        gsc_enabled=_a_booleano(os.getenv("GSC_ENABLED", "false")),
+        # Carga la propiedad verificada de Search Console.
+        gsc_site_url=os.getenv("GSC_SITE_URL", "").strip(),
+        # Carga ruta a credenciales de service account.
+        gsc_credentials_file=os.getenv("GSC_CREDENTIALS_FILE", "").strip(),
+        # Carga fecha inicial de GSC.
+        gsc_date_from=os.getenv("GSC_DATE_FROM", "").strip(),
+        # Carga fecha final de GSC.
+        gsc_date_to=os.getenv("GSC_DATE_TO", "").strip(),
+        # Convierte límite de filas de GSC a entero.
+        gsc_row_limit=int(gsc_row_limit_texto),
     )

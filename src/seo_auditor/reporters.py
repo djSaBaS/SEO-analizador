@@ -60,6 +60,10 @@ ORDEN_SEVERIDAD = ["crítica", "alta", "media", "baja", "informativa"]
 JERARQUIA_INFORME = [
     "Resumen ejecutivo",
     "KPIs principales",
+    "Visibilidad orgánica real",
+    "Oportunidades SEO prioritarias",
+    "Cruce auditoría técnica + Search Console",
+    "Keyword / query mapping inicial",
     "Hallazgos críticos",
     "Quick wins",
     "Acciones técnicas",
@@ -68,6 +72,48 @@ JERARQUIA_INFORME = [
     "Indexación y rastreo",
     "Roadmap",
 ]
+
+# Define secciones dependientes de Search Console para ocultación condicional.
+SECCIONES_GSC = {
+    "Visibilidad orgánica real",
+    "Oportunidades SEO prioritarias",
+    "Cruce auditoría técnica + Search Console",
+    "Keyword / query mapping inicial",
+}
+
+# Define umbral mínimo de impresiones para detectar oportunidad de CTR.
+OPORTUNIDAD_GSC_MIN_IMPRESIONES_CTR = 100.0
+
+# Define umbral máximo de CTR para marcar bajo rendimiento de snippet.
+OPORTUNIDAD_GSC_MAX_CTR = 0.02
+
+# Define límite inferior de posición para oportunidades de ascenso.
+OPORTUNIDAD_GSC_MIN_POSICION = 4.0
+
+# Define límite superior de posición para oportunidades de ascenso.
+OPORTUNIDAD_GSC_MAX_POSICION = 15.0
+
+# Define mínimo de impresiones para oportunidad por posición.
+OPORTUNIDAD_GSC_MIN_IMPRESIONES_POSICION = 50.0
+
+# Define mínimo de impresiones para cruce de visibilidad y on-page.
+OPORTUNIDAD_GSC_MIN_IMPRESIONES_ONPAGE = 50.0
+
+# Define umbral de impresiones para considerar impacto alto.
+OPORTUNIDAD_GSC_IMPRESIONES_ALTO_IMPACTO = 500.0
+
+
+# Devuelve jerarquía visible según fuentes activas de la ejecución.
+def construir_jerarquia_visible(resultado: ResultadoAuditoria) -> list[str]:
+    """Filtra secciones GSC cuando la fuente no está activa."""
+
+    # Devuelve jerarquía completa cuando GSC esté activo.
+    if resultado.search_console.activo:
+        # Retorna secciones completas para informe enriquecido.
+        return JERARQUIA_INFORME
+
+    # Retorna jerarquía sin secciones dependientes de GSC.
+    return [seccion for seccion in JERARQUIA_INFORME if seccion not in SECCIONES_GSC]
 
 
 # Devuelve peso de orden para severidades en salida ejecutiva.
@@ -219,6 +265,30 @@ def _construir_quick_wins(filas: list[dict], limite: int = 7) -> list[dict[str, 
 
     # Devuelve subconjunto máximo solicitado.
     return quick_wins_ordenados[:limite]
+
+
+# Construye fuente combinada de quick wins técnicos y de visibilidad real.
+def construir_filas_quick_wins(resultado: ResultadoAuditoria) -> list[dict]:
+    """Combina incidencias técnicas y oportunidades GSC para priorización real."""
+
+    # Construye filas técnicas base de la auditoría.
+    filas = construir_filas(resultado)
+
+    # Recorre oportunidades GSC para convertirlas al mismo esquema.
+    for item in construir_oportunidades_gsc(resultado):
+        # Añade oportunidad GSC como quick win comparable.
+        filas.append(
+            {
+                "url": item.get("url", ""),
+                "problema": item.get("oportunidad", ""),
+                "recomendacion": item.get("accion_recomendada", ""),
+                "impacto": item.get("impacto", "Medio"),
+                "esfuerzo": item.get("esfuerzo", "Medio"),
+            }
+        )
+
+    # Devuelve colección combinada de quick wins.
+    return filas
 
 
 # Devuelve color de tarjeta según impacto para salida visual coherente.
@@ -541,6 +611,203 @@ def construir_filas_rendimiento(resultado: ResultadoAuditoria) -> list[dict]:
     return filas
 
 
+# Convierte datos de Search Console por página a filas tabulares.
+def construir_filas_search_console_paginas(resultado: ResultadoAuditoria) -> list[dict]:
+    """Construye filas por página cuando Search Console esté activo."""
+
+    # Obtiene bloque GSC del resultado consolidado.
+    datos_gsc = resultado.search_console
+
+    # Devuelve lista vacía cuando GSC no esté activo.
+    if not datos_gsc.activo:
+        # Retorna colección vacía para degradación elegante.
+        return []
+
+    # Inicializa colección de filas por página.
+    filas: list[dict] = []
+
+    # Recorre métricas por página para crear filas.
+    for item in datos_gsc.paginas:
+        # Añade fila tipada con métricas base.
+        filas.append(
+            {
+                "url": item.url,
+                "clics": round(item.clicks, 2),
+                "impresiones": round(item.impresiones, 2),
+                "ctr": round(item.ctr, 4),
+                "posicion_media": round(item.posicion_media, 2),
+                "dispositivo": item.dispositivo,
+                "pais": item.pais,
+            }
+        )
+
+    # Devuelve filas listas para reportes.
+    return filas
+
+
+# Convierte datos de Search Console por query a filas tabulares.
+def construir_filas_search_console_queries(resultado: ResultadoAuditoria) -> list[dict]:
+    """Construye filas por query cuando Search Console esté activo."""
+
+    # Obtiene bloque GSC del resultado consolidado.
+    datos_gsc = resultado.search_console
+
+    # Devuelve lista vacía cuando GSC no esté activo.
+    if not datos_gsc.activo:
+        # Retorna colección vacía para degradación elegante.
+        return []
+
+    # Inicializa colección de filas por query.
+    filas: list[dict] = []
+
+    # Recorre métricas por query para crear filas.
+    for item in datos_gsc.queries:
+        # Añade fila tipada con métricas base.
+        filas.append(
+            {
+                "query": item.query,
+                "clics": round(item.clicks, 2),
+                "impresiones": round(item.impresiones, 2),
+                "ctr": round(item.ctr, 4),
+                "posicion_media": round(item.posicion_media, 2),
+                "url_asociada": item.url_asociada,
+            }
+        )
+
+    # Devuelve filas listas para reportes.
+    return filas
+
+
+# Construye oportunidades SEO accionables cruzando técnica y Search Console.
+def construir_oportunidades_gsc(resultado: ResultadoAuditoria) -> list[dict]:
+    """Genera oportunidades reales de crecimiento cuando GSC esté activo."""
+
+    # Obtiene bloque GSC del resultado consolidado.
+    datos_gsc = resultado.search_console
+
+    # Devuelve lista vacía cuando GSC no esté activo.
+    if not datos_gsc.activo:
+        # Retorna colección vacía por degradación elegante.
+        return []
+
+    # Construye índice rápido por URL de resultados técnicos.
+    indice_resultados = {item.url: item for item in resultado.resultados}
+
+    # Inicializa colección de oportunidades priorizadas.
+    oportunidades: list[dict] = []
+
+    # Recorre páginas con datos de Search Console.
+    for metrica in datos_gsc.paginas:
+        # Obtiene resultado técnico asociado si existe.
+        pagina = indice_resultados.get(metrica.url)
+
+        # Inicializa flags de problema on-page.
+        problema_onpage = ""
+
+        # Evalúa problema on-page cuando exista página técnica asociada.
+        if pagina:
+            # Detecta ausencia de meta description.
+            if not pagina.meta_description.strip():
+                # Define problema principal para recomendación.
+                problema_onpage = "meta description ausente"
+            # Detecta title potencialmente mejorable por longitud.
+            elif len(pagina.title.strip()) > 60 or len(pagina.title.strip()) < 15:
+                # Define problema principal para recomendación.
+                problema_onpage = "title mejorable"
+            # Detecta thin content sobre URL con visibilidad real.
+            elif pagina.thin_content:
+                # Define problema principal para recomendación.
+                problema_onpage = "thin content con visibilidad"
+            # Detecta debilidad estructural de headings.
+            elif not pagina.h1_unico or not pagina.estructura_headings_correcta:
+                # Define problema principal para recomendación.
+                problema_onpage = "headings deficientes"
+
+        # Inicializa etiqueta de oportunidad detectada.
+        oportunidad = ""
+
+        # Clasifica oportunidad por impresiones altas y CTR bajo.
+        if metrica.impresiones >= OPORTUNIDAD_GSC_MIN_IMPRESIONES_CTR and metrica.ctr <= OPORTUNIDAD_GSC_MAX_CTR:
+            # Define oportunidad prioritaria de CTR.
+            oportunidad = "alto volumen con CTR bajo"
+        # Clasifica oportunidad por posición de crecimiento rápido.
+        elif OPORTUNIDAD_GSC_MIN_POSICION <= metrica.posicion_media <= OPORTUNIDAD_GSC_MAX_POSICION and metrica.impresiones >= OPORTUNIDAD_GSC_MIN_IMPRESIONES_POSICION:
+            # Define oportunidad prioritaria por posición.
+            oportunidad = "posición 4-15 con potencial"
+        # Clasifica oportunidad por visibilidad y debilidad on-page.
+        elif metrica.impresiones >= OPORTUNIDAD_GSC_MIN_IMPRESIONES_ONPAGE and problema_onpage:
+            # Define oportunidad de mejora on-page.
+            oportunidad = "visibilidad desaprovechada por on-page"
+
+        # Descarta filas sin patrón claro de oportunidad.
+        if not oportunidad:
+            # Continúa con siguiente URL analizada.
+            continue
+
+        # Calcula impacto de negocio estimado por impresiones.
+        impacto = "Alto" if metrica.impresiones >= OPORTUNIDAD_GSC_IMPRESIONES_ALTO_IMPACTO else "Medio"
+
+        # Calcula esfuerzo estimado por tipo de problema.
+        esfuerzo = "Bajo" if problema_onpage in {"meta description ausente", "title mejorable", "headings deficientes"} else "Medio"
+
+        # Calcula prioridad final combinando impacto y esfuerzo.
+        prioridad = "P1" if impacto == "Alto" and esfuerzo == "Bajo" else "P2"
+
+        # Añade oportunidad consolidada para reporting.
+        oportunidades.append(
+            {
+                "url": metrica.url,
+                "query_principal": "",
+                "clics": round(metrica.clicks, 2),
+                "impresiones": round(metrica.impresiones, 2),
+                "ctr": round(metrica.ctr, 4),
+                "posicion_media": round(metrica.posicion_media, 2),
+                "problema_onpage_detectado": problema_onpage or "sin señal on-page crítica",
+                "oportunidad": oportunidad,
+                "accion_recomendada": "Optimizar snippet y contenido focalizado en intención de búsqueda principal.",
+                "impacto": impacto,
+                "esfuerzo": esfuerzo,
+                "prioridad": prioridad,
+                "estado": "Pendiente",
+                "resuelto": "No",
+                "responsable": "",
+                "observaciones": "",
+            }
+        )
+
+    # Ordena oportunidades por prioridad e impresiones descendentes.
+    return sorted(oportunidades, key=lambda item: (item["prioridad"], -float(item["impresiones"])))
+
+
+# Calcula métricas agregadas de Search Console para reutilización transversal.
+def _calcular_metricas_gsc(filas_gsc_paginas: list[dict]) -> dict[str, float]:
+    """Devuelve clics, impresiones, CTR y posición media desde filas GSC."""
+
+    # Calcula clics totales agregados de Search Console.
+    clics_totales = round(sum(float(fila.get("clics", 0.0)) for fila in filas_gsc_paginas), 2)
+
+    # Calcula impresiones totales agregadas de Search Console.
+    impresiones_totales = round(sum(float(fila.get("impresiones", 0.0)) for fila in filas_gsc_paginas), 2)
+
+    # Calcula CTR medio ponderado por impresiones.
+    ctr_medio = round((clics_totales / max(1.0, impresiones_totales)), 4) if impresiones_totales > 0 else 0.0
+
+    # Calcula posición media de páginas con datos GSC.
+    posicion_media = (
+        round(sum(float(fila.get("posicion_media", 0.0)) for fila in filas_gsc_paginas) / max(1, len(filas_gsc_paginas)), 2)
+        if filas_gsc_paginas
+        else 0.0
+    )
+
+    # Devuelve conjunto de métricas agregadas de GSC.
+    return {
+        "clics_totales": clics_totales,
+        "impresiones_totales": impresiones_totales,
+        "ctr_medio": ctr_medio,
+        "posicion_media": posicion_media,
+    }
+
+
 # Garantiza que la carpeta de salida exista antes de escribir archivos.
 def asegurar_directorio(path_salida: Path) -> None:
     """Crea la carpeta de salida si no existe."""
@@ -604,6 +871,12 @@ def calcular_metricas(resultado: ResultadoAuditoria) -> dict[str, int | float | 
     # Construye filas técnicas para agregación ejecutiva coherente.
     filas = construir_filas(resultado)
 
+    # Construye filas GSC por página para métricas agregadas.
+    filas_gsc_paginas = construir_filas_search_console_paginas(resultado)
+
+    # Calcula métricas agregadas de Search Console.
+    metricas_gsc = _calcular_metricas_gsc(filas_gsc_paginas)
+
     # Calcula incidencias agrupadas para capa ejecutiva.
     incidencias_agrupadas = _calcular_incidencias_agrupadas(filas)
 
@@ -658,6 +931,7 @@ def calcular_metricas(resultado: ResultadoAuditoria) -> dict[str, int | float | 
             "rendimiento": {"score": score_rendimiento, "peso": 0.20},
             "multimedia_accesibilidad": {"score": score_multimedia, "peso": 0.15},
         },
+        "gsc": metricas_gsc,
         "formula_score": "Score = 100 - (penalización_ponderada/(total_urls*10))*100",
     }
 
@@ -678,7 +952,7 @@ def _construir_bloques_narrativos(resultado: ResultadoAuditoria) -> dict[str, li
         titulo = str(seccion["titulo"]).strip().lower()
 
         # Recorre jerarquía para encontrar destino compatible.
-        for destino in JERARQUIA_INFORME:
+        for destino in construir_jerarquia_visible(resultado):
             # Compara por inclusión simple para robustez.
             if destino.lower() in titulo or titulo in destino.lower():
                 # Inserta solo textos no vacíos en el bloque destino.
@@ -690,6 +964,12 @@ def _construir_bloques_narrativos(resultado: ResultadoAuditoria) -> dict[str, li
     # Construye vista tabular de rendimiento para secciones de UX.
     filas_rendimiento = construir_filas_rendimiento(resultado)
 
+    # Calcula métricas agregadas para reutilización narrativa.
+    metricas = calcular_metricas(resultado)
+
+    # Obtiene métricas agregadas de Search Console.
+    metricas_gsc = metricas.get("gsc", {}) if isinstance(metricas.get("gsc", {}), dict) else {}
+
     # Construye fallback de resumen ejecutivo cuando IA no aporta contenido.
     if not bloques["Resumen ejecutivo"]:
         # Añade resumen automático con datos técnicos.
@@ -699,6 +979,72 @@ def _construir_bloques_narrativos(resultado: ResultadoAuditoria) -> dict[str, li
     if not bloques["KPIs principales"]:
         # Añade recordatorio de que los KPIs se muestran en tabla.
         bloques["KPIs principales"].append("Los indicadores clave se presentan en la tabla KPI de esta sección.")
+
+    # Construye fallback de visibilidad orgánica real cuando GSC esté activo.
+    if not bloques["Visibilidad orgánica real"] and resultado.search_console.activo:
+        # Construye filas de páginas de Search Console.
+        filas_gsc_paginas = construir_filas_search_console_paginas(resultado)
+
+        # Construye filas de queries de Search Console.
+        filas_gsc_queries = construir_filas_search_console_queries(resultado)
+
+        # Obtiene clics totales desde métricas centralizadas.
+        clics_totales = float(metricas_gsc.get("clics_totales", 0.0))
+
+        # Obtiene impresiones totales desde métricas centralizadas.
+        impresiones_totales = float(metricas_gsc.get("impresiones_totales", 0.0))
+
+        # Obtiene CTR medio desde métricas centralizadas.
+        ctr_medio = float(metricas_gsc.get("ctr_medio", 0.0))
+
+        # Obtiene posición media desde métricas centralizadas.
+        posicion_media = float(metricas_gsc.get("posicion_media", 0.0))
+
+        # Inserta resumen de visibilidad principal.
+        bloques["Visibilidad orgánica real"].append(f"Clics: {clics_totales} | Impresiones: {impresiones_totales} | CTR medio: {ctr_medio} | Posición media: {posicion_media}.")
+
+        # Inserta top páginas por impresiones.
+        for fila in sorted(filas_gsc_paginas, key=lambda item: float(item.get('impresiones', 0.0)), reverse=True)[:5]:
+            # Añade línea de top página.
+            bloques["Visibilidad orgánica real"].append(f"Top página: {fila.get('url', '')} | impresiones={fila.get('impresiones', 0)} | clics={fila.get('clics', 0)}.")
+
+        # Inserta top queries por impresiones.
+        for fila in sorted(filas_gsc_queries, key=lambda item: float(item.get('impresiones', 0.0)), reverse=True)[:5]:
+            # Añade línea de top query.
+            bloques["Visibilidad orgánica real"].append(f"Top query: {fila.get('query', '')} | impresiones={fila.get('impresiones', 0)} | clics={fila.get('clics', 0)}.")
+
+    # Construye fallback de oportunidades SEO prioritarias cuando GSC esté activo.
+    if not bloques["Oportunidades SEO prioritarias"] and resultado.search_console.activo:
+        # Obtiene oportunidades GSC cruzadas.
+        oportunidades_gsc = construir_oportunidades_gsc(resultado)
+
+        # Recorre oportunidades priorizadas para narrativa.
+        for fila in oportunidades_gsc[:8]:
+            # Añade oportunidad resumida con acción.
+            bloques["Oportunidades SEO prioritarias"].append(
+                f"{fila.get('url', '')}: {fila.get('oportunidad', '')} | CTR={fila.get('ctr', 0)} | posición={fila.get('posicion_media', 0)} | acción={fila.get('accion_recomendada', '')}"
+            )
+
+    # Construye fallback de cruce técnico + Search Console.
+    if not bloques["Cruce auditoría técnica + Search Console"] and resultado.search_console.activo:
+        # Obtiene oportunidades GSC cruzadas.
+        oportunidades_gsc = construir_oportunidades_gsc(resultado)
+
+        # Recorre oportunidades para explicar cruce técnico.
+        for fila in oportunidades_gsc[:8]:
+            # Añade lectura de cruce técnico-negocio.
+            bloques["Cruce auditoría técnica + Search Console"].append(
+                f"{fila.get('url', '')}: visibilidad real con {fila.get('problema_onpage_detectado', 'sin problema')}."
+            )
+
+    # Construye fallback de keyword/query mapping inicial.
+    if not bloques["Keyword / query mapping inicial"] and resultado.search_console.activo:
+        # Recorre filas de query para mostrar mapping inicial.
+        for fila in construir_filas_search_console_queries(resultado)[:10]:
+            # Añade línea de mapping básico.
+            bloques["Keyword / query mapping inicial"].append(
+                f"query={fila.get('query', '')} | clics={fila.get('clics', 0)} | impresiones={fila.get('impresiones', 0)} | posición={fila.get('posicion_media', 0)}"
+            )
 
     # Construye fallback de hallazgos críticos cuando no exista IA útil.
     if not bloques["Hallazgos críticos"]:
@@ -713,7 +1059,7 @@ def _construir_bloques_narrativos(resultado: ResultadoAuditoria) -> dict[str, li
     # Construye fallback de quick wins cuando no exista narrativa IA.
     if not bloques["Quick wins"]:
         # Calcula quick wins deduplicados y accionables.
-        quick_wins = _construir_quick_wins(filas, limite=8)
+        quick_wins = _construir_quick_wins(construir_filas_quick_wins(resultado), limite=8)
 
         # Inserta recomendaciones rápidas priorizadas.
         for fila in quick_wins:
@@ -794,12 +1140,12 @@ def _construir_bloques_narrativos(resultado: ResultadoAuditoria) -> dict[str, li
 
     # Construye fallback de roadmap cuando IA no lo entregue.
     if not bloques["Roadmap"]:
-        # Añade fase corta de estabilización.
-        bloques["Roadmap"].append("30 días: corregir incidencias críticas y altas de indexación e infraestructura.")
-        # Añade fase media de optimización.
-        bloques["Roadmap"].append("60 días: ejecutar quick wins y completar mejoras on-page.")
-        # Añade fase de consolidación.
-        bloques["Roadmap"].append("90 días: consolidar rendimiento, calidad de contenido y control SEO continuo.")
+        # Añade fase 1 centrada en quick wins con impacto real.
+        bloques["Roadmap"].append("Fase 1 (0-30 días): quick wins técnicos con impacto real y corrección de páginas con impresiones altas y problemas on-page.")
+        # Añade fase 2 centrada en crecimiento de posiciones y CTR.
+        bloques["Roadmap"].append("Fase 2 (31-60 días): optimización de páginas en posición media 4-15, mejora de CTR y ampliación de contenido con mayor oportunidad.")
+        # Añade fase 3 centrada en estrategia escalable.
+        bloques["Roadmap"].append("Fase 3 (61-90 días): estrategia de contenido, arquitectura temática, enlazado interno y monitorización continua.")
 
     # Verifica presencia de fase de medio plazo en roadmap.
     contiene_medio_plazo = any("60" in linea or "medio plazo" in linea.lower() for linea in bloques["Roadmap"])
@@ -836,6 +1182,9 @@ def exportar_json(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
         "metricas": calcular_metricas(resultado),
         "resultados": construir_filas(resultado),
         "rendimiento": construir_filas_rendimiento(resultado),
+        "search_console_paginas": construir_filas_search_console_paginas(resultado),
+        "search_console_queries": construir_filas_search_console_queries(resultado),
+        "oportunidades_gsc": construir_oportunidades_gsc(resultado),
         "pagespeed_estado": resultado.pagespeed_estado,
     }
 
@@ -874,6 +1223,15 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     # Crea hoja específica de rendimiento.
     hoja_rendimiento = libro.create_sheet("Rendimiento")
 
+    # Crea hoja de métricas Search Console por páginas.
+    hoja_gsc_paginas = libro.create_sheet("Search_Console_Paginas")
+
+    # Crea hoja de métricas Search Console por queries.
+    hoja_gsc_queries = libro.create_sheet("Search_Console_Queries")
+
+    # Crea hoja de oportunidades basadas en Search Console.
+    hoja_oportunidades_gsc = libro.create_sheet("Oportunidades_GSC")
+
     # Crea hoja auxiliar para KPIs y rangos de gráficos.
     hoja_aux = libro.create_sheet("AuxDashboard")
 
@@ -882,6 +1240,15 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
 
     # Construye filas de rendimiento.
     filas_rendimiento = construir_filas_rendimiento(resultado)
+
+    # Construye filas de Search Console por página.
+    filas_gsc_paginas = construir_filas_search_console_paginas(resultado)
+
+    # Construye filas de Search Console por query.
+    filas_gsc_queries = construir_filas_search_console_queries(resultado)
+
+    # Construye oportunidades cruzadas entre técnica y GSC.
+    filas_oportunidades_gsc = construir_oportunidades_gsc(resultado)
 
     # Define columnas fijas de la hoja de errores para mantener estructura estable.
     columnas_errores = ["url", "url_final", "tipo", "estado_http", "redirecciona", "title", "h1", "meta_description", "canonical", "noindex", "problema", "recomendacion", "severidad", "categoria", "area", "impacto", "esfuerzo", "prioridad", "estado", "resuelto", "responsable", "observaciones"]
@@ -1048,6 +1415,92 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     # Congela paneles en rendimiento.
     hoja_rendimiento.freeze_panes = "A2"
 
+    # Define columnas de Search Console por página.
+    columnas_gsc_paginas = ["url", "clics", "impresiones", "ctr", "posicion_media", "dispositivo", "pais"]
+
+    # Escribe encabezados de Search Console páginas.
+    for columna, encabezado in enumerate(columnas_gsc_paginas, start=1):
+        # Escribe encabezado en la hoja.
+        hoja_gsc_paginas.cell(row=1, column=columna, value=encabezado)
+
+    # Escribe filas de Search Console páginas.
+    for fila_indice, fila in enumerate(filas_gsc_paginas, start=2):
+        # Recorre columnas para poblar la hoja.
+        for columna, encabezado in enumerate(columnas_gsc_paginas, start=1):
+            # Inserta valor con fallback vacío.
+            hoja_gsc_paginas.cell(row=fila_indice, column=columna, value=fila.get(encabezado, ""))
+
+    # Estiliza encabezado de Search Console páginas.
+    for celda in hoja_gsc_paginas[1]:
+        # Define estilo corporativo del encabezado.
+        celda.font = Font(bold=True, color="FFFFFF")
+
+        # Aplica color corporativo homogéneo.
+        celda.fill = PatternFill(fill_type="solid", fgColor="1F4E78")
+
+    # Define columnas de Search Console por queries.
+    columnas_gsc_queries = ["query", "clics", "impresiones", "ctr", "posicion_media", "url_asociada"]
+
+    # Escribe encabezados de Search Console queries.
+    for columna, encabezado in enumerate(columnas_gsc_queries, start=1):
+        # Escribe encabezado en la hoja.
+        hoja_gsc_queries.cell(row=1, column=columna, value=encabezado)
+
+    # Escribe filas de Search Console queries.
+    for fila_indice, fila in enumerate(filas_gsc_queries, start=2):
+        # Recorre columnas para poblar la hoja.
+        for columna, encabezado in enumerate(columnas_gsc_queries, start=1):
+            # Inserta valor con fallback vacío.
+            hoja_gsc_queries.cell(row=fila_indice, column=columna, value=fila.get(encabezado, ""))
+
+    # Estiliza encabezado de Search Console queries.
+    for celda in hoja_gsc_queries[1]:
+        # Define estilo corporativo del encabezado.
+        celda.font = Font(bold=True, color="FFFFFF")
+
+        # Aplica color corporativo homogéneo.
+        celda.fill = PatternFill(fill_type="solid", fgColor="1F4E78")
+
+    # Define columnas de oportunidades GSC.
+    columnas_oportunidades_gsc = [
+        "url",
+        "query_principal",
+        "clics",
+        "impresiones",
+        "ctr",
+        "posicion_media",
+        "problema_onpage_detectado",
+        "oportunidad",
+        "accion_recomendada",
+        "impacto",
+        "esfuerzo",
+        "prioridad",
+        "estado",
+        "resuelto",
+        "responsable",
+        "observaciones",
+    ]
+
+    # Escribe encabezados de oportunidades GSC.
+    for columna, encabezado in enumerate(columnas_oportunidades_gsc, start=1):
+        # Escribe encabezado en la hoja.
+        hoja_oportunidades_gsc.cell(row=1, column=columna, value=encabezado)
+
+    # Escribe filas de oportunidades GSC.
+    for fila_indice, fila in enumerate(filas_oportunidades_gsc, start=2):
+        # Recorre columnas para poblar la hoja.
+        for columna, encabezado in enumerate(columnas_oportunidades_gsc, start=1):
+            # Inserta valor con fallback vacío.
+            hoja_oportunidades_gsc.cell(row=fila_indice, column=columna, value=fila.get(encabezado, ""))
+
+    # Estiliza encabezado de oportunidades GSC.
+    for celda in hoja_oportunidades_gsc[1]:
+        # Define estilo corporativo del encabezado.
+        celda.font = Font(bold=True, color="FFFFFF")
+
+        # Aplica color corporativo homogéneo.
+        celda.fill = PatternFill(fill_type="solid", fgColor="1F4E78")
+
     # Calcula métricas de dashboard.
     metricas = calcular_metricas(resultado)
 
@@ -1105,6 +1558,24 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     # Cuenta páginas con problemas de H1.
     total_h1_problematico = len([fila for fila in filas if "h1" in str(fila.get("problema", "")).lower()])
 
+    # Obtiene métricas GSC centralizadas para evitar duplicación.
+    metricas_gsc = metricas.get("gsc", {}) if isinstance(metricas.get("gsc", {}), dict) else {}
+
+    # Obtiene clics totales de GSC desde métrica centralizada.
+    clics_totales_gsc = float(metricas_gsc.get("clics_totales", 0.0))
+
+    # Obtiene impresiones totales de GSC desde métrica centralizada.
+    impresiones_totales_gsc = float(metricas_gsc.get("impresiones_totales", 0.0))
+
+    # Obtiene CTR medio de GSC desde métrica centralizada.
+    ctr_medio_gsc = float(metricas_gsc.get("ctr_medio", 0.0))
+
+    # Obtiene posición media de GSC desde métrica centralizada.
+    posicion_media_gsc = float(metricas_gsc.get("posicion_media", 0.0))
+
+    # Cuenta páginas con oportunidad real por GSC.
+    total_oportunidades_gsc = len(filas_oportunidades_gsc)
+
     # Obtiene score por bloques para dashboard explicable.
     score_bloques = metricas.get("score_bloques", {}) if isinstance(metricas.get("score_bloques", {}), dict) else {}
 
@@ -1129,6 +1600,11 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
         ("Total metas vacías", total_metas_vacias),
         ("Páginas con H1 problemático", total_h1_problematico),
         ("Total oportunidades PageSpeed", total_oportunidades),
+        ("Clics totales GSC", clics_totales_gsc),
+        ("Impresiones totales GSC", impresiones_totales_gsc),
+        ("CTR medio GSC", ctr_medio_gsc),
+        ("Posición media GSC", posicion_media_gsc),
+        ("Páginas con oportunidad GSC", total_oportunidades_gsc),
         ("Score medio móvil", score_medio_mobile),
         ("Score medio escritorio", score_medio_desktop),
         ("% URLs con incidencia", porcentaje_urls_con_incidencia),
@@ -1415,7 +1891,7 @@ def exportar_word(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     bloques = _construir_bloques_narrativos(resultado)
 
     # Renderiza jerarquía fija en orden obligatorio.
-    for titulo_seccion in JERARQUIA_INFORME:
+    for titulo_seccion in construir_jerarquia_visible(resultado):
         # Inserta encabezado de sección.
         documento.add_heading(titulo_seccion, level=1)
 
@@ -1443,7 +1919,7 @@ def exportar_word(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
         # Inserta bloque visual de quick wins deduplicados.
         if titulo_seccion == "Quick wins":
             # Construye quick wins desde filas técnicas.
-            quick_wins = _construir_quick_wins(construir_filas(resultado), limite=10)
+            quick_wins = _construir_quick_wins(construir_filas_quick_wins(resultado), limite=10)
 
             # Renderiza mensaje de ausencia cuando no haya quick wins.
             if not quick_wins:
@@ -1647,7 +2123,7 @@ def exportar_pdf(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     metricas = calcular_metricas(resultado)
 
     # Recorre jerarquía del informe.
-    for titulo_seccion in JERARQUIA_INFORME:
+    for titulo_seccion in construir_jerarquia_visible(resultado):
         # Inserta título de sección.
         elementos.append(Paragraph(f"<b>{sanear_texto_para_pdf(titulo_seccion)}</b>", estilos["Heading2"]))
 
@@ -1668,7 +2144,7 @@ def exportar_pdf(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
         # Inserta bloque visual de quick wins deduplicados.
         if titulo_seccion == "Quick wins":
             # Construye quick wins desde incidencias técnicas.
-            quick_wins = _construir_quick_wins(construir_filas(resultado), limite=10)
+            quick_wins = _construir_quick_wins(construir_filas_quick_wins(resultado), limite=10)
 
             # Renderiza mensaje cuando no existan quick wins claros.
             if not quick_wins:
@@ -1879,7 +2355,10 @@ def exportar_html(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     )
 
     # Construye quick wins deduplicados para bloque visual.
-    quick_wins = _construir_quick_wins(filas, limite=10)
+    quick_wins = _construir_quick_wins(construir_filas_quick_wins(resultado), limite=10)
+
+    # Construye bloques narrativos para secciones ejecutivas adicionales.
+    bloques = _construir_bloques_narrativos(resultado)
 
     # Construye incidencias agrupadas para capa ejecutiva.
     incidencias_agrupadas = metricas.get("incidencias_agrupadas", {}) if isinstance(metricas.get("incidencias_agrupadas", {}), dict) else {}
@@ -1950,6 +2429,20 @@ def exportar_html(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
       </tbody>
     </table>
   </div>
+  {(
+    "<div class='bloque'><h2>Visibilidad orgánica real</h2>"
+    + "".join(f"<p>{linea}</p>" for linea in bloques.get("Visibilidad orgánica real", [])[:12])
+    + "</div>"
+    + "<div class='bloque'><h2>Oportunidades SEO prioritarias</h2>"
+    + "".join(f"<p>{linea}</p>" for linea in bloques.get("Oportunidades SEO prioritarias", [])[:12])
+    + "</div>"
+    + "<div class='bloque'><h2>Cruce auditoría técnica + Search Console</h2>"
+    + "".join(f"<p>{linea}</p>" for linea in bloques.get("Cruce auditoría técnica + Search Console", [])[:12])
+    + "</div>"
+    + "<div class='bloque'><h2>Keyword / query mapping inicial</h2>"
+    + "".join(f"<p>{linea}</p>" for linea in bloques.get("Keyword / query mapping inicial", [])[:12])
+    + "</div>"
+  ) if resultado.search_console.activo else ""}
   <div class="bloque">
     <h2>Rendimiento (PageSpeed)</h2>
     <div class="tarjetas">

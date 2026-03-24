@@ -202,6 +202,99 @@ class ResultadoUrl:
     error: Optional[str] = None
 
 
+# Define métrica agregada de Search Console por página.
+@dataclass(slots=True)
+class MetricaGscPagina:
+    """
+    Representa una fila agregada de rendimiento orgánico por URL.
+    """
+
+    # Guarda URL canónica de la propiedad.
+    url: str
+
+    # Guarda clics orgánicos agregados.
+    clicks: float
+
+    # Guarda impresiones orgánicas agregadas.
+    impresiones: float
+
+    # Guarda CTR agregado en formato decimal.
+    ctr: float
+
+    # Guarda posición media agregada.
+    posicion_media: float
+
+    # Guarda dispositivo cuando aplique desglose.
+    dispositivo: str = ""
+
+    # Guarda país cuando aplique desglose.
+    pais: str = ""
+
+
+# Define métrica agregada de Search Console por query.
+@dataclass(slots=True)
+class MetricaGscQuery:
+    """
+    Representa una fila agregada de rendimiento orgánico por consulta.
+    """
+
+    # Guarda texto de la consulta.
+    query: str
+
+    # Guarda clics orgánicos agregados.
+    clicks: float
+
+    # Guarda impresiones orgánicas agregadas.
+    impresiones: float
+
+    # Guarda CTR agregado en formato decimal.
+    ctr: float
+
+    # Guarda posición media agregada.
+    posicion_media: float
+
+    # Guarda URL asociada principal cuando exista cruce.
+    url_asociada: str = ""
+
+
+# Define bloque completo de datos Search Console opcionales.
+@dataclass(slots=True)
+class DatosSearchConsole:
+    """
+    Contiene datos autenticados opcionales de Google Search Console.
+    """
+
+    # Indica si la extracción GSC fue efectiva.
+    activo: bool
+
+    # Guarda mensaje de error controlado cuando exista.
+    error: Optional[str] = None
+
+    # Guarda propiedad siteUrl consultada.
+    site_url: str = ""
+
+    # Guarda fecha inicial efectiva de consulta.
+    date_from: str = ""
+
+    # Guarda fecha final efectiva de consulta.
+    date_to: str = ""
+
+    # Guarda métricas por página.
+    paginas: List[MetricaGscPagina] = field(default_factory=list)
+
+    # Guarda métricas por query.
+    queries: List[MetricaGscQuery] = field(default_factory=list)
+
+    # Guarda cruce crudo query+page para mapping inicial.
+    filas_query_pagina: List[dict[str, object]] = field(default_factory=list)
+
+    # Guarda desglose opcional por dispositivo.
+    filas_dispositivo: List[dict[str, object]] = field(default_factory=list)
+
+    # Guarda desglose opcional por país.
+    filas_pais: List[dict[str, object]] = field(default_factory=list)
+
+
 # Define la estructura global del resultado de una ejecución.
 @dataclass(slots=True)
 class ResultadoAuditoria:
@@ -253,6 +346,9 @@ class ResultadoAuditoria:
 
     # Guarda SEO score global agregado en escala 0-100.
     seo_score_global: Optional[float] = None
+
+    # Guarda datos opcionales autenticados de Search Console.
+    search_console: DatosSearchConsole = field(default_factory=lambda: DatosSearchConsole(activo=False, error="No configurado"))
 
     # Guarda el informe narrativo opcional generado por IA.
     resumen_ia: Optional[str] = None
