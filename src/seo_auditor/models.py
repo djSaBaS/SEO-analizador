@@ -465,3 +465,9 @@ class ResultadoAuditoria:
 
     # Guarda el informe narrativo opcional generado por IA.
     resumen_ia: Optional[str] = None
+
+    # Guarda fecha inicial global del periodo analizado.
+    periodo_date_from: str = ""
+
+    # Guarda fecha final global del periodo analizado.
+    periodo_date_to: str = ""
