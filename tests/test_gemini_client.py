@@ -3,6 +3,7 @@ from pathlib import Path
 
 # Importa módulo bajo prueba.
 from seo_auditor import gemini_client
+from seo_auditor.models import MetricaGscPagina, ResultadoAuditoria
 
 
 # Verifica que el fallback interno replique el archivo editable.
@@ -76,3 +77,45 @@ def test_construir_prompt_ia_falla_si_no_existe_placeholder() -> None:
     except ValueError as exc:
         # Confirma que el mensaje indique claramente el problema.
         assert "{datos_json}" in str(exc)
+
+
+# Verifica que el contexto IA incluya flags explícitos de fuentes activas.
+def test_construir_contexto_ia_incluye_banderas_fuentes() -> None:
+    """Comprueba la presencia de banderas para evitar contradicciones narrativas."""
+
+    # Construye auditoría mínima con GSC activo.
+    auditoria = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=1,
+        resultados=[],
+        cliente="Ejemplo",
+        fecha_ejecucion="2026-03-25",
+        gestor="Gestor",
+        fuentes_activas=["search_console"],
+    )
+    auditoria.search_console.activo = True
+    auditoria.search_console.paginas = [
+        MetricaGscPagina(url="https://ejemplo.com", clicks=12, impresiones=300, ctr=0.04, posicion_media=9.4)
+    ]
+
+    # Construye contexto para IA.
+    contexto = gemini_client.construir_contexto_ia(auditoria, max_muestras=10)
+
+    # Verifica banderas clave para prompt robusto.
+    assert contexto["gsc_activo"] is True
+    assert contexto["usar_seccion_gsc"] is True
+    assert "search_console" in contexto["fuentes_activas"]
+
+
+# Verifica que el texto IA elimine contradicciones cuando GSC está activo.
+def test_validar_consistencia_resumen_ia_filtra_frases_contradictorias() -> None:
+    """Evita frases incorrectas sobre ausencia de GSC si la fuente está activa."""
+
+    # Simula respuesta IA con frase contradictoria.
+    texto = "Aunque no se proporcionan datos específicos de GSC, se detectan oportunidades."
+
+    # Aplica validador con contexto de GSC activo.
+    salida = gemini_client.validar_consistencia_resumen_ia(texto, {"gsc_activo": True, "gsc": {"clics_totales": 10, "impresiones_totales": 100}})
+
+    # Verifica eliminación de la frase incorrecta.
+    assert "no se proporcionan datos específicos de gsc" not in salida.lower()

@@ -42,6 +42,7 @@ from openpyxl.chart import BarChart, PieChart, Reference
 
 # Importa estilos y colores de openpyxl.
 from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.utils import get_column_letter
 
 # Importa validaciones de datos para celdas editables.
 from openpyxl.worksheet.datavalidation import DataValidation
@@ -185,6 +186,62 @@ def _interpretacion_rendimiento(score: float | None, estrategia: str) -> str:
 
     # Devuelve observación positiva para score alto.
     return f"{estrategia.title()}: correcto."
+
+
+# Autoajusta anchos, wraps y alturas para maximizar legibilidad.
+def _autoajustar_hoja(hoja, columnas_wrap: set[str] | None = None, min_width: int = 10, max_width: int = 70) -> None:
+    """Aplica autoajuste global de columnas y alturas de filas en una hoja."""
+
+    # Inicializa conjunto de columnas con wrap recomendado.
+    columnas_wrap = columnas_wrap or set()
+
+    # Recorre columnas presentes para calcular ancho por contenido.
+    for indice_columna in range(1, max(1, hoja.max_column) + 1):
+        # Obtiene letra de columna para operar en openpyxl.
+        letra_columna = get_column_letter(indice_columna)
+
+        # Inicializa largo máximo detectado de la columna.
+        largo_maximo = 0
+
+        # Recorre celdas de la columna para medir texto real.
+        for fila in range(1, max(1, hoja.max_row) + 1):
+            # Lee valor de la celda actual.
+            valor = hoja.cell(row=fila, column=indice_columna).value
+
+            # Convierte valor a texto seguro para medir longitud.
+            texto = str(valor) if valor is not None else ""
+
+            # Considera la línea más larga en celdas multilínea.
+            largo_texto = max((len(parte) for parte in texto.splitlines()), default=0)
+
+            # Guarda máximo observado en columna.
+            largo_maximo = max(largo_maximo, largo_texto)
+
+            # Aplica wrap recomendado en columnas críticas.
+            if texto and (fila == 1 or hoja.cell(row=1, column=indice_columna).value in columnas_wrap):
+                # Preserva alineación superior para lectura.
+                hoja.cell(row=fila, column=indice_columna).alignment = Alignment(wrap_text=True, vertical="top")
+
+        # Calcula ancho final con márgenes y límites.
+        ancho_final = min(max_width, max(min_width, largo_maximo + 3))
+
+        # Aplica ancho calculado de columna.
+        hoja.column_dimensions[letra_columna].width = ancho_final
+
+    # Recorre filas para ajustar altura por contenido y saltos de línea.
+    for indice_fila in range(2, max(2, hoja.max_row) + 1):
+        # Calcula altura base por número de líneas visibles.
+        lineas_maximas = 1
+
+        # Recorre columnas de la fila.
+        for indice_columna in range(1, max(1, hoja.max_column) + 1):
+            # Lee valor de celda para estimar altura.
+            valor = hoja.cell(row=indice_fila, column=indice_columna).value
+            texto = str(valor) if valor is not None else ""
+            lineas_maximas = max(lineas_maximas, texto.count("\n") + (1 if texto else 0))
+
+        # Ajusta altura de fila con límite razonable.
+        hoja.row_dimensions[indice_fila].height = min(120, max(20, 16 * lineas_maximas))
 
 
 # Construye quick wins agrupados por URL para capa ejecutiva clara.
@@ -482,8 +539,15 @@ def construir_secciones_desde_ia(texto_ia: str | None) -> list[dict[str, object]
             # Continúa con la siguiente línea.
             continue
 
-        # Añade línea como párrafo normal.
-        seccion_actual["items"].append(linea.strip())
+        # Segmenta párrafos excesivamente largos para hacerlos más escaneables.
+        if len(linea.strip()) > 220 and ". " in linea:
+            # Reparte el contenido en frases cortas manteniendo contexto.
+            for fragmento in [parte.strip() for parte in linea.split(". ") if parte.strip()]:
+                # Añade frase con cierre de puntuación consistente.
+                seccion_actual["items"].append(fragmento if fragmento.endswith(".") else f"{fragmento}.")
+        else:
+            # Añade línea como párrafo normal.
+            seccion_actual["items"].append(linea.strip())
 
     # Añade última sección pendiente si tiene contenido.
     if seccion_actual["items"]:
@@ -1459,6 +1523,13 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     # Congela paneles de contenido para navegación.
     hoja_contenido.freeze_panes = "A2"
 
+    # Activa ajuste de texto y alineación superior en contenido.
+    for fila in hoja_contenido.iter_rows(min_row=2, max_row=max(2, len(filas) + 1), min_col=1, max_col=len(columnas_contenido)):
+        # Recorre celdas de la fila actual.
+        for celda in fila:
+            # Aplica alineación legible y multilinea.
+            celda.alignment = Alignment(wrap_text=True, vertical="top")
+
     # Escribe tabla de rendimiento con esquema obligatorio.
     columnas_rendimiento = ["url", "estrategia", "performance_score", "accessibility_score", "best_practices_score", "seo_score", "lcp", "cls", "inp", "fcp", "speed_index", "oportunidad", "descripcion", "ahorro_estimado", "severidad", "recomendacion", "estado", "resuelto", "responsable", "observaciones"]
 
@@ -1530,6 +1601,10 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
         # Aplica color corporativo homogéneo.
         celda.fill = PatternFill(fill_type="solid", fgColor="1F4E78")
 
+    # Activa filtros y congelación para hoja de páginas GSC.
+    hoja_gsc_paginas.auto_filter.ref = f"A1:G{max(2, len(filas_gsc_paginas) + 1)}"
+    hoja_gsc_paginas.freeze_panes = "A2"
+
     # Define columnas de Search Console por queries.
     columnas_gsc_queries = ["query", "clics", "impresiones", "ctr", "posicion_media", "url_asociada"]
 
@@ -1552,6 +1627,10 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
 
         # Aplica color corporativo homogéneo.
         celda.fill = PatternFill(fill_type="solid", fgColor="1F4E78")
+
+    # Activa filtros y congelación para hoja de queries GSC.
+    hoja_gsc_queries.auto_filter.ref = f"A1:F{max(2, len(filas_gsc_queries) + 1)}"
+    hoja_gsc_queries.freeze_panes = "A2"
 
     # Define columnas de oportunidades GSC.
     columnas_oportunidades_gsc = [
@@ -1592,6 +1671,10 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
 
         # Aplica color corporativo homogéneo.
         celda.fill = PatternFill(fill_type="solid", fgColor="1F4E78")
+
+    # Activa filtros y congelación para hoja de oportunidades GSC.
+    hoja_oportunidades_gsc.auto_filter.ref = f"A1:P{max(2, len(filas_oportunidades_gsc) + 1)}"
+    hoja_oportunidades_gsc.freeze_panes = "A2"
 
     # Define columnas de la hoja de indexación inteligente.
     columnas_indexacion = ["url", "clasificacion", "motivo", "accion_recomendada", "prioridad"]
@@ -1646,10 +1729,12 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     score_medio_desktop = round(sum(scores_desktop) / len(scores_desktop), 1) if scores_desktop else 0.0
 
     # Define KPIs del dashboard.
-    hoja_dashboard["A1"] = "Dashboard SEO"
+    hoja_dashboard["A1"] = "Dashboard SEO Ejecutivo"
 
     # Aplica estilo de título.
-    hoja_dashboard["A1"].font = Font(size=18, bold=True, color="1F4E78")
+    hoja_dashboard["A1"].font = Font(size=20, bold=True, color="1F4E78")
+    hoja_dashboard["A2"] = f"Cliente: {resultado.cliente} | Fecha: {resultado.fecha_ejecucion}"
+    hoja_dashboard["A2"].font = Font(size=11, color="4B5563")
 
     # Calcula total de oportunidades de rendimiento.
     total_oportunidades = len([fila for fila in filas_rendimiento if fila.get("oportunidad")])
@@ -1746,22 +1831,74 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
         ("% incidencias resueltas", porcentaje_resueltas),
     ]
 
-    # Escribe KPIs en una rejilla de dos columnas.
-    for indice, (titulo_kpi, valor_kpi) in enumerate(kpis_dashboard, start=3):
+    # Define tarjetas visuales principales en primera franja del dashboard.
+    tarjetas_superiores = [
+        ("Total URLs", metricas["total_urls"], "E8F0FE", "1F4E78"),
+        ("Total incidencias", metricas["total_incidencias"], "FDECEC", "9B1C1C"),
+        ("Score global", metricas["score"], "E7F8EF", "166534"),
+        ("URLs sanas", metricas["urls_sanas"], "ECFDF3", "065F46"),
+        ("CTR medio GSC", ctr_medio_gsc, "EFF6FF", "1D4ED8"),
+        ("Posición media GSC", posicion_media_gsc, "FEF3C7", "92400E"),
+        ("Score técnico", resultado.score_tecnico, "F3E8FF", "6B21A8"),
+        ("Score contenido", resultado.score_contenido, "FFF7ED", "9A3412"),
+        ("Score rendimiento", resultado.score_rendimiento, "E0F2FE", "0C4A6E"),
+    ]
+
+    # Renderiza tarjetas KPI grandes en una fila superior de alto impacto visual.
+    for indice, (titulo, valor, color_fondo, color_texto) in enumerate(tarjetas_superiores):
+        # Calcula bloque de dos columnas por tarjeta.
+        col_inicio = 1 + (indice * 2)
+        col_fin = col_inicio + 1
+        letra_inicio = get_column_letter(col_inicio)
+        letra_fin = get_column_letter(col_fin)
+
+        # Fusiona celdas para construir tarjeta amplia.
+        hoja_dashboard.merge_cells(f"{letra_inicio}3:{letra_fin}3")
+        hoja_dashboard.merge_cells(f"{letra_inicio}4:{letra_fin}6")
+
+        # Escribe título y valor de tarjeta.
+        hoja_dashboard[f"{letra_inicio}3"] = titulo
+        hoja_dashboard[f"{letra_inicio}4"] = valor
+
+        # Estiliza título de tarjeta.
+        hoja_dashboard[f"{letra_inicio}3"].font = Font(size=10, bold=True, color=color_texto)
+        hoja_dashboard[f"{letra_inicio}3"].alignment = Alignment(horizontal="center", vertical="center")
+        hoja_dashboard[f"{letra_inicio}3"].fill = PatternFill(fill_type="solid", fgColor=color_fondo)
+
+        # Estiliza valor principal de tarjeta.
+        hoja_dashboard[f"{letra_inicio}4"].font = Font(size=18, bold=True, color=color_texto)
+        hoja_dashboard[f"{letra_inicio}4"].alignment = Alignment(horizontal="center", vertical="center")
+        hoja_dashboard[f"{letra_inicio}4"].fill = PatternFill(fill_type="solid", fgColor=color_fondo)
+
+    # Escribe KPIs completos en rejilla detallada para trazabilidad operativa.
+    for indice, (titulo_kpi, valor_kpi) in enumerate(kpis_dashboard, start=9):
         # Escribe nombre del KPI.
         hoja_dashboard[f"A{indice}"] = titulo_kpi
-
         # Escribe valor del KPI.
         hoja_dashboard[f"B{indice}"] = valor_kpi
-
-        # Aplica estilo visual de tarjeta al nombre.
-        hoja_dashboard[f"A{indice}"].fill = PatternFill(fill_type="solid", fgColor="DCE6F2")
-
-        # Aplica negrita al título de la tarjeta.
+        hoja_dashboard[f"A{indice}"].fill = PatternFill(fill_type="solid", fgColor="E6EEF8")
         hoja_dashboard[f"A{indice}"].font = Font(bold=True, color="1F4E78")
+        hoja_dashboard[f"B{indice}"].fill = PatternFill(fill_type="solid", fgColor="F8FBFF")
 
-        # Aplica estilo visual de tarjeta al valor.
-        hoja_dashboard[f"B{indice}"].fill = PatternFill(fill_type="solid", fgColor="EEF4FB")
+    # Inserta bloques visuales de secciones ejecutivas.
+    hoja_dashboard["D9"] = "Visibilidad orgánica real"
+    hoja_dashboard["D9"].font = Font(size=12, bold=True, color="FFFFFF")
+    hoja_dashboard["D9"].fill = PatternFill(fill_type="solid", fgColor="1D4ED8")
+    hoja_dashboard["D10"] = f"Clics: {clics_totales_gsc}"
+    hoja_dashboard["D11"] = f"Impresiones: {impresiones_totales_gsc}"
+    hoja_dashboard["D12"] = f"CTR: {ctr_medio_gsc}"
+    hoja_dashboard["D13"] = f"Posición media: {posicion_media_gsc}"
+    top_paginas = ", ".join(str(fila.get("url", "")) for fila in filas_gsc_paginas[:3]) or "Sin datos"
+    top_queries = ", ".join(str(fila.get("query", "")) for fila in filas_gsc_queries[:3]) or "Sin datos"
+    hoja_dashboard["D14"] = f"Top páginas: {top_paginas}"
+    hoja_dashboard["D15"] = f"Top queries: {top_queries}"
+
+    hoja_dashboard["L9"] = "Gestión de indexación"
+    hoja_dashboard["L9"].font = Font(size=12, bold=True, color="FFFFFF")
+    hoja_dashboard["L9"].fill = PatternFill(fill_type="solid", fgColor="0F766E")
+    hoja_dashboard["L10"] = f"Indexable: {resumen_gestion_indexacion.get('indexable', 0)}"
+    hoja_dashboard["L11"] = f"Revisar: {resumen_gestion_indexacion.get('revisar', 0)}"
+    hoja_dashboard["L12"] = f"No indexar: {resumen_gestion_indexacion.get('no_indexar', 0)}"
 
     # Construye distribuciones para gráficos de dashboard.
     severidades_rend = Counter([str(fila.get("severidad", "informativa")).lower() for fila in filas_rendimiento if fila.get("oportunidad")])
@@ -1771,6 +1908,15 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
 
     # Construye distribución de severidad técnica.
     severidades_tecnicas = Counter([str(fila.get("severidad", "informativa")).lower() for fila in filas if fila.get("problema")])
+
+    # Construye distribución de incidencias por área para bloque ejecutivo.
+    incidencias_por_area = Counter([str(fila.get("area", "Sin área")).strip() for fila in filas if fila.get("problema")])
+
+    # Construye distribución de incidencias por tipo para bloque ejecutivo.
+    incidencias_por_tipo = Counter([str(fila.get("tipo", "Sin tipo")).strip() for fila in filas if fila.get("problema")])
+
+    # Obtiene incidencias agrupadas por familia desde métricas.
+    incidencias_por_familia = metricas.get("incidencias_agrupadas", {}) if isinstance(metricas.get("incidencias_agrupadas", {}), dict) else {}
 
     # Escribe bloque de severidad de rendimiento en hoja auxiliar.
     hoja_aux["A1"] = "Severidad rendimiento"
@@ -1844,6 +1990,26 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
         # Inserta valor por defecto.
         hoja_aux["H2"] = 1
 
+    # Renderiza bloque de incidencias con desglose por severidad, área y tipo.
+    hoja_dashboard["L14"] = "Incidencias (resumen)"
+    hoja_dashboard["L14"].font = Font(size=12, bold=True, color="FFFFFF")
+    hoja_dashboard["L14"].fill = PatternFill(fill_type="solid", fgColor="B91C1C")
+    hoja_dashboard["L15"] = f"Por severidad: crítica={incidencias_criticas}, alta={incidencias_altas}, media={incidencias_medias}, baja={incidencias_bajas}"
+    hoja_dashboard["L16"] = "Por área: " + ", ".join(f"{k}={v}" for k, v in incidencias_por_area.most_common(3))
+    hoja_dashboard["L17"] = "Por tipo: " + ", ".join(f"{k}={v}" for k, v in incidencias_por_tipo.most_common(3))
+    hoja_dashboard["L18"] = "Por familia: " + ", ".join(f"{k}={v}" for k, v in list(incidencias_por_familia.items())[:3])
+
+    # Renderiza bloque de oportunidades SEO priorizadas.
+    oportunidades_pos_4_15 = len([fila for fila in filas_oportunidades_gsc if "4-15" in str(fila.get("oportunidad", ""))])
+    oportunidades_ctr_bajo = len([fila for fila in filas_oportunidades_gsc if "ctr bajo" in str(fila.get("oportunidad", "")).lower()])
+    hoja_dashboard["D16"] = "Oportunidades SEO"
+    hoja_dashboard["D16"].font = Font(size=12, bold=True, color="FFFFFF")
+    hoja_dashboard["D16"].fill = PatternFill(fill_type="solid", fgColor="7C3AED")
+    hoja_dashboard["D17"] = f"Páginas CTR bajo: {oportunidades_ctr_bajo}"
+    hoja_dashboard["D18"] = f"Páginas posición 4-15: {oportunidades_pos_4_15}"
+    hoja_dashboard["D19"] = f"Quick wins: {len(_construir_quick_wins(filas, limite=7))}"
+    hoja_dashboard["D20"] = "Mayor potencial: " + ", ".join(str(fila.get("url", "")) for fila in filas_oportunidades_gsc[:3])
+
     # Crea gráfico de distribución de severidad de rendimiento.
     grafico_severidad_rend = PieChart()
 
@@ -1863,7 +2029,7 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     grafico_severidad_rend.height = 5.4
 
     # Inserta gráfico en posición explícita.
-    hoja_dashboard.add_chart(grafico_severidad_rend, "D10")
+    hoja_dashboard.add_chart(grafico_severidad_rend, "D22")
 
     # Crea gráfico de severidad técnica.
     grafico_severidad_tecnica = BarChart()
@@ -1884,7 +2050,7 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     grafico_severidad_tecnica.height = 5.4
 
     # Inserta gráfico en posición explícita.
-    hoja_dashboard.add_chart(grafico_severidad_tecnica, "L10")
+    hoja_dashboard.add_chart(grafico_severidad_tecnica, "L22")
 
     # Crea gráfico de tipos de mejora de rendimiento.
     grafico_tipos_mejora = BarChart()
@@ -1908,7 +2074,7 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     grafico_tipos_mejora.height = 5.8
 
     # Inserta gráfico en posición explícita.
-    hoja_dashboard.add_chart(grafico_tipos_mejora, "D25")
+    hoja_dashboard.add_chart(grafico_tipos_mejora, "D37")
 
     # Crea gráfico de score por bloques para explicar score global.
     grafico_score_bloques = BarChart()
@@ -1929,7 +2095,7 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     grafico_score_bloques.height = 5.4
 
     # Inserta gráfico de score por bloques en dashboard.
-    hoja_dashboard.add_chart(grafico_score_bloques, "L25")
+    hoja_dashboard.add_chart(grafico_score_bloques, "L37")
 
     # Crea gráfico de comparación entre incidencias técnicas y agrupadas.
     grafico_agrupadas = PieChart()
@@ -1950,7 +2116,7 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     grafico_agrupadas.height = 5.4
 
     # Inserta gráfico comparativo en dashboard.
-    hoja_dashboard.add_chart(grafico_agrupadas, "D40")
+    hoja_dashboard.add_chart(grafico_agrupadas, "D52")
 
     # Oculta la hoja auxiliar para no contaminar entregable final.
     hoja_aux.sheet_state = "hidden"
@@ -1968,6 +2134,23 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
 
         # Inserta tabla en hoja.
         hoja_rendimiento.add_table(tabla)
+
+    # Ajusta anchos base del dashboard para tarjetas y bloques visuales.
+    for indice_columna in range(1, 21):
+        # Aplica ancho uniforme para permitir tarjetas amplias.
+        hoja_dashboard.column_dimensions[get_column_letter(indice_columna)].width = 17
+
+    # Define columnas con texto extenso para wrap y legibilidad total.
+    columnas_largas = {"url", "problema", "recomendacion", "observaciones", "query", "accion_recomendada"}
+
+    # Aplica autoajuste global de todas las hojas de datos.
+    _autoajustar_hoja(hoja_errores, columnas_wrap=columnas_largas)
+    _autoajustar_hoja(hoja_contenido, columnas_wrap=columnas_largas)
+    _autoajustar_hoja(hoja_rendimiento, columnas_wrap=columnas_largas)
+    _autoajustar_hoja(hoja_indexacion, columnas_wrap=columnas_largas)
+    _autoajustar_hoja(hoja_gsc_paginas, columnas_wrap=columnas_largas)
+    _autoajustar_hoja(hoja_gsc_queries, columnas_wrap=columnas_largas)
+    _autoajustar_hoja(hoja_oportunidades_gsc, columnas_wrap=columnas_largas)
 
     # Guarda libro final en disco.
     libro.save(destino)
