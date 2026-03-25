@@ -33,6 +33,20 @@ PATRONES_NEGACION_GSC = {
     "sin datos de gsc",
 }
 
+# Define métricas válidas para considerar PageSpeed como utilizable.
+METRICAS_PAGESPEED_VALIDAS = (
+    "performance_score",
+    "accessibility_score",
+    "best_practices_score",
+    "seo_score",
+    "lcp",
+    "cls",
+    "inp",
+    "fcp",
+    "tbt",
+    "speed_index",
+)
+
 
 # Define fallback interno alineado 1:1 con el archivo editable del repositorio.
 PROMPT_IA_FALLBACK = """Actúa como consultor SEO senior de agencia, especializado en crecimiento orgánico basado en datos reales.
@@ -252,20 +266,7 @@ def construir_contexto_ia(resultado: ResultadoAuditoria, max_muestras: int) -> d
 
     # Detecta filas de PageSpeed con métricas reales y sin errores de ejecución.
     pagespeed_con_metricas_validas = any(
-        (
-            item.performance_score is not None
-            or item.accessibility_score is not None
-            or item.best_practices_score is not None
-            or item.seo_score is not None
-            or item.lcp is not None
-            or item.cls is not None
-            or item.inp is not None
-            or item.fcp is not None
-            or item.tbt is not None
-            or item.speed_index is not None
-        )
-        and not item.error
-        for item in resultado.rendimiento
+        any(getattr(item, metrica) is not None for metrica in METRICAS_PAGESPEED_VALIDAS) and not item.error for item in resultado.rendimiento
     )
 
     # Marca PageSpeed activo solo cuando hay métricas útiles o fuente validada por CLI.
