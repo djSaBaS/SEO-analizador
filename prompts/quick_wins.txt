@@ -1,0 +1,8 @@
+Actúa como consultor SEO senior y entrega únicamente la sección de Quick wins.
+No uses Markdown.
+Genera entre 3 y 7 acciones priorizadas por impacto y bajo esfuerzo.
+Cada acción debe incluir: Acción, Impacto, Esfuerzo y Resultado esperado.
+Prioriza páginas con datos de Search Console cuando existan.
+
+Datos de auditoría en JSON:
+{datos_json}

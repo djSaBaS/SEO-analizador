@@ -1,0 +1,13 @@
+Actúa como consultor SEO senior y redacta únicamente la sección de Resumen ejecutivo del informe.
+Mantén un tono profesional, claro y orientado a negocio.
+No uses Markdown.
+Usa solo datos reales de las fuentes activas.
+
+Debes cubrir:
+- estado general del SEO
+- principal bloqueo de crecimiento
+- potencial de mejora
+- oportunidades más claras
+
+Datos de auditoría en JSON:
+{datos_json}

@@ -16,9 +16,26 @@ from seo_auditor.cache import construir_clave_cache, escribir_cache, leer_cache
 # Importa el modelo de resultado global para tipado claro.
 from seo_auditor.models import ResultadoAuditoria
 
-# Define la ruta del archivo de prompt editable del proyecto.
-RUTA_PROMPT_IA = Path(__file__).resolve().parents[2] / "Prompt" / "consulta_ia_prompt.txt"
+# Define la carpeta principal del nuevo sistema modular de prompts.
+RUTA_CARPETA_PROMPTS = Path(__file__).resolve().parents[2] / "prompts"
 
+# Define carpeta heredada para compatibilidad retroactiva.
+RUTA_CARPETA_PROMPTS_LEGACY = Path(__file__).resolve().parents[2] / "Prompt"
+
+# Define la ruta heredada original del prompt único editable.
+RUTA_PROMPT_UNICO_LEGACY = RUTA_CARPETA_PROMPTS_LEGACY / "consulta_ia_prompt.txt"
+
+# Define el mapa de modos CLI a nombre de archivo de prompt.
+MAPA_PROMPTS_POR_MODO = {
+    "completo": "informe_general.txt",
+    "resumen": "resumen_ejecutivo.txt",
+    "quickwins": "quick_wins.txt",
+    "gsc": "gsc_oportunidades.txt",
+    "roadmap": "roadmap.txt",
+}
+
+# Define el modo por defecto cuando no se indique explícitamente.
+MODO_PROMPT_POR_DEFECTO = "completo"
 
 # Define el marcador obligatorio para inyectar el JSON de auditoría.
 PLACEHOLDER_DATOS_JSON = "{datos_json}"
@@ -149,16 +166,53 @@ Datos de auditoría en JSON:
 """
 
 
+# Resuelve ruta de prompt por modo con fallback a informe general.
+def resolver_ruta_prompt_ia(modo: str) -> Path:
+    """Obtiene ruta del prompt modular priorizando `prompts/` y compatibilidad legacy."""
+
+    # Normaliza modo para evitar errores por mayúsculas o espacios.
+    modo_normalizado = (modo or MODO_PROMPT_POR_DEFECTO).strip().lower()
+
+    # Obtiene nombre de archivo para el modo solicitado.
+    nombre_prompt = MAPA_PROMPTS_POR_MODO.get(modo_normalizado, MAPA_PROMPTS_POR_MODO[MODO_PROMPT_POR_DEFECTO])
+
+    # Guarda nombre de archivo por defecto para fallback controlado.
+    nombre_prompt_default = MAPA_PROMPTS_POR_MODO[MODO_PROMPT_POR_DEFECTO]
+
+    # Define rutas candidatas en orden de prioridad funcional.
+    rutas_candidatas = [
+        RUTA_CARPETA_PROMPTS / nombre_prompt,
+        RUTA_CARPETA_PROMPTS_LEGACY / nombre_prompt,
+        RUTA_CARPETA_PROMPTS / nombre_prompt_default,
+        RUTA_PROMPT_UNICO_LEGACY,
+        RUTA_CARPETA_PROMPTS_LEGACY / nombre_prompt_default,
+    ]
+
+    # Elimina duplicados manteniendo el orden para evitar comprobaciones repetidas.
+    rutas_unicas = list(dict.fromkeys(rutas_candidatas))
+
+    # Devuelve la primera ruta existente dentro del orden definido.
+    for ruta in rutas_unicas:
+        if ruta.is_file():
+            return ruta
+
+    # Devuelve fallback final al prompt modular por defecto aunque no exista en disco.
+    return RUTA_CARPETA_PROMPTS / nombre_prompt_default
+
+
 # Carga la plantilla de prompt desde archivo externo para facilitar su edición.
-def cargar_plantilla_prompt_ia() -> str:
-    """Lee la plantilla del prompt desde disco con fallback seguro."""
+def cargar_plantilla_prompt_ia(modo: str = MODO_PROMPT_POR_DEFECTO) -> str:
+    """Lee la plantilla de prompt según modo con fallback seguro."""
+
+    # Resuelve ruta final del prompt en función del modo de ejecución.
+    ruta_prompt = resolver_ruta_prompt_ia(modo)
 
     # Intenta leer el prompt externo configurable por el equipo.
     try:
         # Verifica que la ruta sea un archivo regular.
-        if RUTA_PROMPT_IA.is_file():
+        if ruta_prompt.is_file():
             # Devuelve el contenido tal cual para máxima editabilidad.
-            return RUTA_PROMPT_IA.read_text(encoding="utf-8")
+            return ruta_prompt.read_text(encoding="utf-8")
     except OSError:
         # Ignora errores de sistema y aplica fallback seguro.
         pass
@@ -273,6 +327,9 @@ def construir_contexto_ia(resultado: ResultadoAuditoria, max_muestras: int) -> d
     # Marca PageSpeed activo solo cuando hay métricas útiles o fuente validada por CLI.
     pagespeed_activo = bool(pagespeed_con_metricas_validas or "pagespeed" in resultado.fuentes_activas)
 
+    # Detecta si Analytics aporta páginas útiles en esta ejecución.
+    analytics_activo = bool(resultado.analytics.activo and resultado.analytics.paginas)
+
     # Detecta si existen datos útiles de GSC para habilitar secciones dedicadas.
     usar_seccion_gsc = bool(gsc_activo and gsc_con_datos_utiles)
 
@@ -285,10 +342,12 @@ def construir_contexto_ia(resultado: ResultadoAuditoria, max_muestras: int) -> d
         "fuentes_activas": resultado.fuentes_activas,
         "fuentes_fallidas": resultado.fuentes_fallidas,
         "gsc_activo": gsc_activo,
+        "analytics_activo": analytics_activo,
         "pagespeed_activo": pagespeed_activo,
         "usar_seccion_gsc": usar_seccion_gsc,
         "contexto_control": {
             "gsc_activo": gsc_activo,
+            "analytics_activo": analytics_activo,
             "pagespeed_activo": pagespeed_activo,
             "fuentes_activas": resultado.fuentes_activas,
             "fuentes_fallidas": resultado.fuentes_fallidas,
@@ -409,6 +468,7 @@ def generar_resumen_ia(
     api_key: str,
     model_name: str,
     max_muestras: int,
+    modo_prompt: str = MODO_PROMPT_POR_DEFECTO,
     cache_dir: Path | None = None,
     cache_ttl_segundos: int = 0,
 ) -> str:
@@ -427,10 +487,21 @@ def generar_resumen_ia(
     # Construye el contexto resumido de IA con límite de muestras.
     datos = construir_contexto_ia(resultado, max_muestras)
 
+    # Normaliza el modo recibido para evitar valores vacíos o con espacios.
+    modo_efectivo = (modo_prompt or "").strip().lower()
+
+    # Añade modo efectivo para trazabilidad del sistema modular.
+    datos["modo"] = modo_efectivo or MODO_PROMPT_POR_DEFECTO
+
+    # Expone modo también dentro de contexto_control para validación robusta del prompt.
+    contexto_control = datos.get("contexto_control")
+    if isinstance(contexto_control, dict):
+        contexto_control["modo"] = datos["modo"]
+
     # Revisa caché local cuando se habilite explícitamente.
     if cache_dir is not None:
         # Construye clave estable de la consulta IA.
-        clave_cache = construir_clave_cache("ia", {"modelo": model_name, "datos": datos})
+        clave_cache = construir_clave_cache("ia", {"modelo": model_name, "modo": modo_prompt, "datos": datos})
 
         # Intenta recuperar respuesta previa dentro del TTL.
         respuesta_cache = leer_cache(cache_dir, clave_cache, cache_ttl_segundos)
@@ -441,10 +512,25 @@ def generar_resumen_ia(
             return validar_consistencia_resumen_ia(respuesta_cache, datos)
 
     # Carga la plantilla de prompt desde archivo externo editable.
-    plantilla_prompt = cargar_plantilla_prompt_ia()
+    plantilla_prompt = cargar_plantilla_prompt_ia(modo_prompt)
 
     # Inserta los datos de auditoría de forma segura en la plantilla.
-    prompt = construir_prompt_ia(plantilla_prompt, datos)
+    prompt_principal = construir_prompt_ia(plantilla_prompt, datos)
+
+    # Construye contexto extra obligatorio antes del prompt modular principal.
+    contexto_extra_prompt = {
+        "gsc_activo": bool(datos.get("gsc_activo")),
+        "analytics_activo": bool(datos.get("analytics_activo")),
+        "pagespeed_activo": bool(datos.get("pagespeed_activo")),
+        "fuentes_activas": datos.get("fuentes_activas", []),
+        "modo": datos.get("modo", MODO_PROMPT_POR_DEFECTO),
+    }
+
+    # Serializa el contexto extra para inyectarlo al inicio del prompt final.
+    contexto_extra_json = json.dumps(contexto_extra_prompt, ensure_ascii=False)
+
+    # Compone prompt final con contexto extra previo y bloque principal.
+    prompt = f"Contexto extra de ejecución (JSON):\n{contexto_extra_json}\n\n{prompt_principal}"
 
     # Ejecuta la generación del contenido con el modelo indicado.
     respuesta = cliente.models.generate_content(model=model_name, contents=prompt)

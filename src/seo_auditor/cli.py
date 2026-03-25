@@ -175,6 +175,14 @@ def crear_parser() -> argparse.ArgumentParser:
     # Añade parámetro opcional para forzar modelo IA en --testia o --usar-ia.
     parser.add_argument("--modelo-ia", default="", help="Sobrescribe temporalmente el modelo de IA para esta ejecución.")
 
+    # Añade selector de modo de prompt para el sistema IA modular.
+    parser.add_argument(
+        "--modo",
+        choices=["completo", "resumen", "quickwins", "gsc", "roadmap"],
+        default="completo",
+        help="Selecciona el prompt IA a usar: completo, resumen, quickwins, gsc o roadmap.",
+    )
+
     # Añade parámetro para analizar una URL concreta con PageSpeed.
     parser.add_argument("--pagepsi", default="", help="URL concreta a analizar con PageSpeed Insights.")
 
@@ -558,6 +566,7 @@ def main() -> int:
                 configuracion.gemini_api_key,
                 modelo_ia,
                 argumentos.max_muestras_ia,
+                argumentos.modo,
                 carpeta_cache / "ia",
                 cache_ttl,
             )
