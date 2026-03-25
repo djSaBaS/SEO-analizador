@@ -2,6 +2,8 @@
 from types import SimpleNamespace
 from datetime import date, timedelta
 
+import pytest
+
 # Importa estructuras del dominio para fabricar resultados de prueba.
 from seo_auditor.models import ResultadoAuditoria, ResultadoRendimiento, ResultadoUrl
 
@@ -462,11 +464,6 @@ def test_resolver_periodo_analisis_falla_si_date_from_no_es_menor() -> None:
     argumentos = SimpleNamespace(date_from="2026-03-01", date_to="2026-03-01")
 
     # Verifica que se lance error por rango no estricto.
-    try:
+    with pytest.raises(ValueError, match="--date-from debe ser anterior a --date-to."):
         # Ejecuta resolución para disparar validación.
         cli._resolver_periodo_analisis(argumentos)
-        # Fuerza fallo si no se lanza excepción esperada.
-        assert False
-    except ValueError as exc:
-        # Verifica mensaje de validación de rango.
-        assert "--date-from debe ser anterior a --date-to." in str(exc)

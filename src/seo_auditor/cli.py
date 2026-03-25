@@ -72,39 +72,39 @@ def _resolver_periodo_analisis(argumentos: argparse.Namespace) -> tuple[str, str
     """
 
     # Lee valores opcionales recibidos por CLI.
-    date_from_cli = (argumentos.date_from or "").strip()
+    date_from_cli = argumentos.date_from.strip()
 
     # Lee fecha fin opcional recibida por CLI.
-    date_to_cli = (argumentos.date_to or "").strip()
+    date_to_cli = argumentos.date_to.strip()
 
     # Exige coherencia cuando se pasa solo una de las fechas.
-    if bool(date_from_cli) ^ bool(date_to_cli):
+    if bool(date_from_cli) != bool(date_to_cli):
         # Lanza error claro para evitar rangos ambiguos.
         raise ValueError("Debes indicar ambos parámetros: --date-from y --date-to.")
 
-    # Calcula periodo por defecto cuando no se reciban parámetros.
-    if not date_from_cli and not date_to_cli:
-        # Usa ayer para evitar datos intradía incompletos en APIs.
-        fecha_hasta = date.today() - timedelta(days=1)
+    # Valida y devuelve rango explícito cuando se reciban fechas.
+    if date_from_cli:
+        # Valida fecha inicial aportada por usuario.
+        fecha_desde = _parsear_fecha_cli(date_from_cli, "--date-from")
 
-        # Calcula ventana inclusiva de 28 días.
-        fecha_desde = fecha_hasta - timedelta(days=27)
+        # Valida fecha final aportada por usuario.
+        fecha_hasta = _parsear_fecha_cli(date_to_cli, "--date-to")
+
+        # Exige rango temporal estricto para coherencia operativa.
+        if fecha_desde >= fecha_hasta:
+            # Lanza error con reglas del requisito funcional.
+            raise ValueError("--date-from debe ser anterior a --date-to.")
 
         # Devuelve periodo efectivo serializado.
         return fecha_desde.isoformat(), fecha_hasta.isoformat()
 
-    # Valida fecha inicial aportada por usuario.
-    fecha_desde = _parsear_fecha_cli(date_from_cli, "--date-from")
+    # Usa ayer para evitar datos intradía incompletos en APIs.
+    fecha_hasta = date.today() - timedelta(days=1)
 
-    # Valida fecha final aportada por usuario.
-    fecha_hasta = _parsear_fecha_cli(date_to_cli, "--date-to")
+    # Calcula ventana inclusiva de 28 días.
+    fecha_desde = fecha_hasta - timedelta(days=27)
 
-    # Exige rango temporal estricto para coherencia operativa.
-    if fecha_desde >= fecha_hasta:
-        # Lanza error con reglas del requisito funcional.
-        raise ValueError("--date-from debe ser anterior a --date-to.")
-
-    # Devuelve periodo efectivo serializado.
+    # Devuelve periodo efectivo serializado por defecto.
     return fecha_desde.isoformat(), fecha_hasta.isoformat()
 
 
