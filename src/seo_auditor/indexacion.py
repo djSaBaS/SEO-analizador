@@ -253,15 +253,20 @@ def _indice_gsc_por_url(metricas_gsc: list[MetricaGscPagina] | None) -> dict[str
 def _ruta_coincide_patron_no_indexar(ruta: str, patron: str) -> bool:
     """Comprueba si un patrón no indexable aparece en un límite de segmento."""
 
-    # Escapa patrón para utilizarlo de forma segura en regex.
-    patron_escapado = re.escape(patron.strip("/"))
+    # Trata paginación explícita para evitar falsos positivos en slugs con /page.
+    if patron == "/page/":
+        # Exige segmento numérico tras /page/ como en archivos paginados.
+        return re.search(r"(?:^|/)page/\d+(?:/|$)", ruta) is not None
 
-    # Maneja patrón raíz o vacío sin clasificar masivamente.
+    # Escapa patrón sin slash inicial para usarlo de forma segura en regex.
+    patron_escapado = re.escape(patron.lstrip("/"))
+
+    # Maneja patrón vacío sin clasificar masivamente.
     if not patron_escapado:
         # Evita marcar todas las rutas por un patrón ambiguo.
         return False
 
-    # Construye regex anclada a límites de segmento de ruta.
+    # Construye regex anclada al inicio o límites de segmento de ruta.
     regex_segmento = rf"(?:^|/){patron_escapado}(?:/|$)"
 
     # Devuelve si existe coincidencia por límite de segmento.
