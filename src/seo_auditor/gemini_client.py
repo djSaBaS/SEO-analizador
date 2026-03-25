@@ -24,14 +24,14 @@ RUTA_PROMPT_IA = Path(__file__).resolve().parents[2] / "Prompt" / "consulta_ia_p
 PLACEHOLDER_DATOS_JSON = "{datos_json}"
 
 # Define patrones de negación GSC que no deben aparecer si hay datos reales.
-PATRONES_NEGACION_GSC = [
+PATRONES_NEGACION_GSC = {
     "no se proporcionan datos específicos de gsc",
     "no se proporcionan datos de gsc",
     "no hay datos de gsc",
     "no se dispone de datos de gsc",
     "sin datos de search console",
     "sin datos de gsc",
-]
+}
 
 
 # Define fallback interno alineado 1:1 con el archivo editable del repositorio.
@@ -329,7 +329,8 @@ def validar_consistencia_resumen_ia(texto: str, datos_contexto: dict) -> str:
         return texto_filtrado
 
     # Obtiene métricas GSC para nota de coherencia explícita.
-    gsc = datos_contexto.get("gsc", {}) if isinstance(datos_contexto.get("gsc", {}), dict) else {}
+    gsc_data = datos_contexto.get("gsc")
+    gsc = gsc_data if isinstance(gsc_data, dict) else {}
 
     # Construye nota de consistencia basada en datos reales.
     nota_consistencia = (

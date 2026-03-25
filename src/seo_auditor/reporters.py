@@ -104,6 +104,15 @@ OPORTUNIDAD_GSC_MIN_IMPRESIONES_ONPAGE = 50.0
 # Define umbral de impresiones para considerar impacto alto.
 OPORTUNIDAD_GSC_IMPRESIONES_ALTO_IMPACTO = 500.0
 
+# Define paleta de colores reutilizable para dashboard Excel.
+COLOR_DASHBOARD_TITULO = "1F4E78"
+COLOR_KPI_TITULO_FONDO = "E6EEF8"
+COLOR_KPI_VALOR_FONDO = "F8FBFF"
+COLOR_BLOQUE_VISIBILIDAD = "1D4ED8"
+COLOR_BLOQUE_INDEXACION = "0F766E"
+COLOR_BLOQUE_INCIDENCIAS = "B91C1C"
+COLOR_BLOQUE_OPORTUNIDADES = "7C3AED"
+
 
 # Devuelve jerarquía visible según fuentes activas de la ejecución.
 def construir_jerarquia_visible(resultado: ResultadoAuditoria) -> list[str]:
@@ -1732,7 +1741,7 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     hoja_dashboard["A1"] = "Dashboard SEO Ejecutivo"
 
     # Aplica estilo de título.
-    hoja_dashboard["A1"].font = Font(size=20, bold=True, color="1F4E78")
+    hoja_dashboard["A1"].font = Font(size=20, bold=True, color=COLOR_DASHBOARD_TITULO)
     hoja_dashboard["A2"] = f"Cliente: {resultado.cliente} | Fecha: {resultado.fecha_ejecucion}"
     hoja_dashboard["A2"].font = Font(size=11, color="4B5563")
 
@@ -1876,14 +1885,14 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
         hoja_dashboard[f"A{indice}"] = titulo_kpi
         # Escribe valor del KPI.
         hoja_dashboard[f"B{indice}"] = valor_kpi
-        hoja_dashboard[f"A{indice}"].fill = PatternFill(fill_type="solid", fgColor="E6EEF8")
-        hoja_dashboard[f"A{indice}"].font = Font(bold=True, color="1F4E78")
-        hoja_dashboard[f"B{indice}"].fill = PatternFill(fill_type="solid", fgColor="F8FBFF")
+        hoja_dashboard[f"A{indice}"].fill = PatternFill(fill_type="solid", fgColor=COLOR_KPI_TITULO_FONDO)
+        hoja_dashboard[f"A{indice}"].font = Font(bold=True, color=COLOR_DASHBOARD_TITULO)
+        hoja_dashboard[f"B{indice}"].fill = PatternFill(fill_type="solid", fgColor=COLOR_KPI_VALOR_FONDO)
 
     # Inserta bloques visuales de secciones ejecutivas.
     hoja_dashboard["D9"] = "Visibilidad orgánica real"
     hoja_dashboard["D9"].font = Font(size=12, bold=True, color="FFFFFF")
-    hoja_dashboard["D9"].fill = PatternFill(fill_type="solid", fgColor="1D4ED8")
+    hoja_dashboard["D9"].fill = PatternFill(fill_type="solid", fgColor=COLOR_BLOQUE_VISIBILIDAD)
     hoja_dashboard["D10"] = f"Clics: {clics_totales_gsc}"
     hoja_dashboard["D11"] = f"Impresiones: {impresiones_totales_gsc}"
     hoja_dashboard["D12"] = f"CTR: {ctr_medio_gsc}"
@@ -1895,7 +1904,7 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
 
     hoja_dashboard["L9"] = "Gestión de indexación"
     hoja_dashboard["L9"].font = Font(size=12, bold=True, color="FFFFFF")
-    hoja_dashboard["L9"].fill = PatternFill(fill_type="solid", fgColor="0F766E")
+    hoja_dashboard["L9"].fill = PatternFill(fill_type="solid", fgColor=COLOR_BLOQUE_INDEXACION)
     hoja_dashboard["L10"] = f"Indexable: {resumen_gestion_indexacion.get('indexable', 0)}"
     hoja_dashboard["L11"] = f"Revisar: {resumen_gestion_indexacion.get('revisar', 0)}"
     hoja_dashboard["L12"] = f"No indexar: {resumen_gestion_indexacion.get('no_indexar', 0)}"
@@ -1916,7 +1925,8 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     incidencias_por_tipo = Counter([str(fila.get("tipo", "Sin tipo")).strip() for fila in filas if fila.get("problema")])
 
     # Obtiene incidencias agrupadas por familia desde métricas.
-    incidencias_por_familia = metricas.get("incidencias_agrupadas", {}) if isinstance(metricas.get("incidencias_agrupadas", {}), dict) else {}
+    incidencias_agrupadas_data = metricas.get("incidencias_agrupadas")
+    incidencias_por_familia = incidencias_agrupadas_data if isinstance(incidencias_agrupadas_data, dict) else {}
 
     # Escribe bloque de severidad de rendimiento en hoja auxiliar.
     hoja_aux["A1"] = "Severidad rendimiento"
@@ -1993,7 +2003,7 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     # Renderiza bloque de incidencias con desglose por severidad, área y tipo.
     hoja_dashboard["L14"] = "Incidencias (resumen)"
     hoja_dashboard["L14"].font = Font(size=12, bold=True, color="FFFFFF")
-    hoja_dashboard["L14"].fill = PatternFill(fill_type="solid", fgColor="B91C1C")
+    hoja_dashboard["L14"].fill = PatternFill(fill_type="solid", fgColor=COLOR_BLOQUE_INCIDENCIAS)
     hoja_dashboard["L15"] = f"Por severidad: crítica={incidencias_criticas}, alta={incidencias_altas}, media={incidencias_medias}, baja={incidencias_bajas}"
     hoja_dashboard["L16"] = "Por área: " + ", ".join(f"{k}={v}" for k, v in incidencias_por_area.most_common(3))
     hoja_dashboard["L17"] = "Por tipo: " + ", ".join(f"{k}={v}" for k, v in incidencias_por_tipo.most_common(3))
@@ -2004,7 +2014,7 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     oportunidades_ctr_bajo = len([fila for fila in filas_oportunidades_gsc if "ctr bajo" in str(fila.get("oportunidad", "")).lower()])
     hoja_dashboard["D16"] = "Oportunidades SEO"
     hoja_dashboard["D16"].font = Font(size=12, bold=True, color="FFFFFF")
-    hoja_dashboard["D16"].fill = PatternFill(fill_type="solid", fgColor="7C3AED")
+    hoja_dashboard["D16"].fill = PatternFill(fill_type="solid", fgColor=COLOR_BLOQUE_OPORTUNIDADES)
     hoja_dashboard["D17"] = f"Páginas CTR bajo: {oportunidades_ctr_bajo}"
     hoja_dashboard["D18"] = f"Páginas posición 4-15: {oportunidades_pos_4_15}"
     hoja_dashboard["D19"] = f"Quick wins: {len(_construir_quick_wins(filas, limite=7))}"
@@ -2144,13 +2154,20 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     columnas_largas = {"url", "problema", "recomendacion", "observaciones", "query", "accion_recomendada"}
 
     # Aplica autoajuste global de todas las hojas de datos.
-    _autoajustar_hoja(hoja_errores, columnas_wrap=columnas_largas)
-    _autoajustar_hoja(hoja_contenido, columnas_wrap=columnas_largas)
-    _autoajustar_hoja(hoja_rendimiento, columnas_wrap=columnas_largas)
-    _autoajustar_hoja(hoja_indexacion, columnas_wrap=columnas_largas)
-    _autoajustar_hoja(hoja_gsc_paginas, columnas_wrap=columnas_largas)
-    _autoajustar_hoja(hoja_gsc_queries, columnas_wrap=columnas_largas)
-    _autoajustar_hoja(hoja_oportunidades_gsc, columnas_wrap=columnas_largas)
+    hojas_a_ajustar = [
+        hoja_errores,
+        hoja_contenido,
+        hoja_rendimiento,
+        hoja_indexacion,
+        hoja_gsc_paginas,
+        hoja_gsc_queries,
+        hoja_oportunidades_gsc,
+    ]
+
+    # Recorre hojas de datos para aplicar ajuste homogéneo.
+    for hoja in hojas_a_ajustar:
+        # Autoajusta legibilidad según contenido y columnas largas.
+        _autoajustar_hoja(hoja, columnas_wrap=columnas_largas)
 
     # Guarda libro final en disco.
     libro.save(destino)
