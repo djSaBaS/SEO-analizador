@@ -72,6 +72,24 @@ class Configuracion:
     # Guarda el máximo de filas por consulta GSC.
     gsc_row_limit: int
 
+    # Guarda si Analytics está habilitado de forma opcional.
+    ga_enabled: bool
+
+    # Guarda el property id de Google Analytics 4.
+    ga_property_id: str
+
+    # Guarda la ruta al JSON de service account de GA4.
+    ga_credentials_file: str
+
+    # Guarda fecha de inicio del rango GA4.
+    ga_date_from: str
+
+    # Guarda fecha final del rango GA4.
+    ga_date_to: str
+
+    # Guarda el máximo de filas por consulta GA4.
+    ga_row_limit: int
+
 
 # Carga y valida la configuración desde entorno.
 def cargar_configuracion() -> Configuracion:
@@ -99,6 +117,9 @@ def cargar_configuracion() -> Configuracion:
 
     # Lee límite de filas de Search Console o aplica valor operativo.
     gsc_row_limit_texto = os.getenv("GSC_ROW_LIMIT", "250")
+
+    # Lee límite de filas de GA4 o aplica valor operativo.
+    ga_row_limit_texto = os.getenv("GA_ROW_LIMIT", "1000")
 
     # Valida que el timeout sea un entero positivo razonable.
     if not timeout_texto.isdigit() or int(timeout_texto) <= 0:
@@ -135,6 +156,11 @@ def cargar_configuracion() -> Configuracion:
         # Corta la ejecución con mensaje claro y accionable.
         raise ValueError("GSC_ROW_LIMIT debe ser un entero positivo.")
 
+    # Valida que el límite de filas GA4 sea entero positivo.
+    if not ga_row_limit_texto.isdigit() or int(ga_row_limit_texto) <= 0:
+        # Corta la ejecución con mensaje claro y accionable.
+        raise ValueError("GA_ROW_LIMIT debe ser un entero positivo.")
+
     # Devuelve la configuración consolidada del proyecto.
     return Configuracion(
         # Carga la clave de Gemini o deja cadena vacía si no existe.
@@ -167,4 +193,16 @@ def cargar_configuracion() -> Configuracion:
         gsc_date_to=os.getenv("GSC_DATE_TO", "").strip(),
         # Convierte límite de filas de GSC a entero.
         gsc_row_limit=int(gsc_row_limit_texto),
+        # Evalúa bandera booleana de activación de GA4.
+        ga_enabled=_a_booleano(os.getenv("GA_ENABLED", "false")),
+        # Carga property id de GA4.
+        ga_property_id=os.getenv("GA_PROPERTY_ID", "").strip(),
+        # Carga ruta a credenciales de service account de GA4.
+        ga_credentials_file=os.getenv("GA_CREDENTIALS_FILE", "").strip(),
+        # Carga fecha inicial de GA4.
+        ga_date_from=os.getenv("GA_DATE_FROM", "").strip(),
+        # Carga fecha final de GA4.
+        ga_date_to=os.getenv("GA_DATE_TO", "").strip(),
+        # Convierte límite de filas de GA4 a entero.
+        ga_row_limit=int(ga_row_limit_texto),
     )

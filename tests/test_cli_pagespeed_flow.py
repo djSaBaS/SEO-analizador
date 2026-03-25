@@ -113,6 +113,12 @@ def test_main_persiste_rendimiento_y_fuente_pagespeed(monkeypatch, tmp_path) -> 
             gsc_date_from="",
             gsc_date_to="",
             gsc_row_limit=250,
+            ga_enabled=False,
+            ga_property_id="",
+            ga_credentials_file="",
+            ga_date_from="",
+            ga_date_to="",
+            ga_row_limit=1000,
         ),
     )
 
@@ -256,6 +262,12 @@ def test_main_no_marca_pagespeed_como_activa_si_falla(monkeypatch, tmp_path) -> 
             gsc_date_from="",
             gsc_date_to="",
             gsc_row_limit=250,
+            ga_enabled=False,
+            ga_property_id="",
+            ga_credentials_file="",
+            ga_date_from="",
+            ga_date_to="",
+            ga_row_limit=1000,
         ),
     )
 
@@ -376,6 +388,12 @@ def test_main_omite_gsc_si_se_usa_bandera_no_gsc(monkeypatch, tmp_path) -> None:
             gsc_date_from="2026-02-01",
             gsc_date_to="2026-03-01",
             gsc_row_limit=250,
+            ga_enabled=False,
+            ga_property_id="",
+            ga_credentials_file="",
+            ga_date_from="",
+            ga_date_to="",
+            ga_row_limit=1000,
         ),
     )
 
