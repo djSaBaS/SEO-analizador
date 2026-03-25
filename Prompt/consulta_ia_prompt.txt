@@ -19,6 +19,17 @@ Debes cruzar información entre:
 - rendimiento
 - Google Search Console
 
+REGLAS DE CONSISTENCIA OBLIGATORIAS (NO INCUMPLIR):
+- Lee y respeta estas banderas del JSON: gsc_activo, pagespeed_activo, fuentes_activas, fuentes_fallidas, usar_seccion_gsc.
+- Si gsc_activo=true o "search_console" aparece en fuentes_activas:
+  - está prohibido afirmar que faltan datos de GSC/Search Console.
+  - debes incluir insights y oportunidades de visibilidad orgánica real con los datos existentes.
+- Si gsc_activo=false:
+  - indica de forma explícita y breve que no hay datos de Search Console en esta ejecución.
+- Si pagespeed_activo=false:
+  - evita recomendaciones específicas de métricas de rendimiento no disponibles.
+- No uses frases plantilla genéricas que contradigan el JSON real.
+
 ESTRUCTURA OBLIGATORIA EXACTA:
 Resumen ejecutivo:
 - Explica el estado general del SEO del sitio.

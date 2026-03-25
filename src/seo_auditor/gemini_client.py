@@ -23,6 +23,16 @@ RUTA_PROMPT_IA = Path(__file__).resolve().parents[2] / "Prompt" / "consulta_ia_p
 # Define el marcador obligatorio para inyectar el JSON de auditoría.
 PLACEHOLDER_DATOS_JSON = "{datos_json}"
 
+# Define patrones de negación GSC que no deben aparecer si hay datos reales.
+PATRONES_NEGACION_GSC = {
+    "no se proporcionan datos específicos de gsc",
+    "no se proporcionan datos de gsc",
+    "no hay datos de gsc",
+    "no se dispone de datos de gsc",
+    "sin datos de search console",
+    "sin datos de gsc",
+}
+
 
 # Define fallback interno alineado 1:1 con el archivo editable del repositorio.
 PROMPT_IA_FALLBACK = """Actúa como consultor SEO senior de agencia, especializado en crecimiento orgánico basado en datos reales.
@@ -45,6 +55,17 @@ Debes cruzar información entre:
 - contenido
 - rendimiento
 - Google Search Console
+
+REGLAS DE CONSISTENCIA OBLIGATORIAS (NO INCUMPLIR):
+- Lee y respeta estas banderas del JSON: gsc_activo, pagespeed_activo, fuentes_activas, fuentes_fallidas, usar_seccion_gsc.
+- Si gsc_activo=true o "search_console" aparece en fuentes_activas:
+  - está prohibido afirmar que faltan datos de GSC/Search Console.
+  - debes incluir insights y oportunidades de visibilidad orgánica real con los datos existentes.
+- Si gsc_activo=false:
+  - indica de forma explícita y breve que no hay datos de Search Console en esta ejecución.
+- Si pagespeed_activo=false:
+  - evita recomendaciones específicas de métricas de rendimiento no disponibles.
+- No uses frases plantilla genéricas que contradigan el JSON real.
 
 ESTRUCTURA OBLIGATORIA EXACTA:
 Resumen ejecutivo:
@@ -215,6 +236,23 @@ def construir_contexto_ia(resultado: ResultadoAuditoria, max_muestras: int) -> d
     # Deduplica quick wins por combinación URL-problema para ahorrar tokens.
     quick_wins_deduplicados = list({f"{item['url']}|{item['problema']}": item for item in quick_wins}.values())
 
+    # Resume métricas GSC para reforzar consistencia contextual del prompt.
+    gsc_resumen = {
+        "paginas": len(resultado.search_console.paginas),
+        "queries": len(resultado.search_console.queries),
+        "clics_totales": round(sum(item.clicks for item in resultado.search_console.paginas), 2),
+        "impresiones_totales": round(sum(item.impresiones for item in resultado.search_console.paginas), 2),
+    }
+
+    # Detecta si Search Console está activo por bandera y por fuentes.
+    gsc_activo = bool(resultado.search_console.activo or "search_console" in resultado.fuentes_activas)
+
+    # Detecta si PageSpeed está activo por estado o fuente declarada.
+    pagespeed_activo = bool(resultado.rendimiento or "pagespeed" in resultado.fuentes_activas or resultado.pagespeed_estado)
+
+    # Detecta si existen datos útiles de GSC para habilitar secciones dedicadas.
+    usar_seccion_gsc = bool(gsc_activo and (resultado.search_console.paginas or resultado.search_console.queries))
+
     # Devuelve el contexto agregado y limitado para IA.
     return {
         "cliente": resultado.cliente,
@@ -223,6 +261,9 @@ def construir_contexto_ia(resultado: ResultadoAuditoria, max_muestras: int) -> d
         "gestor": resultado.gestor,
         "fuentes_activas": resultado.fuentes_activas,
         "fuentes_fallidas": resultado.fuentes_fallidas,
+        "gsc_activo": gsc_activo,
+        "pagespeed_activo": pagespeed_activo,
+        "usar_seccion_gsc": usar_seccion_gsc,
         "total_urls": resultado.total_urls,
         "total_incidencias": sum(contador_problemas.values()),
         "distribucion_severidad": dict(contador_severidad),
@@ -240,6 +281,7 @@ def construir_contexto_ia(resultado: ResultadoAuditoria, max_muestras: int) -> d
         ],
         "quick_wins": quick_wins_deduplicados[:max_muestras],
         "rendimiento": resumen_rendimiento,
+        "gsc": gsc_resumen,
         "pagespeed_estado": resultado.pagespeed_estado,
         "indexacion_rastreo": resultado.indexacion_rastreo,
         "scores": {
@@ -249,6 +291,55 @@ def construir_contexto_ia(resultado: ResultadoAuditoria, max_muestras: int) -> d
             "global": resultado.seo_score_global,
         },
     }
+
+# Normaliza contradicciones del texto IA respecto a disponibilidad real de GSC.
+def validar_consistencia_resumen_ia(texto: str, datos_contexto: dict) -> str:
+    """Elimina frases contradictorias sobre GSC y añade nota consistente cuando aplique."""
+
+    # Obtiene bandera de actividad GSC desde contexto inyectado.
+    gsc_activo = bool(datos_contexto.get("gsc_activo"))
+
+    # Si GSC no está activo no aplica limpieza de contradicción.
+    if not gsc_activo:
+        # Devuelve texto original sin alteraciones.
+        return texto
+
+    # Divide texto en líneas para filtrar frases problemáticas.
+    lineas_filtradas: list[str] = []
+
+    # Recorre líneas del texto IA para eliminar negaciones erróneas.
+    for linea in texto.splitlines():
+        # Normaliza línea para comparación robusta.
+        linea_normalizada = linea.lower().strip()
+
+        # Descarta líneas que nieguen datos de GSC cuando sí hay fuente activa.
+        if any(patron in linea_normalizada for patron in PATRONES_NEGACION_GSC):
+            # Omite línea contradictoria.
+            continue
+
+        # Conserva línea válida.
+        lineas_filtradas.append(linea)
+
+    # Reconstruye texto tras filtrar contradicciones.
+    texto_filtrado = "\n".join(lineas_filtradas).strip()
+
+    # Evita inyectar nota cuando ya exista una mención correcta de GSC.
+    if "search console" in texto_filtrado.lower() or "gsc" in texto_filtrado.lower():
+        # Devuelve texto ya consistente.
+        return texto_filtrado
+
+    # Obtiene métricas GSC para nota de coherencia explícita.
+    gsc_data = datos_contexto.get("gsc")
+    gsc = gsc_data if isinstance(gsc_data, dict) else {}
+
+    # Construye nota de consistencia basada en datos reales.
+    nota_consistencia = (
+        "Nota de consistencia: se incluyeron datos reales de Search Console en este análisis "
+        f"(clics={gsc.get('clics_totales', 0)}, impresiones={gsc.get('impresiones_totales', 0)})."
+    )
+
+    # Devuelve texto final añadiendo la nota de contexto.
+    return f"{texto_filtrado}\n\n{nota_consistencia}".strip()
 
 
 # Realiza una llamada mínima para validar conectividad y modelo de IA.
@@ -323,6 +414,9 @@ def generar_resumen_ia(
 
     # Obtiene texto final con fallback controlado.
     texto = getattr(respuesta, "text", "") or "No se pudo generar el informe con IA."
+
+    # Corrige contradicciones de narrativa IA respecto al contexto real.
+    texto = validar_consistencia_resumen_ia(texto, datos)
 
     # Guarda respuesta en caché local cuando se habilite.
     if cache_dir is not None:
