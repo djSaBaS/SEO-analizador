@@ -2696,7 +2696,7 @@ def exportar_html(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     bloques = _construir_bloques_narrativos(resultado)
 
     # Construye incidencias agrupadas para capa ejecutiva.
-    incidencias_agrupadas = metricas.get("incidencias_agrupadas", {}) if isinstance(metricas.get("incidencias_agrupadas", {}), dict) else {}
+    incidencias_agrupadas = data if isinstance(data := metricas.get("incidencias_agrupadas"), dict) else {}
 
     # Agrupa resultados de rendimiento por URL/estrategia.
     rendimiento_por_url: dict[str, dict[str, object]] = {}
