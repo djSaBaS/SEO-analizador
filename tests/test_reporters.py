@@ -6,6 +6,7 @@ from seo_auditor.models import DecisionIndexacion, HallazgoSeo, OportunidadRendi
 
 # Importa funciones de reporters bajo prueba.
 from seo_auditor.reporters import (
+    _renderizar_bloque_dashboard,
     _construir_bloques_narrativos,
     _construir_quick_wins,
     calcular_metricas,
@@ -17,6 +18,7 @@ from seo_auditor.reporters import (
 
 # Importa lector de libros Excel para validar KPIs.
 from openpyxl import load_workbook
+from openpyxl import Workbook
 
 
 # Verifica que el saneamiento escape etiquetas potencialmente problemáticas.
@@ -401,6 +403,23 @@ def test_exportar_excel_dashboard_mejorado_legible(tmp_path: Path) -> None:
 
     # Verifica existencia de bloque de score por bloques.
     assert dashboard["D17"].value == "Score por bloques"
+
+
+# Verifica retorno coherente de bloque dashboard cuando no hay líneas.
+def test_renderizar_bloque_dashboard_retorna_fila_cabecera_si_esta_vacio() -> None:
+    """Asegura que la fila final reportada sea la cabecera cuando no hay contenido."""
+
+    # Crea libro temporal para probar helper visual.
+    libro = Workbook()
+
+    # Obtiene hoja activa para renderizar el bloque.
+    hoja = libro.active
+
+    # Renderiza bloque sin líneas de detalle.
+    fila_final = _renderizar_bloque_dashboard(hoja, "D9", "Bloque vacío", [], "1D4ED8")
+
+    # Verifica que se devuelva la fila de cabecera pintada.
+    assert fila_final == 9
 
 
 # Verifica que la hoja de errores mantenga color por severidad.

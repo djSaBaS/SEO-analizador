@@ -297,7 +297,7 @@ def _renderizar_bloque_dashboard(hoja, celda_inicio: str, titulo: str, lineas: l
         hoja[f"{letra_inicio}{fila_actual}"].fill = PatternFill(fill_type="solid", fgColor="F8FAFC")
 
     # Devuelve la fila final pintada para facilitar composición.
-    return fila_inicio + max(1, len(lineas))
+    return fila_inicio + len(lineas)
 
 
 # Construye quick wins agrupados por URL para capa ejecutiva clara.

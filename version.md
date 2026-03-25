@@ -6,6 +6,7 @@
 - Se rediseña el Dashboard de Excel con bloques ejecutivos más visuales (visibilidad orgánica real, score por bloques, oportunidades, gestión de indexación e incidencias), manteniendo gráficos sin solapes.
 - Se aplica autoajuste global también al dashboard, con congelación de paneles para mejorar navegación y legibilidad completa en todas las hojas.
 - Se mejora la escaneabilidad del HTML ejecutivo sustituyendo bloques lineales por listas compactas en secciones clave de GSC.
+- Se corrige el helper `_renderizar_bloque_dashboard` para que devuelva la última fila realmente pintada también cuando el bloque no tenga líneas de detalle.
 
 ## 0.8.2 - 2026-03-24
 - Se alinea `PROMPT_IA_FALLBACK` con el contenido oficial de `Prompt/consulta_ia_prompt.txt` para evitar desvíos hacia un prompt simplificado.
