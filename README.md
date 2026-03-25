@@ -71,6 +71,7 @@ python src/main.py --testia --modelo-ia gemini-2.0-flash
 - `--pagepsi-reintentos <N>`: reintentos de PageSpeed para la ejecución.
 - `--gestor "Nombre Apellidos"`: define responsable del informe.
 - `--max-muestras-ia <N>`: limita muestras agregadas enviadas a IA.
+- `--modo <completo|resumen|quickwins|gsc|roadmap>`: selecciona el prompt modular que guiará todo el texto generado por IA (`completo` por defecto).
 - `--modo-rapido`: reduce volumen de URLs para auditoría rápida.
 - `--cache-ttl <segundos>`: TTL de caché local para IA y PageSpeed.
 - `--invalidar-cache`: elimina caché local antes de arrancar.
@@ -92,6 +93,28 @@ Comportamiento:
 - Si GSC está bien configurado, se añade capa de visibilidad y oportunidades al informe.
 - Si falla por permisos, credenciales o propiedad, se registra en `fuentes_fallidas` y la auditoría sigue.
 - Si no está configurado, el flujo se mantiene igual que antes (sin capa GSC).
+
+
+## Sistema de prompts modulares IA
+- Carpeta principal: `prompts/`.
+- Modos disponibles por CLI (`--modo`):
+  - `completo` → `prompts/informe_general.txt`
+  - `resumen` → `prompts/resumen_ejecutivo.txt`
+  - `quickwins` → `prompts/quick_wins.txt`
+  - `gsc` → `prompts/gsc_oportunidades.txt`
+  - `roadmap` → `prompts/roadmap.txt`
+- Fallback automático: si el archivo del modo no existe, se usa `informe_general.txt`.
+- Compatibilidad: si no usas `--modo`, el comportamiento sigue como antes (modo `completo`).
+- Todos los prompts deben incluir el marcador `{datos_json}` para inyectar el contexto de auditoría.
+
+Ejemplos:
+```bash
+python src/main.py --sitemap https://www.ejemplo.com/sitemap.xml --output ./salidas --usar-ia --modo completo
+python src/main.py --sitemap https://www.ejemplo.com/sitemap.xml --output ./salidas --usar-ia --modo resumen
+python src/main.py --sitemap https://www.ejemplo.com/sitemap.xml --output ./salidas --usar-ia --modo quickwins
+python src/main.py --sitemap https://www.ejemplo.com/sitemap.xml --output ./salidas --usar-ia --modo gsc
+python src/main.py --sitemap https://www.ejemplo.com/sitemap.xml --output ./salidas --usar-ia --modo roadmap
+```
 
 ## Comportamiento de PageSpeed
 - Si existe `PAGESPEED_API_KEY` y no se indica nada, analiza solo la HOME.

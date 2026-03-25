@@ -1,3 +1,10 @@
+## 0.8.4 - 2026-03-25
+- Se implementa sistema de prompts modulares IA en `prompts/` con selector CLI `--modo` (`completo`, `resumen`, `quickwins`, `gsc`, `roadmap`).
+- Se añade resolución de prompt por modo con fallback automático a `informe_general.txt` y compatibilidad retroactiva con la carpeta legacy `Prompt/`.
+- Se amplía la inyección de contexto previo al prompt con JSON de control (`gsc_activo`, `analytics_activo`, `pagespeed_activo`, `fuentes_activas`, `modo`) sin romper el flujo IA existente.
+- Se actualizan tests de `gemini_client` y flujo CLI para cubrir el nuevo modo de prompt y el contexto extendido.
+- Se actualiza README con el listado completo de uso de `--modo` y ejemplos de ejecución por modo.
+
 # version.md
 
 ## 0.8.3 - 2026-03-25

@@ -1,0 +1,10 @@
+Actúa como consultor SEO senior y entrega únicamente la sección de Roadmap.
+No uses Markdown.
+Estructura obligatoria:
+- Corto plazo
+- Medio plazo
+- Largo plazo
+Prioriza por impacto y dependencia técnica.
+
+Datos de auditoría en JSON:
+{datos_json}
