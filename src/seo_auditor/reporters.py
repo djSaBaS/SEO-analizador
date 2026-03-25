@@ -1312,8 +1312,33 @@ def _construir_bloques_narrativos(resultado: ResultadoAuditoria) -> dict[str, li
     # Construye cruces GSC + Analytics cuando ambas fuentes estén activas.
     filas_cruce_gsc_analytics = construir_cruces_gsc_analytics(resultado)
 
+    # Resuelve periodo analizado global con fallback a fuentes temporales activas.
+    periodo_desde = (
+        resultado.periodo_date_from
+        or resultado.search_console.date_from
+        or resultado.analytics.date_from
+    )
+
+    # Resuelve fin del periodo analizado con fallback a fuentes temporales activas.
+    periodo_hasta = (
+        resultado.periodo_date_to
+        or resultado.search_console.date_to
+        or resultado.analytics.date_to
+    )
+
+    # Conserva estado previo para no anular fallback de resumen.
+    resumen_tenia_contenido = bool(bloques["Resumen ejecutivo"])
+
+    # Construye línea estándar de periodo cuando exista información temporal.
+    linea_periodo = f"Periodo analizado: {periodo_desde} - {periodo_hasta}" if periodo_desde and periodo_hasta else ""
+
+    # Inserta periodo en resumen ejecutivo una única vez cuando aplique.
+    if linea_periodo and linea_periodo not in bloques["Resumen ejecutivo"]:
+        # Prioriza mostrar el periodo al inicio del resumen.
+        bloques["Resumen ejecutivo"].insert(0, linea_periodo)
+
     # Construye fallback de resumen ejecutivo cuando IA no aporta contenido.
-    if not bloques["Resumen ejecutivo"]:
+    if not resumen_tenia_contenido:
         # Añade resumen automático con datos técnicos.
         bloques["Resumen ejecutivo"].append(f"Se auditaron {resultado.total_urls} URLs con fuentes activas: {', '.join(resultado.fuentes_activas)}.")
 

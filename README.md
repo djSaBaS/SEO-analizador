@@ -29,8 +29,6 @@ Herramienta de auditoría SEO técnica y ejecutiva para agencia, con exportació
   - `GSC_ENABLED` (opcional)
   - `GSC_SITE_URL` (opcional)
   - `GSC_CREDENTIALS_FILE` (opcional)
-  - `GSC_DATE_FROM` (opcional)
-  - `GSC_DATE_TO` (opcional)
   - `GSC_ROW_LIMIT` (opcional, recomendado `250`)
 
 ## Dónde configurar las API keys
@@ -76,6 +74,13 @@ python src/main.py --testia --modelo-ia gemini-2.0-flash
 - `--cache-ttl <segundos>`: TTL de caché local para IA y PageSpeed.
 - `--invalidar-cache`: elimina caché local antes de arrancar.
 - `--noGSC`: desactiva Search Console en esa ejecución aunque esté configurado.
+- `--date-from <YYYY-MM-DD>`: fecha inicial del periodo analizado para todas las fuentes temporales.
+- `--date-to <YYYY-MM-DD>`: fecha final del periodo analizado para todas las fuentes temporales.
+
+Regla de fechas:
+- Si pasas `--date-from` y `--date-to`, se usa ese rango en GSC, GA4 y futuras fuentes temporales.
+- Si no pasas fechas, se usa por defecto **últimos 28 días** (de `ayer-27` a `ayer`, inclusivo).
+- Validación obligatoria: formato `YYYY-MM-DD` y `date_from < date_to`.
 
 ## Configuración opcional de Google Search Console
 1. Instala dependencias (`google-api-python-client` y `google-auth`).
@@ -85,8 +90,6 @@ python src/main.py --testia --modelo-ia gemini-2.0-flash
    - `GSC_ENABLED=true`
    - `GSC_SITE_URL=https://www.midominio.com/`
    - `GSC_CREDENTIALS_FILE=./credenciales/gsc-service-account.json`
-   - `GSC_DATE_FROM=2026-02-01`
-   - `GSC_DATE_TO=2026-03-01`
    - `GSC_ROW_LIMIT=250`
 
 Comportamiento:

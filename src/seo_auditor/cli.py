@@ -1,6 +1,9 @@
 # Importa argparse para construir un CLI claro y mantenible.
 import argparse
 
+# Importa utilidades de fecha para validar rangos temporales.
+from datetime import date, timedelta
+
 # Importa Path para gestionar la carpeta de salida con seguridad.
 from pathlib import Path
 
@@ -43,6 +46,66 @@ from seo_auditor.utils import es_url_http_valida, fecha_ejecucion_iso, inferir_c
 
 # Define gestor por defecto para metadatos de informe.
 GESTOR_POR_DEFECTO = "Juan Antonio Sánchez Plaza"
+
+
+# Convierte una fecha ISO textual en objeto date con validación clara.
+def _parsear_fecha_cli(valor: str, parametro: str) -> date:
+    """
+    Valida fechas CLI en formato YYYY-MM-DD devolviendo un objeto `date`.
+    """
+
+    # Intenta convertir el valor textual a fecha ISO estricta.
+    try:
+        # Devuelve fecha parseada cuando el formato sea correcto.
+        return date.fromisoformat(valor)
+
+    # Propaga error controlado cuando el formato sea inválido.
+    except ValueError as exc:
+        # Informa con contexto del parámetro inválido.
+        raise ValueError(f"{parametro} debe tener formato YYYY-MM-DD.") from exc
+
+
+# Resuelve el periodo de análisis efectivo para fuentes temporales.
+def _resolver_periodo_analisis(argumentos: argparse.Namespace) -> tuple[str, str]:
+    """
+    Determina y valida `date_from`/`date_to` para toda fuente temporal.
+    """
+
+    # Lee valores opcionales recibidos por CLI.
+    date_from_cli = (argumentos.date_from or "").strip()
+
+    # Lee fecha fin opcional recibida por CLI.
+    date_to_cli = (argumentos.date_to or "").strip()
+
+    # Exige coherencia cuando se pasa solo una de las fechas.
+    if bool(date_from_cli) ^ bool(date_to_cli):
+        # Lanza error claro para evitar rangos ambiguos.
+        raise ValueError("Debes indicar ambos parámetros: --date-from y --date-to.")
+
+    # Calcula periodo por defecto cuando no se reciban parámetros.
+    if not date_from_cli and not date_to_cli:
+        # Usa ayer para evitar datos intradía incompletos en APIs.
+        fecha_hasta = date.today() - timedelta(days=1)
+
+        # Calcula ventana inclusiva de 28 días.
+        fecha_desde = fecha_hasta - timedelta(days=27)
+
+        # Devuelve periodo efectivo serializado.
+        return fecha_desde.isoformat(), fecha_hasta.isoformat()
+
+    # Valida fecha inicial aportada por usuario.
+    fecha_desde = _parsear_fecha_cli(date_from_cli, "--date-from")
+
+    # Valida fecha final aportada por usuario.
+    fecha_hasta = _parsear_fecha_cli(date_to_cli, "--date-to")
+
+    # Exige rango temporal estricto para coherencia operativa.
+    if fecha_desde >= fecha_hasta:
+        # Lanza error con reglas del requisito funcional.
+        raise ValueError("--date-from debe ser anterior a --date-to.")
+
+    # Devuelve periodo efectivo serializado.
+    return fecha_desde.isoformat(), fecha_hasta.isoformat()
 
 
 # Carga una lista de URLs desde archivo de texto.
@@ -216,6 +279,12 @@ def crear_parser() -> argparse.ArgumentParser:
     # Añade flag para omitir explícitamente Search Console en esta ejecución.
     parser.add_argument("--noGSC", action="store_true", help="Desactiva Google Search Console para esta ejecución, aunque esté configurado.")
 
+    # Añade fecha inicial global para fuentes temporales.
+    parser.add_argument("--date-from", default="", help="Fecha inicial del análisis (YYYY-MM-DD).")
+
+    # Añade fecha final global para fuentes temporales.
+    parser.add_argument("--date-to", default="", help="Fecha final del análisis (YYYY-MM-DD).")
+
     # Devuelve el parser ya configurado.
     return parser
 
@@ -334,6 +403,28 @@ def main() -> int:
         # Devuelve error al sistema.
         return 1
 
+    # Valida y resuelve periodo efectivo global del análisis.
+    try:
+        # Obtiene fecha inicial y final para toda fuente temporal.
+        periodo_desde, periodo_hasta = _resolver_periodo_analisis(argumentos)
+    except ValueError as exc:
+        # Informa error de validación de fechas.
+        print(f"Error: {exc}")
+        # Devuelve error por parámetros inválidos.
+        return 1
+
+    # Aplica periodo global a GSC para desacoplar del .env.
+    configuracion.gsc_date_from = periodo_desde
+
+    # Aplica periodo global a GSC para desacoplar del .env.
+    configuracion.gsc_date_to = periodo_hasta
+
+    # Aplica periodo global a GA4 para desacoplar del .env.
+    configuracion.ga_date_from = periodo_desde
+
+    # Aplica periodo global a GA4 para desacoplar del .env.
+    configuracion.ga_date_to = periodo_hasta
+
     # Genera metadatos reales de ejecución.
     fecha = fecha_ejecucion_iso()
 
@@ -381,6 +472,12 @@ def main() -> int:
 
     # Ejecuta la auditoría técnica sobre todas las URLs obtenidas.
     resultado = auditar_urls(argumentos.sitemap, urls, configuracion.http_timeout, cliente, fecha, argumentos.gestor)
+
+    # Guarda periodo global en resultado para reporting y futura interfaz web.
+    resultado.periodo_date_from = periodo_desde
+
+    # Guarda periodo global en resultado para reporting y futura interfaz web.
+    resultado.periodo_date_to = periodo_hasta
 
     # Ejecuta análisis de indexación y rastreo con robots/sitemap.
     resultado.indexacion_rastreo = analizar_indexacion_rastreo(argumentos.sitemap, urls, configuracion.http_timeout)
@@ -619,6 +716,7 @@ def main() -> int:
     print(
         "Resumen: "
         f"urls={resultado.total_urls} | "
+        f"periodo={periodo_desde}..{periodo_hasta} | "
         f"incidencias={total_incidencias} | "
         f"score={score_estimado} | "
         f"mobile={round(sum(scores_mobile) / len(scores_mobile), 1) if scores_mobile else 'N/D'} | "

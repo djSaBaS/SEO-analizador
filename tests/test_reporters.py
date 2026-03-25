@@ -111,6 +111,29 @@ def test_construir_cruces_gsc_analytics_normaliza_url_vs_path() -> None:
     assert cruces[0]["sesiones"] == 120.0
 
 
+# Verifica que resumen ejecutivo incluya explícitamente el periodo analizado.
+def test_construir_bloques_narrativos_incluye_periodo_analizado() -> None:
+    """Comprueba inserción de línea de periodo en el resumen ejecutivo."""
+
+    # Construye auditoría mínima con periodo global informado.
+    auditoria = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=1,
+        resultados=[],
+        cliente="Ejemplo",
+        fecha_ejecucion="2026-03-25",
+        gestor="Gestor",
+        periodo_date_from="2026-02-25",
+        periodo_date_to="2026-03-24",
+    )
+
+    # Construye bloques narrativos finales.
+    bloques = _construir_bloques_narrativos(auditoria)
+
+    # Verifica línea explícita solicitada en resumen ejecutivo.
+    assert "Periodo analizado: 2026-02-25 - 2026-03-24" in bloques["Resumen ejecutivo"]
+
+
 # Verifica que la transformación de markdown IA cree secciones limpias.
 def test_construir_secciones_desde_ia_limpia_markdown() -> None:
     """Comprueba conversión de markdown crudo a estructura de secciones."""

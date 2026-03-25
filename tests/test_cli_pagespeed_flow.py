@@ -1,5 +1,6 @@
 # Importa utilidades de tipos para construir argumentos simulados.
 from types import SimpleNamespace
+from datetime import date, timedelta
 
 # Importa estructuras del dominio para fabricar resultados de prueba.
 from seo_auditor.models import ResultadoAuditoria, ResultadoRendimiento, ResultadoUrl
@@ -34,6 +35,8 @@ def test_main_persiste_rendimiento_y_fuente_pagespeed(monkeypatch, tmp_path) -> 
         cache_ttl=0,
         invalidar_cache=False,
         noGSC=False,
+        date_from="",
+        date_to="",
     )
 
     # Define parser simulado para evitar CLI real.
@@ -183,6 +186,8 @@ def test_main_no_marca_pagespeed_como_activa_si_falla(monkeypatch, tmp_path) -> 
         cache_ttl=0,
         invalidar_cache=False,
         noGSC=False,
+        date_from="",
+        date_to="",
     )
 
     # Define parser simulado para evitar CLI real.
@@ -333,6 +338,8 @@ def test_main_omite_gsc_si_se_usa_bandera_no_gsc(monkeypatch, tmp_path) -> None:
         cache_ttl=0,
         invalidar_cache=False,
         noGSC=True,
+        date_from="",
+        date_to="",
     )
 
     # Define parser simulado para evitar CLI real.
@@ -425,3 +432,41 @@ def test_main_omite_gsc_si_se_usa_bandera_no_gsc(monkeypatch, tmp_path) -> None:
 
     # Verifica ejecución correcta sin consulta GSC.
     assert codigo == 0
+
+
+# Verifica que el periodo por defecto sea de últimos 28 días.
+def test_resolver_periodo_analisis_por_defecto_usa_ultimos_28_dias() -> None:
+    """Comprueba que sin parámetros se use ventana inclusiva de 28 días."""
+
+    # Construye argumentos vacíos de fechas.
+    argumentos = SimpleNamespace(date_from="", date_to="")
+
+    # Ejecuta resolución del periodo por defecto.
+    fecha_desde, fecha_hasta = cli._resolver_periodo_analisis(argumentos)
+
+    # Calcula fecha fin esperada (ayer).
+    ayer = date.today() - timedelta(days=1)
+
+    # Calcula fecha inicio esperada para ventana inclusiva de 28 días.
+    inicio = ayer - timedelta(days=27)
+
+    # Verifica fechas efectivas calculadas por el resolver.
+    assert (fecha_desde, fecha_hasta) == (inicio.isoformat(), ayer.isoformat())
+
+
+# Verifica validación estricta de rango cuando fecha inicial no es menor.
+def test_resolver_periodo_analisis_falla_si_date_from_no_es_menor() -> None:
+    """Comprueba que `date_from < date_to` sea obligatorio."""
+
+    # Construye argumentos con rango inválido por igualdad.
+    argumentos = SimpleNamespace(date_from="2026-03-01", date_to="2026-03-01")
+
+    # Verifica que se lance error por rango no estricto.
+    try:
+        # Ejecuta resolución para disparar validación.
+        cli._resolver_periodo_analisis(argumentos)
+        # Fuerza fallo si no se lanza excepción esperada.
+        assert False
+    except ValueError as exc:
+        # Verifica mensaje de validación de rango.
+        assert "--date-from debe ser anterior a --date-to." in str(exc)
