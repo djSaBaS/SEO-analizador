@@ -1,6 +1,9 @@
 # Importa parser de URL para derivar robots.txt y parámetros.
 from urllib.parse import parse_qsl, urlparse
 
+# Importa expresiones regulares para matching robusto por segmentos.
+import re
+
 # Importa parser estándar de robots para evaluación precisa allow/disallow.
 from urllib.robotparser import RobotFileParser
 
@@ -246,6 +249,25 @@ def _indice_gsc_por_url(metricas_gsc: list[MetricaGscPagina] | None) -> dict[str
     return indice
 
 
+# Evalúa coincidencia por segmentos de ruta para patrones no indexables.
+def _ruta_coincide_patron_no_indexar(ruta: str, patron: str) -> bool:
+    """Comprueba si un patrón no indexable aparece en un límite de segmento."""
+
+    # Escapa patrón para utilizarlo de forma segura en regex.
+    patron_escapado = re.escape(patron.strip("/"))
+
+    # Maneja patrón raíz o vacío sin clasificar masivamente.
+    if not patron_escapado:
+        # Evita marcar todas las rutas por un patrón ambiguo.
+        return False
+
+    # Construye regex anclada a límites de segmento de ruta.
+    regex_segmento = rf"(?:^|/){patron_escapado}(?:/|$)"
+
+    # Devuelve si existe coincidencia por límite de segmento.
+    return re.search(regex_segmento, ruta) is not None
+
+
 # Evalúa señales de URL para indexación inteligente.
 def _evaluar_senales_url(url: str) -> list[str]:
     """Devuelve señales de exclusión o revisión detectadas en la URL."""
@@ -261,16 +283,8 @@ def _evaluar_senales_url(url: str) -> list[str]:
 
     # Recorre patrones directos de no indexación.
     for patron in PATRONES_NO_INDEXAR_URL:
-        # Evalúa patrón especial de paginación.
-        if patron == "/page/" and patron in ruta:
-            # Registra motivo por patrón de URL.
-            senales.append(f"Patrón de URL detectado: {patron}")
-
-            # Continúa con siguiente patrón para evitar doble conteo.
-            continue
-
-        # Evalúa patrón exacto o por prefijo de segmento.
-        if ruta == patron or ruta.startswith(f"{patron}/"):
+        # Registra señal únicamente cuando el patrón coincide por segmentos.
+        if _ruta_coincide_patron_no_indexar(ruta, patron):
             # Registra motivo por patrón de URL.
             senales.append(f"Patrón de URL detectado: {patron}")
 
