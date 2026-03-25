@@ -155,6 +155,57 @@ def test_generar_gestion_indexacion_no_marca_formacion_como_form() -> None:
 
 
 # Valida cruce GSC con normalización de URL auditada/final.
+
+
+# Valida semántica de paginación para evitar falsos positivos con /page/.
+def test_generar_gestion_indexacion_page_match_solo_paginacion_numerica() -> None:
+    """Comprueba que /page/ solo aplique cuando existe segmento numérico de paginación."""
+
+    # Crea URL con segmento page no paginado que no debe excluirse.
+    url_no_paginada = ResultadoUrl(
+        url="https://ejemplo.com/landing/page",
+        tipo="page",
+        estado_http=200,
+        redirecciona=False,
+        url_final="https://ejemplo.com/landing/page",
+        title="Landing page",
+        h1="Landing",
+        meta_description="Descripción",
+        canonical="https://ejemplo.com/landing/page",
+        noindex=False,
+        hallazgos=[],
+        palabras=550,
+        texto_extraido="Contenido útil y completo.",
+    )
+
+    # Crea URL paginada que sí debe detectarse como no indexable.
+    url_paginada = ResultadoUrl(
+        url="https://ejemplo.com/blog/page/2/",
+        tipo="page",
+        estado_http=200,
+        redirecciona=False,
+        url_final="https://ejemplo.com/blog/page/2/",
+        title="Blog página 2",
+        h1="Blog",
+        meta_description="Paginación",
+        canonical="https://ejemplo.com/blog/page/2/",
+        noindex=False,
+        hallazgos=[],
+        palabras=500,
+        texto_extraido="Listado paginado.",
+    )
+
+    # Ejecuta clasificación sobre ambos escenarios.
+    decisiones = generar_gestion_indexacion_inteligente([url_no_paginada, url_paginada])
+    indice = {item.url: item for item in decisiones}
+
+    # Verifica que el slug /page no se marque como patrón de exclusión.
+    assert indice["https://ejemplo.com/landing/page"].clasificacion == "INDEXABLE"
+
+    # Verifica que la paginación numérica sí quede marcada como NO_INDEXAR.
+    assert indice["https://ejemplo.com/blog/page/2/"].clasificacion == "NO_INDEXAR"
+
+
 def test_generar_gestion_indexacion_aplica_gsc_con_url_normalizada() -> None:
     """Comprueba lookup GSC con diferencias de slash final o URL final."""
 
