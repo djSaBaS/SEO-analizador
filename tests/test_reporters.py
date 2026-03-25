@@ -160,6 +160,55 @@ def test_construir_cruces_gsc_analytics_normaliza_home_sin_path() -> None:
     assert cruces[0]["sesiones"] == 250.0
 
 
+# Verifica que query strings no impidan el cruce por URL.
+def test_construir_cruces_gsc_analytics_ignora_query_string() -> None:
+    """Comprueba que '/producto?id=1' se normalice como '/producto'."""
+
+    # Construye auditoría con query string en Search Console.
+    auditoria = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=1,
+        resultados=[],
+        cliente="Ejemplo",
+        fecha_ejecucion="2026-03-25",
+        gestor="Gestor",
+        search_console=DatosSearchConsole(
+            activo=True,
+            paginas=[
+                MetricaGscPagina(
+                    url="https://ejemplo.com/producto?id=1",
+                    clicks=15,
+                    impresiones=900,
+                    ctr=0.0167,
+                    posicion_media=7.9,
+                )
+            ],
+        ),
+        analytics=DatosAnalytics(
+            activo=True,
+            paginas=[
+                MetricaAnalyticsPagina(
+                    url="/producto",
+                    sesiones=140,
+                    usuarios=100,
+                    rebote=0.5,
+                    duracion_media=82,
+                    conversiones=2,
+                    calidad_trafico="media",
+                )
+            ],
+        ),
+    )
+
+    # Ejecuta cruce entre fuentes por URL.
+    cruces = construir_cruces_gsc_analytics(auditoria)
+
+    # Verifica que el query string no rompa el emparejamiento.
+    assert len(cruces) == 1
+    assert cruces[0]["url"] == "https://ejemplo.com/producto?id=1"
+    assert cruces[0]["sesiones"] == 140.0
+
+
 # Verifica que la transformación de markdown IA cree secciones limpias.
 def test_construir_secciones_desde_ia_limpia_markdown() -> None:
     """Comprueba conversión de markdown crudo a estructura de secciones."""

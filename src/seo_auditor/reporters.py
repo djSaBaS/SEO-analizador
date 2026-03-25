@@ -880,13 +880,12 @@ def _clave_url_cruce(url_o_ruta: str) -> str:
     # Parsea valor para extraer componentes cuando venga URL completa.
     parseada = urlparse(valor)
 
-    # Usa raíz cuando sea URL absoluta sin path explícito.
-    if parseada.scheme and parseada.netloc:
-        # Evita claves inválidas como "/https://dominio.com" para home.
-        path = (parseada.path or "/").strip()
-    else:
-        # Conserva valor original cuando ya sea ruta relativa.
-        path = valor
+    # Usa siempre el path parseado para descartar query strings y fragmentos.
+    path = (parseada.path or "").strip()
+
+    # Normaliza a raíz cuando no haya path (home o ruta relativa con solo query).
+    if not path:
+        path = "/"
 
     # Normaliza slash inicial.
     if not path.startswith("/"):
