@@ -34,6 +34,7 @@ def _configuracion_base() -> Configuracion:
         ga_credentials_file="",
         ga_date_from="",
         ga_date_to="",
+        ga_row_limit=1000,
     )
 
 

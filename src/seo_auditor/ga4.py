@@ -14,6 +14,18 @@ from seo_auditor.config import Configuracion
 from seo_auditor.models import DatosAnalytics, MetricaAnalyticsPagina, ResumenAnalytics
 
 
+# Define umbrales de calidad alta para tráfico/engagement.
+CALIDAD_ALTA_MIN_SESIONES = 30.0
+CALIDAD_ALTA_MAX_REBOTE = 0.45
+CALIDAD_ALTA_MIN_DURACION = 90.0
+CALIDAD_ALTA_MIN_CONVERSIONES = 0.0
+
+# Define umbrales de calidad baja para tráfico/engagement.
+CALIDAD_BAJA_MAX_REBOTE = 0.7
+CALIDAD_BAJA_MIN_DURACION = 35.0
+CALIDAD_BAJA_MIN_SESIONES_SIN_CONVERSION = 20.0
+
+
 # Convierte string YYYY-MM-DD a fecha validada.
 def _parsear_fecha_iso(valor: str, etiqueta: str) -> date:
     """Valida y convierte una fecha ISO para consultas de GA4."""
@@ -56,12 +68,21 @@ def _calcular_calidad_trafico(sesiones: float, rebote: float, duracion_media: fl
     """Devuelve alta/media/baja según comportamiento de usuario y conversión."""
 
     # Clasifica como alta calidad cuando combina engagement y conversión.
-    if sesiones >= 30 and rebote <= 0.45 and duracion_media >= 90 and conversiones > 0:
+    if (
+        sesiones >= CALIDAD_ALTA_MIN_SESIONES
+        and rebote <= CALIDAD_ALTA_MAX_REBOTE
+        and duracion_media >= CALIDAD_ALTA_MIN_DURACION
+        and conversiones > CALIDAD_ALTA_MIN_CONVERSIONES
+    ):
         # Retorna etiqueta alta.
         return "alta"
 
     # Clasifica como baja calidad cuando engagement y señales son débiles.
-    if rebote >= 0.7 or duracion_media < 35 or (sesiones >= 20 and conversiones <= 0):
+    if (
+        rebote >= CALIDAD_BAJA_MAX_REBOTE
+        or duracion_media < CALIDAD_BAJA_MIN_DURACION
+        or (sesiones >= CALIDAD_BAJA_MIN_SESIONES_SIN_CONVERSION and conversiones <= 0)
+    ):
         # Retorna etiqueta baja.
         return "baja"
 
@@ -75,6 +96,7 @@ def _consultar_metricas_paginas(
     property_id: str,
     fecha_desde: str,
     fecha_hasta: str,
+    limite: int,
 ) -> list[MetricaAnalyticsPagina]:
     """Consulta sesiones, usuarios, rebote, duración y conversiones por página."""
 
@@ -94,7 +116,7 @@ def _consultar_metricas_paginas(
                 Metric(name="conversions"),
             ],
             date_ranges=[DateRange(start_date=fecha_desde, end_date=fecha_hasta)],
-            limit=1000,
+            limit=limite,
         )
     )
 
@@ -237,6 +259,7 @@ def cargar_datos_analytics(configuracion: Configuracion) -> DatosAnalytics:
             configuracion.ga_property_id,
             fecha_desde,
             fecha_hasta,
+            configuracion.ga_row_limit,
         )
 
     # Maneja errores de autenticación/permisos/propiedad de forma no bloqueante.

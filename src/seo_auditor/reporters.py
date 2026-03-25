@@ -10,6 +10,9 @@ from collections import Counter
 # Importa la clase Path para gestionar rutas de forma robusta.
 from pathlib import Path
 
+# Importa parseo de URL para normalizar cruces entre fuentes.
+from urllib.parse import urlparse
+
 # Importa escape para sanear texto potencialmente interpretado como etiquetas XML.
 from xml.sax.saxutils import escape
 
@@ -115,23 +118,45 @@ COLOR_BLOQUE_INCIDENCIAS = "B91C1C"
 COLOR_BLOQUE_OPORTUNIDADES = "7C3AED"
 COLOR_BLOQUE_SCORE = "0B7285"
 
+# Define umbrales de cruce GSC+Analytics para insights accionables.
+CRUCE_GA_MIN_SESIONES_REBOTE = 80.0
+CRUCE_GA_MIN_REBOTE_ALTO = 0.65
+CRUCE_GSC_MIN_IMPRESIONES_SIN_ENGAGEMENT = 500.0
+CRUCE_GA_MAX_SESIONES_SIN_ENGAGEMENT = 30.0
+CRUCE_GSC_MAX_POSICION_POTENCIAL = 12.0
+CRUCE_GA_MIN_SESIONES_SIN_CONVERSION = 40.0
+CRUCE_GA_MAX_CONVERSIONES = 0.0
+
+# Define umbrales para quick wins basados en Analytics.
+QUICK_WIN_GA_MIN_SESIONES_REBOTE = 100.0
+QUICK_WIN_GA_MIN_REBOTE = 0.65
+QUICK_WIN_GA_MIN_SESIONES_CONVERSION = 80.0
+QUICK_WIN_GA_MAX_CONVERSIONES = 0.0
+QUICK_WINS_BLOQUE_MAXIMO = 10
+
+# Define límites de muestras narrativas para bloques Analytics.
+ANALYTICS_TOP_TRAFICO_LIMITE = 5
+ANALYTICS_PEORES_REBOTE_LIMITE = 3
+ANALYTICS_MEJORES_ENGAGEMENT_LIMITE = 3
+ANALYTICS_CRUCES_LIMITE = 5
+
 
 # Devuelve jerarquía visible según fuentes activas de la ejecución.
 def construir_jerarquia_visible(resultado: ResultadoAuditoria) -> list[str]:
     """Filtra secciones GSC cuando la fuente no está activa."""
 
-    # Devuelve jerarquía completa cuando GSC esté activo.
-    if resultado.search_console.activo:
-        # Retorna secciones completas para informe enriquecido.
-        return JERARQUIA_INFORME
+    # Parte de jerarquía base completa del informe.
+    jerarquia = list(JERARQUIA_INFORME)
 
-    # Retorna jerarquía sin secciones dependientes de GSC.
-    jerarquia = [seccion for seccion in JERARQUIA_INFORME if seccion not in SECCIONES_GSC]
+    # Filtra secciones dependientes de GSC cuando no esté activo.
+    if not resultado.search_console.activo:
+        # Mantiene solo secciones no dependientes de GSC.
+        jerarquia = [seccion for seccion in jerarquia if seccion not in SECCIONES_GSC]
 
     # Oculta sección de Analytics cuando la fuente no esté activa.
     if not resultado.analytics.activo:
-        # Devuelve jerarquía filtrada para ejecuciones sin GA4.
-        return [seccion for seccion in jerarquia if seccion != "Comportamiento de usuario (Analytics)"]
+        # Mantiene solo secciones no dependientes de GA4.
+        jerarquia = [seccion for seccion in jerarquia if seccion != "Comportamiento de usuario (Analytics)"]
 
     # Devuelve jerarquía visible final.
     return jerarquia
@@ -842,6 +867,34 @@ def construir_filas_analytics_paginas(resultado: ResultadoAuditoria) -> list[dic
     return filas
 
 
+# Normaliza una URL o ruta para cruce entre GSC (URL completa) y GA4 (pagePath).
+def _clave_url_cruce(url_o_ruta: str) -> str:
+    """Genera una clave comparable común entre distintas fuentes de datos."""
+
+    # Limpia espacios y corta cuando no exista valor.
+    valor = str(url_o_ruta or "").strip()
+    if not valor:
+        # Devuelve cadena vacía para descartar filas inválidas.
+        return ""
+
+    # Parsea valor para extraer componentes cuando venga URL completa.
+    parseada = urlparse(valor)
+
+    # Usa path de URL completa o valor original cuando ya sea ruta.
+    path = (parseada.path or valor).strip()
+
+    # Normaliza slash inicial.
+    if not path.startswith("/"):
+        path = f"/{path}"
+
+    # Elimina slash final no raíz para evitar falsos negativos.
+    if path != "/" and path.endswith("/"):
+        path = path.rstrip("/")
+
+    # Devuelve clave comparable en minúsculas.
+    return path.lower()
+
+
 # Construye señales de cruce entre Search Console y Analytics por URL.
 def construir_cruces_gsc_analytics(resultado: ResultadoAuditoria) -> list[dict]:
     """Relaciona visibilidad y comportamiento para detectar oportunidades reales."""
@@ -852,10 +905,10 @@ def construir_cruces_gsc_analytics(resultado: ResultadoAuditoria) -> list[dict]:
         return []
 
     # Construye índice de Search Console por URL.
-    gsc_por_url = {str(item.url).strip(): item for item in resultado.search_console.paginas if str(item.url).strip()}
+    gsc_por_url = {_clave_url_cruce(item.url): item for item in resultado.search_console.paginas if _clave_url_cruce(item.url)}
 
     # Construye índice de Analytics por URL.
-    analytics_por_url = {str(item.url).strip(): item for item in resultado.analytics.paginas if str(item.url).strip()}
+    analytics_por_url = {_clave_url_cruce(item.url): item for item in resultado.analytics.paginas if _clave_url_cruce(item.url)}
 
     # Calcula conjunto común de URLs disponibles en ambas fuentes.
     urls_cruzables = sorted(set(gsc_por_url.keys()) & set(analytics_por_url.keys()))
@@ -875,24 +928,28 @@ def construir_cruces_gsc_analytics(resultado: ResultadoAuditoria) -> list[dict]:
         insights: list[str] = []
 
         # Detecta tráfico activo con mala experiencia de usuario.
-        if metrica_analytics.sesiones >= 80 and metrica_analytics.rebote >= 0.65:
+        if metrica_analytics.sesiones >= CRUCE_GA_MIN_SESIONES_REBOTE and metrica_analytics.rebote >= CRUCE_GA_MIN_REBOTE_ALTO:
             # Inserta insight de UX degradada.
             insights.append("Tráfico alto con mala experiencia (rebote elevado).")
 
         # Detecta visibilidad orgánica sin engagement equivalente.
-        if metrica_gsc.impresiones >= 500 and metrica_analytics.sesiones <= 30:
+        if metrica_gsc.impresiones >= CRUCE_GSC_MIN_IMPRESIONES_SIN_ENGAGEMENT and metrica_analytics.sesiones <= CRUCE_GA_MAX_SESIONES_SIN_ENGAGEMENT:
             # Inserta insight de baja captación/enganche.
             insights.append("Alta visibilidad sin engagement suficiente.")
 
         # Detecta potencial orgánico sin conversión.
-        if metrica_gsc.posicion_media <= 12 and metrica_analytics.sesiones >= 40 and metrica_analytics.conversiones <= 0:
+        if (
+            metrica_gsc.posicion_media <= CRUCE_GSC_MAX_POSICION_POTENCIAL
+            and metrica_analytics.sesiones >= CRUCE_GA_MIN_SESIONES_SIN_CONVERSION
+            and metrica_analytics.conversiones <= CRUCE_GA_MAX_CONVERSIONES
+        ):
             # Inserta insight de bajo rendimiento de conversión.
             insights.append("Potencial SEO sin conversión (revisar intención/CTA).")
 
         # Añade fila de cruce con métricas comparables.
         cruces.append(
             {
-                "url": url,
+                "url": metrica_gsc.url or metrica_analytics.url or url,
                 "impresiones": round(metrica_gsc.impresiones, 2),
                 "sesiones": round(metrica_analytics.sesiones, 2),
                 "ctr": round(metrica_gsc.ctr, 4),
@@ -1062,49 +1119,6 @@ def _calcular_metricas_gsc(filas_gsc_paginas: list[dict]) -> dict[str, float]:
     }
 
 
-# Calcula métricas agregadas de Analytics para reutilización transversal.
-def _calcular_metricas_analytics(filas_analytics_paginas: list[dict]) -> dict[str, float]:
-    """Devuelve sesiones, usuarios, rebote, duración y conversiones desde filas Analytics."""
-
-    # Calcula sesiones totales agregadas de Analytics.
-    sesiones_totales = round(sum(float(fila.get("sesiones", 0.0)) for fila in filas_analytics_paginas), 2)
-
-    # Calcula usuarios totales agregados de Analytics.
-    usuarios_totales = round(sum(float(fila.get("usuarios", 0.0)) for fila in filas_analytics_paginas), 2)
-
-    # Calcula conversiones totales agregadas de Analytics.
-    conversiones_totales = round(sum(float(fila.get("conversiones", 0.0)) for fila in filas_analytics_paginas), 2)
-
-    # Calcula rebote medio ponderado por sesiones.
-    rebote_medio = (
-        round(
-            sum(float(fila.get("rebote", 0.0)) * float(fila.get("sesiones", 0.0)) for fila in filas_analytics_paginas) / sesiones_totales,
-            4,
-        )
-        if sesiones_totales > 0
-        else 0.0
-    )
-
-    # Calcula duración media ponderada por sesiones.
-    duracion_media = (
-        round(
-            sum(float(fila.get("duracion", 0.0)) * float(fila.get("sesiones", 0.0)) for fila in filas_analytics_paginas) / sesiones_totales,
-            2,
-        )
-        if sesiones_totales > 0
-        else 0.0
-    )
-
-    # Devuelve conjunto de métricas agregadas de Analytics.
-    return {
-        "sesiones_totales": sesiones_totales,
-        "usuarios_totales": usuarios_totales,
-        "rebote_medio": rebote_medio,
-        "duracion_media": duracion_media,
-        "conversiones": conversiones_totales,
-    }
-
-
 # Garantiza que la carpeta de salida exista antes de escribir archivos.
 def asegurar_directorio(path_salida: Path) -> None:
     """Crea la carpeta de salida si no existe."""
@@ -1171,17 +1185,24 @@ def calcular_metricas(resultado: ResultadoAuditoria) -> dict[str, int | float | 
     # Construye filas GSC por página para métricas agregadas.
     filas_gsc_paginas = construir_filas_search_console_paginas(resultado)
 
-    # Construye filas Analytics por página para métricas agregadas.
-    filas_analytics_paginas = construir_filas_analytics_paginas(resultado)
-
     # Construye filas de gestión de indexación para KPIs.
     filas_gestion_indexacion = construir_filas_gestion_indexacion(resultado)
 
     # Calcula métricas agregadas de Search Console.
     metricas_gsc = _calcular_metricas_gsc(filas_gsc_paginas)
 
-    # Calcula métricas agregadas de Analytics.
-    metricas_analytics = _calcular_metricas_analytics(filas_analytics_paginas)
+    # Obtiene métricas agregadas de Analytics desde resumen ya calculado en la carga.
+    metricas_analytics = (
+        {
+            "sesiones_totales": float(resultado.analytics.resumen.sesiones_totales),
+            "usuarios_totales": float(resultado.analytics.resumen.usuarios_totales),
+            "rebote_medio": float(resultado.analytics.resumen.rebote_medio),
+            "duracion_media": float(resultado.analytics.resumen.duracion_media),
+            "conversiones": float(resultado.analytics.resumen.conversiones),
+        }
+        if resultado.analytics.activo
+        else {"sesiones_totales": 0.0, "usuarios_totales": 0.0, "rebote_medio": 0.0, "duracion_media": 0.0, "conversiones": 0.0}
+    )
 
     # Calcula incidencias agrupadas para capa ejecutiva.
     incidencias_agrupadas = _calcular_incidencias_agrupadas(filas)
@@ -1400,15 +1421,21 @@ def _construir_bloques_narrativos(resultado: ResultadoAuditoria) -> dict[str, li
         # Añade quick wins basados en señales de Analytics.
         for fila in sorted(filas_analytics_paginas, key=lambda item: float(item.get("sesiones", 0.0)), reverse=True):
             # Detecta páginas con tráfico alto y mala experiencia.
-            if float(fila.get("sesiones", 0.0)) >= 100 and float(fila.get("rebote", 0.0)) >= 0.65:
+            if (
+                float(fila.get("sesiones", 0.0)) >= QUICK_WIN_GA_MIN_SESIONES_REBOTE
+                and float(fila.get("rebote", 0.0)) >= QUICK_WIN_GA_MIN_REBOTE
+            ):
                 bloques["Quick wins"].append(f"[Analytics] Mejorar UX en {fila.get('url', '')} por rebote elevado.")
 
             # Detecta páginas con tráfico sin conversión.
-            if float(fila.get("sesiones", 0.0)) >= 80 and float(fila.get("conversiones", 0.0)) <= 0.0:
+            if (
+                float(fila.get("sesiones", 0.0)) >= QUICK_WIN_GA_MIN_SESIONES_CONVERSION
+                and float(fila.get("conversiones", 0.0)) <= QUICK_WIN_GA_MAX_CONVERSIONES
+            ):
                 bloques["Quick wins"].append(f"[Analytics] Optimizar contenido/CTA en {fila.get('url', '')} por ausencia de conversiones.")
 
             # Limita tamaño final de quick wins para mantener legibilidad.
-            if len(bloques["Quick wins"]) >= 10:
+            if len(bloques["Quick wins"]) >= QUICK_WINS_BLOQUE_MAXIMO:
                 break
 
     # Construye fallback de acciones técnicas cuando no haya bloque IA.
@@ -1471,13 +1498,13 @@ def _construir_bloques_narrativos(resultado: ResultadoAuditoria) -> dict[str, li
         )
 
         # Añade páginas con más tráfico.
-        for fila in sorted(filas_analytics_paginas, key=lambda item: float(item.get("sesiones", 0.0)), reverse=True)[:5]:
+        for fila in sorted(filas_analytics_paginas, key=lambda item: float(item.get("sesiones", 0.0)), reverse=True)[:ANALYTICS_TOP_TRAFICO_LIMITE]:
             bloques["Comportamiento de usuario (Analytics)"].append(
                 f"Top tráfico: {fila.get('url', '')} | sesiones={fila.get('sesiones', 0)} | rebote={fila.get('rebote', 0)}."
             )
 
         # Añade páginas con peor rebote.
-        for fila in sorted(filas_analytics_paginas, key=lambda item: float(item.get("rebote", 0.0)), reverse=True)[:3]:
+        for fila in sorted(filas_analytics_paginas, key=lambda item: float(item.get("rebote", 0.0)), reverse=True)[:ANALYTICS_PEORES_REBOTE_LIMITE]:
             bloques["Comportamiento de usuario (Analytics)"].append(
                 f"Peor rebote: {fila.get('url', '')} | rebote={fila.get('rebote', 0)} | sesiones={fila.get('sesiones', 0)}."
             )
@@ -1487,14 +1514,14 @@ def _construir_bloques_narrativos(resultado: ResultadoAuditoria) -> dict[str, li
             filas_analytics_paginas,
             key=lambda item: (float(item.get("duracion", 0.0)), -float(item.get("rebote", 1.0))),
             reverse=True,
-        )[:3]
+        )[:ANALYTICS_MEJORES_ENGAGEMENT_LIMITE]
         for fila in mejores_engagement:
             bloques["Comportamiento de usuario (Analytics)"].append(
                 f"Mejor engagement: {fila.get('url', '')} | duración={fila.get('duracion', 0)}s | rebote={fila.get('rebote', 0)}."
             )
 
         # Añade insights derivados del cruce GSC + Analytics.
-        for fila in filas_cruce_gsc_analytics[:5]:
+        for fila in filas_cruce_gsc_analytics[:ANALYTICS_CRUCES_LIMITE]:
             for insight in fila.get("insights", []):
                 bloques["Comportamiento de usuario (Analytics)"].append(f"{fila.get('url', '')}: {insight}")
 

@@ -2,7 +2,7 @@
 from pathlib import Path
 
 # Importa modelos del dominio para fabricar una auditoría mínima de prueba.
-from seo_auditor.models import DecisionIndexacion, HallazgoSeo, OportunidadRendimiento, ResultadoAuditoria, ResultadoRendimiento, ResultadoUrl
+from seo_auditor.models import DatosAnalytics, DatosSearchConsole, DecisionIndexacion, HallazgoSeo, MetricaAnalyticsPagina, MetricaGscPagina, OportunidadRendimiento, ResultadoAuditoria, ResultadoRendimiento, ResultadoUrl
 
 # Importa funciones de reporters bajo prueba.
 from seo_auditor.reporters import (
@@ -10,6 +10,7 @@ from seo_auditor.reporters import (
     _construir_bloques_narrativos,
     _construir_quick_wins,
     calcular_metricas,
+    construir_cruces_gsc_analytics,
     construir_jerarquia_visible,
     construir_secciones_desde_ia,
     exportar_excel,
@@ -36,6 +37,78 @@ def test_sanear_texto_para_pdf_escapa_marcado_html() -> None:
 
     # Verifica que también se haya escapado el cierre de negrita.
     assert "&lt;b&gt;negrita&lt;/b&gt;" in saneado
+
+
+# Verifica que jerarquía oculte Analytics aunque GSC esté activo.
+def test_construir_jerarquia_visible_oculta_analytics_si_esta_inactivo() -> None:
+    """Comprueba que la sección Analytics no aparezca cuando GA4 no está activo."""
+
+    # Construye auditoría con GSC activo y Analytics inactivo.
+    auditoria = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=1,
+        resultados=[],
+        cliente="Ejemplo",
+        fecha_ejecucion="2026-03-25",
+        gestor="Gestor",
+        search_console=DatosSearchConsole(activo=True),
+        analytics=DatosAnalytics(activo=False),
+    )
+
+    # Calcula jerarquía visible.
+    jerarquia = construir_jerarquia_visible(auditoria)
+
+    # Verifica que la sección de Analytics no esté visible.
+    assert "Comportamiento de usuario (Analytics)" not in jerarquia
+
+
+# Verifica cruce GSC+Analytics normalizando URL completa vs pagePath.
+def test_construir_cruces_gsc_analytics_normaliza_url_vs_path() -> None:
+    """Comprueba que el cruce detecte la misma página con formatos distintos."""
+
+    # Construye auditoría con ambas fuentes activas.
+    auditoria = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=1,
+        resultados=[],
+        cliente="Ejemplo",
+        fecha_ejecucion="2026-03-25",
+        gestor="Gestor",
+        search_console=DatosSearchConsole(
+            activo=True,
+            paginas=[
+                MetricaGscPagina(
+                    url="https://ejemplo.com/producto/",
+                    clicks=10,
+                    impresiones=800,
+                    ctr=0.0125,
+                    posicion_media=8.1,
+                )
+            ],
+        ),
+        analytics=DatosAnalytics(
+            activo=True,
+            paginas=[
+                MetricaAnalyticsPagina(
+                    url="/producto",
+                    sesiones=120,
+                    usuarios=95,
+                    rebote=0.72,
+                    duracion_media=38,
+                    conversiones=0,
+                    calidad_trafico="baja",
+                )
+            ],
+        ),
+    )
+
+    # Ejecuta cruce entre fuentes por URL.
+    cruces = construir_cruces_gsc_analytics(auditoria)
+
+    # Verifica que se haya cruzado la fila correctamente.
+    assert len(cruces) == 1
+    assert cruces[0]["url"] == "https://ejemplo.com/producto/"
+    assert cruces[0]["sesiones"] == 120.0
 
 
 # Verifica que la transformación de markdown IA cree secciones limpias.

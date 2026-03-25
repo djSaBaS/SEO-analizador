@@ -118,6 +118,7 @@ def test_main_persiste_rendimiento_y_fuente_pagespeed(monkeypatch, tmp_path) -> 
             ga_credentials_file="",
             ga_date_from="",
             ga_date_to="",
+            ga_row_limit=1000,
         ),
     )
 
@@ -266,6 +267,7 @@ def test_main_no_marca_pagespeed_como_activa_si_falla(monkeypatch, tmp_path) -> 
             ga_credentials_file="",
             ga_date_from="",
             ga_date_to="",
+            ga_row_limit=1000,
         ),
     )
 
@@ -391,6 +393,7 @@ def test_main_omite_gsc_si_se_usa_bandera_no_gsc(monkeypatch, tmp_path) -> None:
             ga_credentials_file="",
             ga_date_from="",
             ga_date_to="",
+            ga_row_limit=1000,
         ),
     )
 

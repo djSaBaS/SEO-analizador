@@ -87,6 +87,9 @@ class Configuracion:
     # Guarda fecha final del rango GA4.
     ga_date_to: str
 
+    # Guarda el máximo de filas por consulta GA4.
+    ga_row_limit: int
+
 
 # Carga y valida la configuración desde entorno.
 def cargar_configuracion() -> Configuracion:
@@ -114,6 +117,9 @@ def cargar_configuracion() -> Configuracion:
 
     # Lee límite de filas de Search Console o aplica valor operativo.
     gsc_row_limit_texto = os.getenv("GSC_ROW_LIMIT", "250")
+
+    # Lee límite de filas de GA4 o aplica valor operativo.
+    ga_row_limit_texto = os.getenv("GA_ROW_LIMIT", "1000")
 
     # Valida que el timeout sea un entero positivo razonable.
     if not timeout_texto.isdigit() or int(timeout_texto) <= 0:
@@ -149,6 +155,11 @@ def cargar_configuracion() -> Configuracion:
     if not gsc_row_limit_texto.isdigit() or int(gsc_row_limit_texto) <= 0:
         # Corta la ejecución con mensaje claro y accionable.
         raise ValueError("GSC_ROW_LIMIT debe ser un entero positivo.")
+
+    # Valida que el límite de filas GA4 sea entero positivo.
+    if not ga_row_limit_texto.isdigit() or int(ga_row_limit_texto) <= 0:
+        # Corta la ejecución con mensaje claro y accionable.
+        raise ValueError("GA_ROW_LIMIT debe ser un entero positivo.")
 
     # Devuelve la configuración consolidada del proyecto.
     return Configuracion(
@@ -192,4 +203,6 @@ def cargar_configuracion() -> Configuracion:
         ga_date_from=os.getenv("GA_DATE_FROM", "").strip(),
         # Carga fecha final de GA4.
         ga_date_to=os.getenv("GA_DATE_TO", "").strip(),
+        # Convierte límite de filas de GA4 a entero.
+        ga_row_limit=int(ga_row_limit_texto),
     )
