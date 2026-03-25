@@ -2,7 +2,18 @@
 from pathlib import Path
 
 # Importa modelos del dominio para fabricar una auditoría mínima de prueba.
-from seo_auditor.models import DatosAnalytics, DatosSearchConsole, DecisionIndexacion, HallazgoSeo, MetricaAnalyticsPagina, MetricaGscPagina, OportunidadRendimiento, ResultadoAuditoria, ResultadoRendimiento, ResultadoUrl
+from seo_auditor.models import (
+    DatosAnalytics, 
+    DatosSearchConsole, 
+    DecisionIndexacion, 
+    HallazgoSeo, 
+    MetricaAnalyticsPagina, 
+    MetricaGscPagina, 
+    OportunidadRendimiento, 
+    ResultadoAuditoria, 
+    ResultadoRendimiento, 
+    ResultadoUrl
+)
 
 # Importa funciones de reporters bajo prueba.
 from seo_auditor.reporters import (
@@ -111,11 +122,11 @@ def test_construir_cruces_gsc_analytics_normaliza_url_vs_path() -> None:
     assert cruces[0]["sesiones"] == 120.0
 
 
-# Verifica que la home se cruce aunque GSC reporte URL sin slash final.
-def test_construir_cruces_gsc_analytics_normaliza_home_sin_path() -> None:
-    """Comprueba que https://dominio.com cruce contra pagePath '/'."""
+# Verifica cruce con URL codificada, querystring y mayúsculas.
+def test_construir_cruces_gsc_analytics_normaliza_componentes_url() -> None:
+    """Comprueba que el cruce ignore query/hash y decodifique rutas equivalentes."""
 
-    # Construye auditoría con home reportada en formatos distintos.
+    # Construye auditoría con formatos complejos para forzar normalización.
     auditoria = ResultadoAuditoria(
         sitemap="https://ejemplo.com/sitemap.xml",
         total_urls=1,
@@ -127,11 +138,11 @@ def test_construir_cruces_gsc_analytics_normaliza_home_sin_path() -> None:
             activo=True,
             paginas=[
                 MetricaGscPagina(
-                    url="https://ejemplo.com",
-                    clicks=8,
-                    impresiones=500,
+                    url="https://ejemplo.com/Producto%20A/?utm_source=gsc#top",
+                    clicks=4,
+                    impresiones=250,
                     ctr=0.016,
-                    posicion_media=5.4,
+                    posicion_media=9.0,
                 )
             ],
         ),
@@ -139,13 +150,13 @@ def test_construir_cruces_gsc_analytics_normaliza_home_sin_path() -> None:
             activo=True,
             paginas=[
                 MetricaAnalyticsPagina(
-                    url="/",
-                    sesiones=250,
-                    usuarios=180,
-                    rebote=0.4,
-                    duracion_media=95,
-                    conversiones=4,
-                    calidad_trafico="alta",
+                    url="/producto a",
+                    sesiones=60,
+                    usuarios=48,
+                    rebote=0.45,
+                    duracion_media=85,
+                    conversiones=2,
+                    calidad_trafico="media",
                 )
             ],
         ),
@@ -154,17 +165,16 @@ def test_construir_cruces_gsc_analytics_normaliza_home_sin_path() -> None:
     # Ejecuta cruce entre fuentes por URL.
     cruces = construir_cruces_gsc_analytics(auditoria)
 
-    # Verifica que la home también sea cruzable.
+    # Verifica que la URL se haya cruzado pese a diferencias de formato (espacios, querys, hashes).
     assert len(cruces) == 1
-    assert cruces[0]["url"] == "https://ejemplo.com"
-    assert cruces[0]["sesiones"] == 250.0
+    assert cruces[0]["url"] == "https://ejemplo.com/Producto%20A/?utm_source=gsc#top"
+    assert cruces[0]["sesiones"] == 60.0
 
 
 # Verifica que query strings no impidan el cruce por URL.
 def test_construir_cruces_gsc_analytics_ignora_query_string() -> None:
     """Comprueba que '/producto?id=1' se normalice como '/producto'."""
 
-    # Construye auditoría con query string en Search Console.
     auditoria = ResultadoAuditoria(
         sitemap="https://ejemplo.com/sitemap.xml",
         total_urls=1,
@@ -200,10 +210,8 @@ def test_construir_cruces_gsc_analytics_ignora_query_string() -> None:
         ),
     )
 
-    # Ejecuta cruce entre fuentes por URL.
     cruces = construir_cruces_gsc_analytics(auditoria)
 
-    # Verifica que el query string no rompa el emparejamiento.
     assert len(cruces) == 1
     assert cruces[0]["url"] == "https://ejemplo.com/producto?id=1"
     assert cruces[0]["sesiones"] == 140.0

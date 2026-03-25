@@ -867,6 +867,24 @@ def construir_filas_analytics_paginas(resultado: ResultadoAuditoria) -> list[dic
     return filas
 
 
+# Decodifica solo percent-encoding de caracteres no reservados RFC3986.
+def _decodificar_percent_unreserved(path: str) -> str:
+    """Decodifica escapes seguros y preserva delimitadores reservados como %2F."""
+
+    # Define delimitadores reservados que no deben alterarse en la ruta.
+    reservados = ":/?#[]@!$&'()*+,;="
+
+    # Reemplaza cada token %XX cuando sea carácter unreserved.
+    def reemplazo(match: re.Match[str]) -> str:
+        # Convierte valor hexadecimal a carácter candidato.
+        caracter = chr(int(match.group(1), 16))
+        # Decodifica solo si no representa delimitador reservado.
+        return caracter if caracter not in reservados else match.group(0).upper()
+
+    # Aplica reemplazo sobre toda la ruta.
+    return re.sub(r"%([0-9A-Fa-f]{2})", reemplazo, path)
+
+
 # Normaliza una URL o ruta para cruce entre GSC (URL completa) y GA4 (pagePath).
 def _clave_url_cruce(url_o_ruta: str) -> str:
     """Genera una clave comparable común entre distintas fuentes de datos."""
@@ -887,9 +905,18 @@ def _clave_url_cruce(url_o_ruta: str) -> str:
     if not path:
         path = "/"
 
+    # Elimina query/hash residuales cuando el valor original sea ruta relativa.
+    path = path.split("?", 1)[0].split("#", 1)[0]
+
+    # Decodifica solo escapes seguros para no mezclar rutas distintas.
+    path = _decodificar_percent_unreserved(path)
+
     # Normaliza slash inicial.
     if not path.startswith("/"):
         path = f"/{path}"
+
+    # Colapsa múltiples slashes consecutivos para evitar claves divergentes.
+    path = re.sub(r"/{2,}", "/", path)
 
     # Elimina slash final no raíz para evitar falsos negativos.
     if path != "/" and path.endswith("/"):
