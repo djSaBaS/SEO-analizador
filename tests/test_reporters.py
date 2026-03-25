@@ -111,6 +111,55 @@ def test_construir_cruces_gsc_analytics_normaliza_url_vs_path() -> None:
     assert cruces[0]["sesiones"] == 120.0
 
 
+# Verifica cruce con URL codificada, querystring y mayúsculas.
+def test_construir_cruces_gsc_analytics_normaliza_componentes_url() -> None:
+    """Comprueba que el cruce ignore query/hash y decodifique rutas equivalentes."""
+
+    # Construye auditoría con ambas fuentes activas y formatos distintos de URL.
+    auditoria = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=1,
+        resultados=[],
+        cliente="Ejemplo",
+        fecha_ejecucion="2026-03-25",
+        gestor="Gestor",
+        search_console=DatosSearchConsole(
+            activo=True,
+            paginas=[
+                MetricaGscPagina(
+                    url="https://ejemplo.com/Producto%20A/?utm_source=gsc#top",
+                    clicks=4,
+                    impresiones=250,
+                    ctr=0.016,
+                    posicion_media=9.0,
+                )
+            ],
+        ),
+        analytics=DatosAnalytics(
+            activo=True,
+            paginas=[
+                MetricaAnalyticsPagina(
+                    url="/producto a",
+                    sesiones=60,
+                    usuarios=48,
+                    rebote=0.45,
+                    duracion_media=85,
+                    conversiones=2,
+                    calidad_trafico="media",
+                )
+            ],
+        ),
+    )
+
+    # Ejecuta cruce entre fuentes por URL.
+    cruces = construir_cruces_gsc_analytics(auditoria)
+
+    # Verifica que la URL se haya cruzado pese a diferencias de formato.
+    assert len(cruces) == 1
+    assert cruces[0]["url"] == "https://ejemplo.com/Producto%20A/?utm_source=gsc#top"
+    assert cruces[0]["sesiones"] == 60.0
+
+
 # Verifica que la transformación de markdown IA cree secciones limpias.
 def test_construir_secciones_desde_ia_limpia_markdown() -> None:
     """Comprueba conversión de markdown crudo a estructura de secciones."""

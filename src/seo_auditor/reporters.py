@@ -10,8 +10,8 @@ from collections import Counter
 # Importa la clase Path para gestionar rutas de forma robusta.
 from pathlib import Path
 
-# Importa parseo de URL para normalizar cruces entre fuentes.
-from urllib.parse import urlparse
+# Importa parseo y decodificación de URL para normalizar cruces entre fuentes.
+from urllib.parse import unquote, urlparse
 
 # Importa escape para sanear texto potencialmente interpretado como etiquetas XML.
 from xml.sax.saxutils import escape
@@ -883,9 +883,21 @@ def _clave_url_cruce(url_o_ruta: str) -> str:
     # Usa path de URL completa o valor original cuando ya sea ruta.
     path = (parseada.path or valor).strip()
 
+    # Elimina query/hash residuales cuando el valor original sea ruta relativa.
+    if "?" in path:
+        path = path.split("?", 1)[0]
+    if "#" in path:
+        path = path.split("#", 1)[0]
+
+    # Decodifica caracteres escapados para equiparar rutas equivalentes.
+    path = unquote(path)
+
     # Normaliza slash inicial.
     if not path.startswith("/"):
         path = f"/{path}"
+
+    # Colapsa múltiples slashes consecutivos para evitar claves divergentes.
+    path = re.sub(r"/{2,}", "/", path)
 
     # Elimina slash final no raíz para evitar falsos negativos.
     if path != "/" and path.endswith("/"):
