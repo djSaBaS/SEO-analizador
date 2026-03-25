@@ -112,6 +112,7 @@ COLOR_BLOQUE_VISIBILIDAD = "1D4ED8"
 COLOR_BLOQUE_INDEXACION = "0F766E"
 COLOR_BLOQUE_INCIDENCIAS = "B91C1C"
 COLOR_BLOQUE_OPORTUNIDADES = "7C3AED"
+COLOR_BLOQUE_SCORE = "0B7285"
 
 
 # Devuelve jerarquía visible según fuentes activas de la ejecución.
@@ -251,6 +252,52 @@ def _autoajustar_hoja(hoja, columnas_wrap: set[str] | None = None, min_width: in
 
         # Ajusta altura de fila con límite razonable.
         hoja.row_dimensions[indice_fila].height = min(120, max(20, 16 * lineas_maximas))
+
+
+# Renderiza un bloque ejecutivo con cabecera y filas de texto legibles.
+def _renderizar_bloque_dashboard(hoja, celda_inicio: str, titulo: str, lineas: list[str], color_bloque: str, columnas_ancho: int = 6) -> int:
+    """Pinta un bloque del dashboard con jerarquía visual y alto dinámico."""
+
+    # Obtiene columna y fila inicial para posicionar el bloque.
+    columna_inicio = hoja[celda_inicio].column
+    fila_inicio = hoja[celda_inicio].row
+
+    # Calcula la última columna del bloque según ancho deseado.
+    columna_fin = columna_inicio + max(1, columnas_ancho) - 1
+
+    # Convierte índices de columna a letras de Excel.
+    letra_inicio = get_column_letter(columna_inicio)
+    letra_fin = get_column_letter(columna_fin)
+
+    # Fusiona fila de cabecera para el título del bloque.
+    hoja.merge_cells(f"{letra_inicio}{fila_inicio}:{letra_fin}{fila_inicio}")
+
+    # Escribe el título del bloque en su cabecera.
+    hoja[f"{letra_inicio}{fila_inicio}"] = titulo
+
+    # Estiliza cabecera con color sólido y texto blanco.
+    hoja[f"{letra_inicio}{fila_inicio}"].font = Font(size=12, bold=True, color="FFFFFF")
+    hoja[f"{letra_inicio}{fila_inicio}"].alignment = Alignment(horizontal="left", vertical="center")
+    hoja[f"{letra_inicio}{fila_inicio}"].fill = PatternFill(fill_type="solid", fgColor=color_bloque)
+
+    # Recorre líneas de contenido para mostrarlas bajo la cabecera.
+    for desplazamiento, linea in enumerate(lineas, start=1):
+        # Calcula la fila de destino para la línea actual.
+        fila_actual = fila_inicio + desplazamiento
+
+        # Fusiona celdas horizontales para una lectura cómoda.
+        hoja.merge_cells(f"{letra_inicio}{fila_actual}:{letra_fin}{fila_actual}")
+
+        # Escribe línea de contenido del bloque.
+        hoja[f"{letra_inicio}{fila_actual}"] = linea
+
+        # Estiliza línea con fondo suave y texto legible.
+        hoja[f"{letra_inicio}{fila_actual}"].font = Font(size=10, color="1F2937")
+        hoja[f"{letra_inicio}{fila_actual}"].alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
+        hoja[f"{letra_inicio}{fila_actual}"].fill = PatternFill(fill_type="solid", fgColor="F8FAFC")
+
+    # Devuelve la fila final pintada para facilitar composición.
+    return fila_inicio + len(lineas)
 
 
 # Construye quick wins agrupados por URL para capa ejecutiva clara.
@@ -1889,25 +1936,11 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
         hoja_dashboard[f"A{indice}"].font = Font(bold=True, color=COLOR_DASHBOARD_TITULO)
         hoja_dashboard[f"B{indice}"].fill = PatternFill(fill_type="solid", fgColor=COLOR_KPI_VALOR_FONDO)
 
-    # Inserta bloques visuales de secciones ejecutivas.
-    hoja_dashboard["D9"] = "Visibilidad orgánica real"
-    hoja_dashboard["D9"].font = Font(size=12, bold=True, color="FFFFFF")
-    hoja_dashboard["D9"].fill = PatternFill(fill_type="solid", fgColor=COLOR_BLOQUE_VISIBILIDAD)
-    hoja_dashboard["D10"] = f"Clics: {clics_totales_gsc}"
-    hoja_dashboard["D11"] = f"Impresiones: {impresiones_totales_gsc}"
-    hoja_dashboard["D12"] = f"CTR: {ctr_medio_gsc}"
-    hoja_dashboard["D13"] = f"Posición media: {posicion_media_gsc}"
-    top_paginas = ", ".join(str(fila.get("url", "")) for fila in filas_gsc_paginas[:3]) or "Sin datos"
-    top_queries = ", ".join(str(fila.get("query", "")) for fila in filas_gsc_queries[:3]) or "Sin datos"
-    hoja_dashboard["D14"] = f"Top páginas: {top_paginas}"
-    hoja_dashboard["D15"] = f"Top queries: {top_queries}"
+    # Obtiene top páginas por impresiones para bloque de visibilidad.
+    top_paginas = ", ".join(str(fila.get("url", "")) for fila in sorted(filas_gsc_paginas, key=lambda item: float(item.get("impresiones", 0.0)), reverse=True)[:3]) or "Sin datos"
 
-    hoja_dashboard["L9"] = "Gestión de indexación"
-    hoja_dashboard["L9"].font = Font(size=12, bold=True, color="FFFFFF")
-    hoja_dashboard["L9"].fill = PatternFill(fill_type="solid", fgColor=COLOR_BLOQUE_INDEXACION)
-    hoja_dashboard["L10"] = f"Indexable: {resumen_gestion_indexacion.get('indexable', 0)}"
-    hoja_dashboard["L11"] = f"Revisar: {resumen_gestion_indexacion.get('revisar', 0)}"
-    hoja_dashboard["L12"] = f"No indexar: {resumen_gestion_indexacion.get('no_indexar', 0)}"
+    # Obtiene top queries por impresiones para bloque de visibilidad.
+    top_queries = ", ".join(str(fila.get("query", "")) for fila in sorted(filas_gsc_queries, key=lambda item: float(item.get("impresiones", 0.0)), reverse=True)[:3]) or "Sin datos"
 
     # Construye distribuciones para gráficos de dashboard.
     severidades_rend = Counter([str(fila.get("severidad", "informativa")).lower() for fila in filas_rendimiento if fila.get("oportunidad")])
@@ -2000,25 +2033,87 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
         # Inserta valor por defecto.
         hoja_aux["H2"] = 1
 
-    # Renderiza bloque de incidencias con desglose por severidad, área y tipo.
-    hoja_dashboard["L14"] = "Incidencias (resumen)"
-    hoja_dashboard["L14"].font = Font(size=12, bold=True, color="FFFFFF")
-    hoja_dashboard["L14"].fill = PatternFill(fill_type="solid", fgColor=COLOR_BLOQUE_INCIDENCIAS)
-    hoja_dashboard["L15"] = f"Por severidad: crítica={incidencias_criticas}, alta={incidencias_altas}, media={incidencias_medias}, baja={incidencias_bajas}"
-    hoja_dashboard["L16"] = "Por área: " + ", ".join(f"{k}={v}" for k, v in incidencias_por_area.most_common(3))
-    hoja_dashboard["L17"] = "Por tipo: " + ", ".join(f"{k}={v}" for k, v in incidencias_por_tipo.most_common(3))
-    hoja_dashboard["L18"] = "Por familia: " + ", ".join(f"{k}={v}" for k, v in list(incidencias_por_familia.items())[:3])
+    # Calcula total de quick wins para sección de oportunidades.
+    total_quick_wins = len(_construir_quick_wins(filas, limite=7))
 
     # Renderiza bloque de oportunidades SEO priorizadas.
     oportunidades_pos_4_15 = len([fila for fila in filas_oportunidades_gsc if "4-15" in str(fila.get("oportunidad", ""))])
     oportunidades_ctr_bajo = len([fila for fila in filas_oportunidades_gsc if "ctr bajo" in str(fila.get("oportunidad", "")).lower()])
-    hoja_dashboard["D16"] = "Oportunidades SEO"
-    hoja_dashboard["D16"].font = Font(size=12, bold=True, color="FFFFFF")
-    hoja_dashboard["D16"].fill = PatternFill(fill_type="solid", fgColor=COLOR_BLOQUE_OPORTUNIDADES)
-    hoja_dashboard["D17"] = f"Páginas CTR bajo: {oportunidades_ctr_bajo}"
-    hoja_dashboard["D18"] = f"Páginas posición 4-15: {oportunidades_pos_4_15}"
-    hoja_dashboard["D19"] = f"Quick wins: {len(_construir_quick_wins(filas, limite=7))}"
-    hoja_dashboard["D20"] = "Mayor potencial: " + ", ".join(str(fila.get("url", "")) for fila in filas_oportunidades_gsc[:3])
+    mayor_potencial = ", ".join(str(fila.get("url", "")) for fila in filas_oportunidades_gsc[:3]) or "Sin datos"
+
+    # Define desglose de score por bloques para lectura rápida.
+    lineas_score_bloques = [
+        f"Indexación / arquitectura: {score_bloques.get('indexacion_arquitectura', {}).get('score', 0)}",
+        f"Contenido on-page: {score_bloques.get('contenido_onpage', {}).get('score', 0)}",
+        f"Rendimiento: {score_bloques.get('rendimiento', {}).get('score', 0)}",
+        f"Multimedia / accesibilidad: {score_bloques.get('multimedia_accesibilidad', {}).get('score', 0)}",
+    ]
+
+    # Renderiza bloque de visibilidad orgánica real.
+    _renderizar_bloque_dashboard(
+        hoja_dashboard,
+        "D9",
+        "Visibilidad orgánica real",
+        [
+            f"Clics: {clics_totales_gsc}",
+            f"Impresiones: {impresiones_totales_gsc}",
+            f"CTR medio: {ctr_medio_gsc}",
+            f"Posición media: {posicion_media_gsc}",
+            f"Top páginas: {top_paginas}",
+            f"Top queries: {top_queries}",
+        ],
+        COLOR_BLOQUE_VISIBILIDAD,
+    )
+
+    # Renderiza bloque de score por bloques.
+    _renderizar_bloque_dashboard(
+        hoja_dashboard,
+        "D17",
+        "Score por bloques",
+        lineas_score_bloques,
+        COLOR_BLOQUE_SCORE,
+    )
+
+    # Renderiza bloque de oportunidades de negocio.
+    _renderizar_bloque_dashboard(
+        hoja_dashboard,
+        "D23",
+        "Oportunidades",
+        [
+            f"Páginas con CTR bajo: {oportunidades_ctr_bajo}",
+            f"Páginas en posición 4-15: {oportunidades_pos_4_15}",
+            f"Quick wins detectados: {total_quick_wins}",
+            f"Páginas de mayor potencial: {mayor_potencial}",
+        ],
+        COLOR_BLOQUE_OPORTUNIDADES,
+    )
+
+    # Renderiza bloque de gestión de indexación.
+    _renderizar_bloque_dashboard(
+        hoja_dashboard,
+        "L9",
+        "Gestión de indexación",
+        [
+            f"Indexable: {resumen_gestion_indexacion.get('indexable', 0)}",
+            f"Revisar: {resumen_gestion_indexacion.get('revisar', 0)}",
+            f"No indexar: {resumen_gestion_indexacion.get('no_indexar', 0)}",
+        ],
+        COLOR_BLOQUE_INDEXACION,
+    )
+
+    # Renderiza bloque de incidencias agrupadas y severidad.
+    _renderizar_bloque_dashboard(
+        hoja_dashboard,
+        "L14",
+        "Incidencias",
+        [
+            f"Por severidad: crítica={incidencias_criticas}, alta={incidencias_altas}, media={incidencias_medias}, baja={incidencias_bajas}",
+            "Por área: " + ", ".join(f"{k}={v}" for k, v in incidencias_por_area.most_common(3)),
+            "Por tipo: " + ", ".join(f"{k}={v}" for k, v in incidencias_por_tipo.most_common(3)),
+            "Por familia: " + ", ".join(f"{k}={v}" for k, v in list(incidencias_por_familia.items())[:3]),
+        ],
+        COLOR_BLOQUE_INCIDENCIAS,
+    )
 
     # Crea gráfico de distribución de severidad de rendimiento.
     grafico_severidad_rend = PieChart()
@@ -2039,7 +2134,7 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     grafico_severidad_rend.height = 5.4
 
     # Inserta gráfico en posición explícita.
-    hoja_dashboard.add_chart(grafico_severidad_rend, "D22")
+    hoja_dashboard.add_chart(grafico_severidad_rend, "D30")
 
     # Crea gráfico de severidad técnica.
     grafico_severidad_tecnica = BarChart()
@@ -2060,7 +2155,7 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     grafico_severidad_tecnica.height = 5.4
 
     # Inserta gráfico en posición explícita.
-    hoja_dashboard.add_chart(grafico_severidad_tecnica, "L22")
+    hoja_dashboard.add_chart(grafico_severidad_tecnica, "L24")
 
     # Crea gráfico de tipos de mejora de rendimiento.
     grafico_tipos_mejora = BarChart()
@@ -2084,7 +2179,7 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     grafico_tipos_mejora.height = 5.8
 
     # Inserta gráfico en posición explícita.
-    hoja_dashboard.add_chart(grafico_tipos_mejora, "D37")
+    hoja_dashboard.add_chart(grafico_tipos_mejora, "D46")
 
     # Crea gráfico de score por bloques para explicar score global.
     grafico_score_bloques = BarChart()
@@ -2105,7 +2200,7 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     grafico_score_bloques.height = 5.4
 
     # Inserta gráfico de score por bloques en dashboard.
-    hoja_dashboard.add_chart(grafico_score_bloques, "L37")
+    hoja_dashboard.add_chart(grafico_score_bloques, "L38")
 
     # Crea gráfico de comparación entre incidencias técnicas y agrupadas.
     grafico_agrupadas = PieChart()
@@ -2126,7 +2221,7 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     grafico_agrupadas.height = 5.4
 
     # Inserta gráfico comparativo en dashboard.
-    hoja_dashboard.add_chart(grafico_agrupadas, "D52")
+    hoja_dashboard.add_chart(grafico_agrupadas, "D60")
 
     # Oculta la hoja auxiliar para no contaminar entregable final.
     hoja_aux.sheet_state = "hidden"
@@ -2150,11 +2245,15 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
         # Aplica ancho uniforme para permitir tarjetas amplias.
         hoja_dashboard.column_dimensions[get_column_letter(indice_columna)].width = 17
 
+    # Congela paneles del dashboard para mantener visibilidad de KPIs.
+    hoja_dashboard.freeze_panes = "A7"
+
     # Define columnas con texto extenso para wrap y legibilidad total.
     columnas_largas = {"url", "problema", "recomendacion", "observaciones", "query", "accion_recomendada"}
 
     # Aplica autoajuste global de todas las hojas de datos.
     hojas_a_ajustar = [
+        hoja_dashboard,
         hoja_errores,
         hoja_contenido,
         hoja_rendimiento,
@@ -2765,18 +2864,18 @@ def exportar_html(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     </table>
   </div>
   {(
-    "<div class='bloque'><h2>Visibilidad orgánica real</h2>"
-    + "".join(f"<p>{linea}</p>" for linea in bloques.get("Visibilidad orgánica real", [])[:12])
-    + "</div>"
-    + "<div class='bloque'><h2>Oportunidades SEO prioritarias</h2>"
-    + "".join(f"<p>{linea}</p>" for linea in bloques.get("Oportunidades SEO prioritarias", [])[:12])
-    + "</div>"
-    + "<div class='bloque'><h2>Cruce auditoría técnica + Search Console</h2>"
-    + "".join(f"<p>{linea}</p>" for linea in bloques.get("Cruce auditoría técnica + Search Console", [])[:12])
-    + "</div>"
-    + "<div class='bloque'><h2>Keyword / query mapping inicial</h2>"
-    + "".join(f"<p>{linea}</p>" for linea in bloques.get("Keyword / query mapping inicial", [])[:12])
-    + "</div>"
+    "<div class='bloque'><h2>Visibilidad orgánica real</h2><ul>"
+    + "".join(f"<li>{linea}</li>" for linea in bloques.get("Visibilidad orgánica real", [])[:10])
+    + "</ul></div>"
+    + "<div class='bloque'><h2>Oportunidades SEO prioritarias</h2><ul>"
+    + "".join(f"<li>{linea}</li>" for linea in bloques.get("Oportunidades SEO prioritarias", [])[:10])
+    + "</ul></div>"
+    + "<div class='bloque'><h2>Cruce auditoría técnica + Search Console</h2><ul>"
+    + "".join(f"<li>{linea}</li>" for linea in bloques.get("Cruce auditoría técnica + Search Console", [])[:10])
+    + "</ul></div>"
+    + "<div class='bloque'><h2>Keyword / query mapping inicial</h2><ul>"
+    + "".join(f"<li>{linea}</li>" for linea in bloques.get("Keyword / query mapping inicial", [])[:10])
+    + "</ul></div>"
   ) if resultado.search_console.activo else ""}
   <div class="bloque">
     <h2>Rendimiento (PageSpeed)</h2>

@@ -11,6 +11,8 @@ Contiene pruebas unitarias y de regresión.
 - Validar detección de home para comportamiento por defecto de PageSpeed.
 - Validar persistencia de rendimiento y fuentes activas en el flujo CLI.
 - Verificar existencia de gráficos y formato visual de severidad en el Excel final.
+- Verificar consistencia del texto IA con fuentes activas (evitando negaciones de GSC cuando hay datos).
+- Validar mejoras de legibilidad del dashboard (bloques ejecutivos y panel congelado).
 
 - `test_indexacion.py`: valida filtrado de directivas Disallow por User-agent para evitar falsos positivos en robots.
 - `test_indexacion.py`: valida filtrado de directivas Disallow por User-agent y clasificación inteligente de indexación (INDEXABLE/REVISAR/NO_INDEXAR) con señales de URL/contenido/SEO/GSC.
