@@ -235,6 +235,12 @@ def crear_parser() -> argparse.ArgumentParser:
     # Añade modo de prueba de IA sin generar informes.
     parser.add_argument("--testia", action="store_true", help="Valida conexión y modelo IA con una llamada mínima.")
 
+    # Añade modo de prueba de Google Analytics 4 sin auditoría completa.
+    parser.add_argument("--testga", action="store_true", help="Valida conexión con Google Analytics 4 y finaliza.")
+
+    # Añade modo de prueba de Google Search Console sin auditoría completa.
+    parser.add_argument("--testgsc", action="store_true", help="Valida conexión con Google Search Console y finaliza.")
+
     # Añade parámetro opcional para forzar modelo IA en --testia o --usar-ia.
     parser.add_argument("--modelo-ia", default="", help="Sobrescribe temporalmente el modelo de IA para esta ejecución.")
 
@@ -331,10 +337,99 @@ def main() -> int:
             # Finaliza con código de error.
             return 1
 
+    # Ejecuta modo de prueba GSC cuando se solicite explícitamente.
+    if argumentos.testgsc:
+        # Informa inicio de validación GSC.
+        print("[testgsc] Validando conexión con Google Search Console...")
+
+        # Intenta obtener datos mínimos para comprobar acceso real.
+        try:
+            # Ejecuta carga de datos con la configuración activa.
+            datos_gsc = cargar_datos_search_console(configuracion)
+        except Exception as exc:
+            # Informa error inesperado con el máximo detalle posible.
+            print(f"[testgsc] Error inesperado al conectar con Search Console: {exc!r}")
+            # Finaliza con código de error.
+            return 1
+
+        # Devuelve error detallado cuando no se logra conexión útil.
+        if not datos_gsc.activo:
+            # Informa error de forma operativa y accionable.
+            print(f"[testgsc] Error: {datos_gsc.error or 'No se pudo validar la conexión con Search Console.'}")
+
+            # Añade pistas concretas según el tipo de fallo detectado.
+            if datos_gsc.error and "No existe archivo de credenciales" in datos_gsc.error:
+                print("[testgsc] Detalle: revisa GSC_CREDENTIALS_FILE; la ruta debe apuntar a un JSON de service account accesible.")
+            if datos_gsc.error and "Falta GSC_SITE_URL" in datos_gsc.error:
+                print("[testgsc] Detalle: define GSC_SITE_URL (ej.: sc-domain:midominio.com o https://www.midominio.com/).")
+            if datos_gsc.error and "insufficient" in datos_gsc.error.lower():
+                print("[testgsc] Detalle: la service account no tiene permisos en la propiedad de Search Console.")
+
+            # Finaliza con código de error.
+            return 1
+
+        # Informa éxito de conexión aunque no existan filas en el rango.
+        print(
+            "[testgsc] OK. "
+            f"site_url={datos_gsc.site_url or configuracion.gsc_site_url} | "
+            f"periodo={datos_gsc.date_from}..{datos_gsc.date_to} | "
+            f"filas_paginas={len(datos_gsc.paginas)} | "
+            f"filas_queries={len(datos_gsc.queries)}"
+        )
+
+        # Finaliza con éxito tras validar conectividad.
+        return 0
+
+    # Ejecuta modo de prueba GA4 cuando se solicite explícitamente.
+    if argumentos.testga:
+        # Informa inicio de validación GA4.
+        print("[testga] Validando conexión con Google Analytics 4...")
+
+        # Intenta obtener datos mínimos para comprobar acceso real.
+        try:
+            # Ejecuta carga de datos con la configuración activa.
+            datos_ga4 = cargar_datos_analytics(configuracion)
+        except Exception as exc:
+            # Informa error inesperado con el máximo detalle posible.
+            print(f"[testga] Error inesperado al conectar con GA4: {exc!r}")
+            # Finaliza con código de error.
+            return 1
+
+        # Devuelve error detallado cuando no se logra conexión útil.
+        if not datos_ga4.activo:
+            # Informa error principal de forma operativa.
+            print(f"[testga] Error: {datos_ga4.error or 'No se pudo validar la conexión con Google Analytics 4.'}")
+
+            # Añade pistas accionables para permisos y configuración.
+            error_ga4 = (datos_ga4.error or "").lower()
+            if "no existe archivo de credenciales" in error_ga4:
+                print("[testga] Detalle: revisa GA_CREDENTIALS_FILE; debe apuntar a un JSON de service account accesible.")
+            if "falta ga_property_id" in error_ga4:
+                print("[testga] Detalle: define GA_PROPERTY_ID con el identificador numérico de la propiedad GA4.")
+            if "ga_property_id debe ser numérico" in error_ga4:
+                print("[testga] Detalle: elimina prefijos como 'properties/' y deja solo dígitos (ej.: 123456789).")
+            if "403" in error_ga4 or "sufficient permissions" in error_ga4:
+                print("[testga] Detalle: la service account no tiene acceso a la propiedad GA4.")
+                print("[testga] Detalle: añade el email de la service account como Viewer/Analyst en Administrar acceso de la propiedad.")
+
+            # Finaliza con código de error.
+            return 1
+
+        # Informa éxito de conexión aunque no existan filas en el rango.
+        print(
+            "[testga] OK. "
+            f"property_id={datos_ga4.property_id or configuracion.ga_property_id} | "
+            f"periodo={datos_ga4.date_from}..{datos_ga4.date_to} | "
+            f"filas_paginas={len(datos_ga4.paginas)}"
+        )
+
+        # Finaliza con éxito tras validar conectividad.
+        return 0
+
     # Exige sitemap en modo auditoría normal.
     if not argumentos.sitemap:
         # Informa falta de argumento obligatorio en este modo.
-        print("Error: --sitemap es obligatorio salvo en modo --testia.")
+        print("Error: --sitemap es obligatorio salvo en modo --testia, --testga o --testgsc.")
 
         # Devuelve código de error.
         return 1
