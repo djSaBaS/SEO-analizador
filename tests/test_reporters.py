@@ -2,7 +2,7 @@
 from pathlib import Path
 
 # Importa modelos del dominio para fabricar una auditoría mínima de prueba.
-from seo_auditor.models import HallazgoSeo, OportunidadRendimiento, ResultadoAuditoria, ResultadoRendimiento, ResultadoUrl
+from seo_auditor.models import DecisionIndexacion, HallazgoSeo, OportunidadRendimiento, ResultadoAuditoria, ResultadoRendimiento, ResultadoUrl
 
 # Importa funciones de reporters bajo prueba.
 from seo_auditor.reporters import (
@@ -157,6 +157,9 @@ def test_construir_bloques_narrativos_generar_fallback_completo() -> None:
     # Verifica que roadmap incluya fase de medio plazo.
     assert any("60" in linea or "medio plazo" in linea.lower() for linea in bloques["Roadmap"])
 
+    # Verifica que exista bloque dedicado a gestión de indexación.
+    assert len(bloques["Gestión de indexación"]) > 0
+
 
 # Verifica que quick wins elimine duplicados y filas incompletas.
 def test_construir_quick_wins_deduplica_y_filtra() -> None:
@@ -256,6 +259,15 @@ def test_exportar_excel_score_medio_desde_ejecuciones_unicas(tmp_path: Path) -> 
         fecha_ejecucion="2026-03-20",
         gestor="Gestor",
         rendimiento=rendimiento,
+        gestion_indexacion=[
+            DecisionIndexacion(
+                url="https://ejemplo.com",
+                clasificacion="INDEXABLE",
+                motivo="Sin señales de riesgo detectadas",
+                accion_recomendada="Mantener monitorización",
+                prioridad="Baja",
+            )
+        ],
     )
 
     # Exporta el Excel de prueba en carpeta temporal.
@@ -266,6 +278,9 @@ def test_exportar_excel_score_medio_desde_ejecuciones_unicas(tmp_path: Path) -> 
 
     # Obtiene hoja Dashboard.
     hoja_dashboard = libro["Dashboard"]
+
+    # Verifica que exista hoja específica de indexación.
+    assert "Indexacion" in libro.sheetnames
 
     # Busca fila del KPI de score medio móvil para evitar acoplamiento por posición.
     fila_score_mobile = next((fila for fila in range(3, 60) if hoja_dashboard[f"A{fila}"].value == "Score medio móvil"), None)

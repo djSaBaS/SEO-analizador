@@ -295,6 +295,29 @@ class DatosSearchConsole:
     filas_pais: List[dict[str, object]] = field(default_factory=list)
 
 
+# Define una recomendación operativa de gestión de indexación por URL.
+@dataclass(slots=True)
+class DecisionIndexacion:
+    """
+    Representa una decisión accionable de indexación para una URL concreta.
+    """
+
+    # Guarda la URL evaluada por el motor de indexación inteligente.
+    url: str
+
+    # Guarda clasificación final de indexación.
+    clasificacion: str
+
+    # Guarda el motivo principal de la clasificación.
+    motivo: str
+
+    # Guarda la acción recomendada de ejecución.
+    accion_recomendada: str
+
+    # Guarda prioridad sugerida para el equipo.
+    prioridad: str
+
+
 # Define la estructura global del resultado de una ejecución.
 @dataclass(slots=True)
 class ResultadoAuditoria:
@@ -334,6 +357,9 @@ class ResultadoAuditoria:
 
     # Guarda resumen de indexación y rastreo (robots/sitemap).
     indexacion_rastreo: dict[str, object] = field(default_factory=dict)
+
+    # Guarda decisiones de gestión de indexación inteligente por URL.
+    gestion_indexacion: List[DecisionIndexacion] = field(default_factory=list)
 
     # Guarda score técnico agregado en escala 0-100.
     score_tecnico: Optional[float] = None

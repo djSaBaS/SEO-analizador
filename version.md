@@ -1,5 +1,25 @@
 # version.md
 
+## 0.8.2 - 2026-03-24
+- Se alinea `PROMPT_IA_FALLBACK` con el contenido oficial de `Prompt/consulta_ia_prompt.txt` para evitar desvíos hacia un prompt simplificado.
+- Se corrige `generar_resumen_ia` para construir el prompt mediante `construir_prompt_ia` (reemplazo explícito de `{datos_json}`) en lugar de `str.format` directo.
+- Se actualiza documentación de `src/info.md` para reflejar el uso de plantilla externa editable con fallback equivalente.
+
+## 0.8.1 - 2026-03-24
+- Se corrige la clasificación de patrones no indexables para evaluar rutas por segmentos (evitando falsos positivos como `/formacion-*` por la regla `/form`).
+- Se mejora el cruce con Search Console normalizando URLs de auditoría y GSC (incluyendo fallback por `url_final`) para aplicar de forma consistente las reglas de `sin impresiones` y `sin clics`.
+- Se alinea la prioridad de gestión de indexación con el número de motivos únicos mostrados en informe.
+- Se optimiza el bloque narrativo de `Gestión de indexación` agrupando filas por clasificación en una sola pasada.
+- Se mejora mantenibilidad en Excel moviendo anchos de `Indexacion` a un diccionario configurable.
+- Se amplían tests para cubrir falsos positivos de patrones, normalización GSC y consistencia de clasificación.
+
+## 0.8.0 - 2026-03-24
+- Se añade gestión de indexación inteligente con clasificación por URL en `INDEXABLE`, `REVISAR` y `NO_INDEXAR`, aplicando reglas por patrones de URL, contenido, señales SEO y datos de Search Console.
+- Se incorpora el modelo de datos de decisiones de indexación (`url`, `clasificacion`, `motivo`, `accion_recomendada`, `prioridad`) dentro del resultado consolidado de la auditoría.
+- Se amplían los reportes con nueva sección narrativa `Gestión de indexación` (resumen global, URLs no indexables, URLs a revisar y recomendaciones claras).
+- Se añade hoja Excel `Indexacion` y KPIs de gestión de indexación en `Dashboard`.
+- Se integra la nueva capa de indexación inteligente en `Quick wins`, `Roadmap` y exportación JSON.
+
 ## 0.7.0 - 2026-03-24
 - Se integra Google Search Console como fuente autenticada opcional con degradación elegante: si falla por credenciales/permisos/propiedad, la auditoría no se rompe y se registra en `fuentes_fallidas`.
 - Se añade argumento CLI `--noGSC` para omitir GSC en una ejecución concreta aunque esté configurado en entorno.

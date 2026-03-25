@@ -70,6 +70,7 @@ JERARQUIA_INFORME = [
     "Acciones de contenido",
     "Rendimiento y experiencia de usuario",
     "Indexación y rastreo",
+    "Gestión de indexación",
     "Roadmap",
 ]
 
@@ -678,6 +679,30 @@ def construir_filas_search_console_queries(resultado: ResultadoAuditoria) -> lis
     return filas
 
 
+# Convierte decisiones de indexación inteligente a filas tabulares.
+def construir_filas_gestion_indexacion(resultado: ResultadoAuditoria) -> list[dict]:
+    """Construye filas operativas de gestión de indexación para informes y Excel."""
+
+    # Inicializa lista de filas de gestión.
+    filas: list[dict] = []
+
+    # Recorre decisiones calculadas en la auditoría.
+    for decision in resultado.gestion_indexacion:
+        # Añade fila con columnas del modelo solicitado.
+        filas.append(
+            {
+                "url": decision.url,
+                "clasificacion": decision.clasificacion,
+                "motivo": decision.motivo,
+                "accion_recomendada": decision.accion_recomendada,
+                "prioridad": decision.prioridad,
+            }
+        )
+
+    # Devuelve filas finales de gestión de indexación.
+    return filas
+
+
 # Construye oportunidades SEO accionables cruzando técnica y Search Console.
 def construir_oportunidades_gsc(resultado: ResultadoAuditoria) -> list[dict]:
     """Genera oportunidades reales de crecimiento cuando GSC esté activo."""
@@ -874,6 +899,9 @@ def calcular_metricas(resultado: ResultadoAuditoria) -> dict[str, int | float | 
     # Construye filas GSC por página para métricas agregadas.
     filas_gsc_paginas = construir_filas_search_console_paginas(resultado)
 
+    # Construye filas de gestión de indexación para KPIs.
+    filas_gestion_indexacion = construir_filas_gestion_indexacion(resultado)
+
     # Calcula métricas agregadas de Search Console.
     metricas_gsc = _calcular_metricas_gsc(filas_gsc_paginas)
 
@@ -933,6 +961,11 @@ def calcular_metricas(resultado: ResultadoAuditoria) -> dict[str, int | float | 
         },
         "gsc": metricas_gsc,
         "formula_score": "Score = 100 - (penalización_ponderada/(total_urls*10))*100",
+        "gestion_indexacion": {
+            "indexable": len([fila for fila in filas_gestion_indexacion if fila.get("clasificacion") == "INDEXABLE"]),
+            "revisar": len([fila for fila in filas_gestion_indexacion if fila.get("clasificacion") == "REVISAR"]),
+            "no_indexar": len([fila for fila in filas_gestion_indexacion if fila.get("clasificacion") == "NO_INDEXAR"]),
+        },
     }
 
 
@@ -1066,6 +1099,16 @@ def _construir_bloques_narrativos(resultado: ResultadoAuditoria) -> dict[str, li
             # Añade quick win concreto.
             bloques["Quick wins"].append(f"{', '.join(fila['recomendaciones'][:2])} ({fila['url']})")
 
+        # Obtiene decisiones de indexación de alta prioridad para quick wins.
+        quick_wins_indexacion = [
+            fila for fila in construir_filas_gestion_indexacion(resultado) if fila.get("clasificacion") in {"NO_INDEXAR", "REVISAR"} and fila.get("prioridad") in {"Alta", "Media"}
+        ]
+
+        # Añade quick wins de indexación inteligente.
+        for fila in quick_wins_indexacion[:4]:
+            # Inserta quick win de gestión de indexación.
+            bloques["Quick wins"].append(f"[Indexación] {fila.get('accion_recomendada', '')} ({fila.get('url', '')})")
+
     # Construye fallback de acciones técnicas cuando no haya bloque IA.
     if not bloques["Acciones técnicas"]:
         # Filtra recomendaciones técnicas.
@@ -1138,6 +1181,46 @@ def _construir_bloques_narrativos(resultado: ResultadoAuditoria) -> dict[str, li
             # Añade estado estable cuando no hay incoherencias detectadas.
             bloques["Indexación y rastreo"].append("No se detectaron incoherencias críticas entre sitemap y robots en esta ejecución.")
 
+    # Construye fallback de gestión de indexación inteligente.
+    if not bloques["Gestión de indexación"]:
+        # Inicializa agrupación por clasificación para evitar múltiples pasadas.
+        filas_por_clasificacion: dict[str, list[dict]] = {"NO_INDEXAR": [], "REVISAR": [], "INDEXABLE": []}
+
+        # Recorre filas de gestión de indexación para agruparlas en una pasada.
+        for fila in construir_filas_gestion_indexacion(resultado):
+            # Obtiene clasificación de la fila actual.
+            clasificacion = str(fila.get("clasificacion", "")).strip()
+
+            # Añade la fila cuando la clasificación sea reconocida.
+            if clasificacion in filas_por_clasificacion:
+                # Inserta fila en su clasificación correspondiente.
+                filas_por_clasificacion[clasificacion].append(fila)
+
+        # Calcula totales por clasificación.
+        total_no_indexar = len(filas_por_clasificacion["NO_INDEXAR"])
+        total_revisar = len(filas_por_clasificacion["REVISAR"])
+        total_indexable = len(filas_por_clasificacion["INDEXABLE"])
+
+        # Añade resumen global de gestión de indexación.
+        bloques["Gestión de indexación"].append(
+            f"Resumen global: indexables={total_indexable}, revisar={total_revisar}, no indexar={total_no_indexar}."
+        )
+
+        # Inserta bloque de no indexables con prioridad.
+        for fila in filas_por_clasificacion["NO_INDEXAR"][:5]:
+            # Añade línea de URL no indexable.
+            bloques["Gestión de indexación"].append(f"NO_INDEXAR: {fila.get('url', '')} | motivo={fila.get('motivo', '')}.")
+
+        # Inserta bloque de URLs a revisar.
+        for fila in filas_por_clasificacion["REVISAR"][:5]:
+            # Añade línea de URL a revisar.
+            bloques["Gestión de indexación"].append(f"REVISAR: {fila.get('url', '')} | motivo={fila.get('motivo', '')}.")
+
+        # Inserta recomendación clara de ejecución.
+        bloques["Gestión de indexación"].append(
+            "Recomendación: priorizar exclusión de URLs transaccionales y corregir señales SEO en URLs con potencial antes de solicitar indexación."
+        )
+
     # Construye fallback de roadmap cuando IA no lo entregue.
     if not bloques["Roadmap"]:
         # Añade fase 1 centrada en quick wins con impacto real.
@@ -1146,6 +1229,8 @@ def _construir_bloques_narrativos(resultado: ResultadoAuditoria) -> dict[str, li
         bloques["Roadmap"].append("Fase 2 (31-60 días): optimización de páginas en posición media 4-15, mejora de CTR y ampliación de contenido con mayor oportunidad.")
         # Añade fase 3 centrada en estrategia escalable.
         bloques["Roadmap"].append("Fase 3 (61-90 días): estrategia de contenido, arquitectura temática, enlazado interno y monitorización continua.")
+        # Añade fase específica de gobernanza de indexación.
+        bloques["Roadmap"].append("Fase 2.5 (45-75 días): implantar gestión de indexación inteligente con limpieza de URLs no indexables y revisión priorizada de URLs en estado REVISAR.")
 
     # Verifica presencia de fase de medio plazo en roadmap.
     contiene_medio_plazo = any("60" in linea or "medio plazo" in linea.lower() for linea in bloques["Roadmap"])
@@ -1185,6 +1270,7 @@ def exportar_json(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
         "search_console_paginas": construir_filas_search_console_paginas(resultado),
         "search_console_queries": construir_filas_search_console_queries(resultado),
         "oportunidades_gsc": construir_oportunidades_gsc(resultado),
+        "gestion_indexacion": construir_filas_gestion_indexacion(resultado),
         "pagespeed_estado": resultado.pagespeed_estado,
     }
 
@@ -1223,6 +1309,9 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     # Crea hoja específica de rendimiento.
     hoja_rendimiento = libro.create_sheet("Rendimiento")
 
+    # Crea hoja específica de gestión de indexación inteligente.
+    hoja_indexacion = libro.create_sheet("Indexacion")
+
     # Crea hoja de métricas Search Console por páginas.
     hoja_gsc_paginas = libro.create_sheet("Search_Console_Paginas")
 
@@ -1249,6 +1338,9 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
 
     # Construye oportunidades cruzadas entre técnica y GSC.
     filas_oportunidades_gsc = construir_oportunidades_gsc(resultado)
+
+    # Construye filas de gestión de indexación inteligente.
+    filas_gestion_indexacion = construir_filas_gestion_indexacion(resultado)
 
     # Define columnas fijas de la hoja de errores para mantener estructura estable.
     columnas_errores = ["url", "url_final", "tipo", "estado_http", "redirecciona", "title", "h1", "meta_description", "canonical", "noindex", "problema", "recomendacion", "severidad", "categoria", "area", "impacto", "esfuerzo", "prioridad", "estado", "resuelto", "responsable", "observaciones"]
@@ -1501,6 +1593,43 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
         # Aplica color corporativo homogéneo.
         celda.fill = PatternFill(fill_type="solid", fgColor="1F4E78")
 
+    # Define columnas de la hoja de indexación inteligente.
+    columnas_indexacion = ["url", "clasificacion", "motivo", "accion_recomendada", "prioridad"]
+
+    # Escribe encabezados de indexación.
+    for columna, encabezado in enumerate(columnas_indexacion, start=1):
+        # Escribe encabezado en la hoja.
+        hoja_indexacion.cell(row=1, column=columna, value=encabezado)
+
+    # Recorre filas de indexación para poblar la hoja.
+    for fila_indice, fila in enumerate(filas_gestion_indexacion, start=2):
+        # Recorre columnas de indexación.
+        for columna, encabezado in enumerate(columnas_indexacion, start=1):
+            # Inserta el valor correspondiente.
+            hoja_indexacion.cell(row=fila_indice, column=columna, value=fila.get(encabezado, ""))
+
+    # Estiliza encabezado de indexación.
+    for celda in hoja_indexacion[1]:
+        # Aplica estilo de encabezado homogéneo.
+        celda.font = Font(bold=True, color="FFFFFF")
+
+        # Aplica color corporativo.
+        celda.fill = PatternFill(fill_type="solid", fgColor="1F4E78")
+
+    # Ajusta ancho de columnas en hoja de indexación.
+    anchos_indexacion = {"A": 56, "B": 16, "C": 62, "D": 62, "E": 14}
+
+    # Recorre configuración de anchos y la aplica.
+    for columna, ancho in anchos_indexacion.items():
+        # Asigna ancho explícito para la columna.
+        hoja_indexacion.column_dimensions[columna].width = ancho
+
+    # Activa filtros en hoja de indexación.
+    hoja_indexacion.auto_filter.ref = f"A1:E{max(2, len(filas_gestion_indexacion) + 1)}"
+
+    # Congela cabecera para navegación.
+    hoja_indexacion.freeze_panes = "A2"
+
     # Calcula métricas de dashboard.
     metricas = calcular_metricas(resultado)
 
@@ -1579,6 +1708,9 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     # Obtiene score por bloques para dashboard explicable.
     score_bloques = metricas.get("score_bloques", {}) if isinstance(metricas.get("score_bloques", {}), dict) else {}
 
+    # Obtiene resumen de gestión de indexación para KPIs.
+    resumen_gestion_indexacion = metricas.get("gestion_indexacion", {}) if isinstance(metricas.get("gestion_indexacion", {}), dict) else {}
+
     # Define tarjetas KPI ampliadas para dashboard profesional.
     kpis_dashboard = [
         ("Total URLs auditadas", metricas["total_urls"]),
@@ -1605,6 +1737,9 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
         ("CTR medio GSC", ctr_medio_gsc),
         ("Posición media GSC", posicion_media_gsc),
         ("Páginas con oportunidad GSC", total_oportunidades_gsc),
+        ("URLs indexables (gestión)", resumen_gestion_indexacion.get("indexable", 0)),
+        ("URLs a revisar (gestión)", resumen_gestion_indexacion.get("revisar", 0)),
+        ("URLs no indexar (gestión)", resumen_gestion_indexacion.get("no_indexar", 0)),
         ("Score medio móvil", score_medio_mobile),
         ("Score medio escritorio", score_medio_desktop),
         ("% URLs con incidencia", porcentaje_urls_con_incidencia),

@@ -1,5 +1,5 @@
-# Importa parser de URL para derivar robots.txt.
-from urllib.parse import urlparse
+# Importa parser de URL para derivar robots.txt y parámetros.
+from urllib.parse import parse_qsl, urlparse
 
 # Importa parser estándar de robots para evaluación precisa allow/disallow.
 from urllib.robotparser import RobotFileParser
@@ -16,12 +16,24 @@ import requests
 # Importa utilidades internas de normalización y validación.
 from seo_auditor.utils import es_url_http_valida, normalizar_url
 
+# Importa modelos tipados para decisiones de indexación.
+from seo_auditor.models import DecisionIndexacion, MetricaGscPagina, ResultadoUrl
+
 
 # Resuelve disponibilidad real de advertools en tiempo de ejecución.
 ADVERTOOLS_DISPONIBLE = importlib.util.find_spec("advertools") is not None
 
 # Carga módulo advertools solo cuando exista en entorno.
 adv = importlib.import_module("advertools") if ADVERTOOLS_DISPONIBLE else None
+
+# Define patrones de URL normalmente no indexables.
+PATRONES_NO_INDEXAR_URL = ["/gracias", "/thank", "/form", "/formulario", "/feed", "/page/", "/wp-json"]
+
+# Define parámetros de tracking o sesión candidatos a exclusión.
+PARAMETROS_NO_INDEXAR = {"utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "fbclid", "gclid"}
+
+# Define frases habituales de confirmación no indexable.
+FRASES_CONFIRMACION = {"gracias por", "thank you", "formulario enviado", "confirmación", "confirmacion", "suscripción confirmada", "suscripcion confirmada"}
 
 
 # Deriva la URL de robots.txt a partir del sitemap base.
@@ -211,3 +223,231 @@ def analizar_indexacion_rastreo(sitemap_url: str, urls_sitemap: list[str], timeo
 
     # Devuelve resumen completo de indexación/rastreo.
     return resumen
+
+
+# Construye índice rápido de métricas GSC por URL para reglas de visibilidad.
+def _indice_gsc_por_url(metricas_gsc: list[MetricaGscPagina] | None) -> dict[str, MetricaGscPagina]:
+    """Construye un índice por URL con métricas de Search Console."""
+
+    # Inicializa índice vacío por defecto.
+    indice: dict[str, MetricaGscPagina] = {}
+
+    # Devuelve vacío cuando no hay métricas.
+    if not metricas_gsc:
+        # Retorna estructura vacía segura.
+        return indice
+
+    # Recorre métricas de GSC para indexarlas por URL.
+    for fila in metricas_gsc:
+        # Guarda fila en índice por URL canónica.
+        indice[normalizar_url(fila.url)] = fila
+
+    # Devuelve índice final para consulta rápida.
+    return indice
+
+
+# Evalúa señales de URL para indexación inteligente.
+def _evaluar_senales_url(url: str) -> list[str]:
+    """Devuelve señales de exclusión o revisión detectadas en la URL."""
+
+    # Inicializa colección de señales detectadas.
+    senales: list[str] = []
+
+    # Normaliza URL en minúsculas para matching robusto.
+    url_normalizada = normalizar_url(url).lower()
+
+    # Extrae la ruta para matching por segmentos.
+    ruta = urlparse(url_normalizada).path or "/"
+
+    # Recorre patrones directos de no indexación.
+    for patron in PATRONES_NO_INDEXAR_URL:
+        # Evalúa patrón especial de paginación.
+        if patron == "/page/" and patron in ruta:
+            # Registra motivo por patrón de URL.
+            senales.append(f"Patrón de URL detectado: {patron}")
+
+            # Continúa con siguiente patrón para evitar doble conteo.
+            continue
+
+        # Evalúa patrón exacto o por prefijo de segmento.
+        if ruta == patron or ruta.startswith(f"{patron}/"):
+            # Registra motivo por patrón de URL.
+            senales.append(f"Patrón de URL detectado: {patron}")
+
+    # Extrae query string para evaluar parámetros de tracking.
+    query = urlparse(url_normalizada).query
+
+    # Recorre pares clave-valor de la query.
+    for nombre_parametro, _ in parse_qsl(query, keep_blank_values=True):
+        # Marca parámetro cuando pertenezca al conjunto de tracking.
+        if nombre_parametro in PARAMETROS_NO_INDEXAR or nombre_parametro.startswith("utm_"):
+            # Registra motivo de parámetro no indexable.
+            senales.append(f"Parámetro no canónico detectado: {nombre_parametro}")
+
+    # Devuelve señales detectadas para la URL.
+    return senales
+
+
+# Evalúa señales de contenido y SEO de una URL auditada.
+def _evaluar_senales_contenido_y_seo(item: ResultadoUrl) -> tuple[list[str], list[str]]:
+    """Devuelve señales de no indexación y de revisión a partir del análisis técnico."""
+
+    # Inicializa señales fuertes para no indexación.
+    senales_no_indexar: list[str] = []
+
+    # Inicializa señales moderadas para revisión.
+    senales_revisar: list[str] = []
+
+    # Detecta noindex como señal directa de exclusión.
+    if item.noindex:
+        # Añade motivo principal de exclusión.
+        senales_no_indexar.append("Meta robots noindex detectada")
+
+    # Detecta contenido extremadamente corto.
+    if item.palabras < 120:
+        # Añade señal de thin content severo.
+        senales_revisar.append(f"Contenido muy corto ({item.palabras} palabras)")
+
+    # Evalúa señales textuales de confirmación.
+    texto_compuesto = f"{item.title} {item.h1} {item.texto_extraido}".lower()
+
+    # Recorre frases de confirmación conocidas.
+    for frase in FRASES_CONFIRMACION:
+        # Marca páginas de confirmación transaccional.
+        if frase in texto_compuesto:
+            # Añade motivo de no indexación por confirmación.
+            senales_no_indexar.append("Contenido de confirmación detectado")
+            # Finaliza tras primera coincidencia.
+            break
+
+    # Marca ausencia de headings como revisión de calidad/indexación.
+    if not item.h1.strip():
+        # Añade motivo de revisión estructural.
+        senales_revisar.append("Ausencia de heading principal (H1)")
+
+    # Evalúa canonical potencialmente incoherente para revisión.
+    if item.canonical and normalizar_url(item.canonical) != normalizar_url(item.url_final):
+        # Añade motivo de revisión por canonical.
+        senales_revisar.append("Canonical no autorreferente")
+
+    # Recorre hallazgos para detectar señales de enlazado interno.
+    for hallazgo in item.hallazgos:
+        # Normaliza descripción para matching.
+        descripcion = hallazgo.descripcion.lower()
+
+        # Detecta pistas de enlazado interno débil.
+        if "enlazado interno" in descripcion or "huérfana" in descripcion or "huerfana" in descripcion:
+            # Añade motivo de revisión por discoverability.
+            senales_revisar.append("Señal de enlazado interno débil")
+            # Evita duplicados innecesarios.
+            break
+
+    # Devuelve señales consolidadas.
+    return senales_no_indexar, senales_revisar
+
+
+# Determina prioridad operativa según clasificación y señales.
+def _prioridad_por_clasificacion(clasificacion: str, cantidad_motivos: int) -> str:
+    """Devuelve prioridad de ejecución en formato alto/medio/bajo."""
+
+    # Prioriza alto para exclusiones directas.
+    if clasificacion == "NO_INDEXAR":
+        # Devuelve prioridad alta por riesgo de indexación.
+        return "Alta"
+
+    # Prioriza media para revisiones con múltiples señales.
+    if clasificacion == "REVISAR" and cantidad_motivos >= 2:
+        # Devuelve prioridad media para casos con señales acumuladas.
+        return "Media"
+
+    # Devuelve prioridad baja en resto de casos.
+    return "Baja"
+
+
+# Genera decisiones de gestión de indexación inteligente por URL.
+def generar_gestion_indexacion_inteligente(
+    resultados: list[ResultadoUrl],
+    metricas_gsc: list[MetricaGscPagina] | None = None,
+) -> list[DecisionIndexacion]:
+    """Clasifica URLs en INDEXABLE/REVISAR/NO_INDEXAR usando señales de URL, contenido, SEO y GSC."""
+
+    # Construye índice rápido de GSC por URL.
+    indice_gsc = _indice_gsc_por_url(metricas_gsc)
+
+    # Inicializa colección de decisiones finales.
+    decisiones: list[DecisionIndexacion] = []
+
+    # Recorre resultados técnicos URL a URL.
+    for item in resultados:
+        # Calcula señales extraídas desde la propia URL.
+        senales_url = _evaluar_senales_url(item.url)
+
+        # Calcula señales derivadas de contenido y SEO.
+        senales_no_indexar, senales_revisar = _evaluar_senales_contenido_y_seo(item)
+
+        # Traslada señales de URL a la categoría de no indexación.
+        senales_no_indexar.extend(senales_url)
+
+        # Obtiene métricas GSC de la URL auditada normalizada cuando existan.
+        metrica_gsc = indice_gsc.get(normalizar_url(item.url))
+
+        # Reintenta lookup con URL final para tolerar redirecciones triviales.
+        if metrica_gsc is None:
+            # Busca la URL final normalizada en índice GSC.
+            metrica_gsc = indice_gsc.get(normalizar_url(item.url_final))
+
+        # Aplica regla de URL indexada sin impresiones.
+        if metrica_gsc and metrica_gsc.impresiones == 0:
+            # Añade señal de revisión por falta de visibilidad.
+            senales_revisar.append("URL indexada sin impresiones en GSC")
+
+        # Aplica regla de URL sin clics con impresiones.
+        if metrica_gsc and metrica_gsc.impresiones > 0 and metrica_gsc.clicks == 0:
+            # Añade señal de revisión por baja capacidad de atracción.
+            senales_revisar.append("URL sin clics en GSC")
+
+        # Determina clasificación final por precedencia.
+        if senales_no_indexar:
+            # Clasifica como no indexable ante señales fuertes.
+            clasificacion = "NO_INDEXAR"
+            # Define acción recomendada de exclusión.
+            accion = "Aplicar/confirmar noindex, excluir de sitemap y reforzar canonicalización."
+            # Selecciona motivos principales de no indexación.
+            motivos = senales_no_indexar
+        elif senales_revisar:
+            # Clasifica como revisión pendiente.
+            clasificacion = "REVISAR"
+            # Define acción de mejora antes de indexar.
+            accion = "Corregir señales SEO/contenido y validar rastreo antes de forzar indexación."
+            # Selecciona motivos de revisión.
+            motivos = senales_revisar
+        else:
+            # Clasifica como indexable cuando no hay señales negativas.
+            clasificacion = "INDEXABLE"
+            # Define acción de mantenimiento.
+            accion = "Mantener indexación activa, enlazado interno y monitorización en GSC."
+            # Define motivo de estado saludable.
+            motivos = ["Sin señales de riesgo detectadas"]
+
+        # Construye lista de motivos únicos para salida y prioridad consistentes.
+        motivos_unicos = list(dict.fromkeys(motivos))
+
+        # Construye motivo textual consolidado para exportación.
+        motivo = "; ".join(motivos_unicos)
+
+        # Calcula prioridad operativa final.
+        prioridad = _prioridad_por_clasificacion(clasificacion, len(motivos_unicos))
+
+        # Añade decisión final de la URL.
+        decisiones.append(
+            DecisionIndexacion(
+                url=item.url,
+                clasificacion=clasificacion,
+                motivo=motivo,
+                accion_recomendada=accion,
+                prioridad=prioridad,
+            )
+        )
+
+    # Devuelve todas las decisiones de gestión de indexación.
+    return decisiones
