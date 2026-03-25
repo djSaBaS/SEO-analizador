@@ -373,6 +373,7 @@ def test_exportar_excel_incluye_hojas_gsc(tmp_path: Path) -> None:
     assert "Search_Console_Paginas" in libro.sheetnames
     assert "Search_Console_Queries" in libro.sheetnames
     assert "Oportunidades_GSC" in libro.sheetnames
+    assert "Analytics" in libro.sheetnames
 
 
 # Verifica que el dashboard tenga congelación de panel y bloques ejecutivos.

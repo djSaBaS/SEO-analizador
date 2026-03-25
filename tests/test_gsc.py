@@ -29,6 +29,11 @@ def _configuracion_base() -> Configuracion:
         gsc_date_from="",
         gsc_date_to="",
         gsc_row_limit=250,
+        ga_enabled=False,
+        ga_property_id="",
+        ga_credentials_file="",
+        ga_date_from="",
+        ga_date_to="",
     )
 
 

@@ -25,6 +25,9 @@ from seo_auditor.fetcher import extraer_urls_sitemap
 # Importa integración opcional con Google Search Console.
 from seo_auditor.gsc import cargar_datos_search_console
 
+# Importa integración opcional con Google Analytics 4.
+from seo_auditor.ga4 import cargar_datos_analytics
+
 # Importa modelo de resultado de rendimiento.
 from seo_auditor.models import ResultadoRendimiento
 
@@ -509,6 +512,38 @@ def main() -> int:
 
             # Informa fallo no bloqueante con contexto.
             print(f"Aviso: fallo no bloqueante en Search Console: {exc}")
+
+    # Ejecuta Analytics solo cuando esté habilitado en configuración.
+    if configuracion.ga_enabled:
+        # Informa progreso de integración opcional autenticada.
+        print("[3.7/6] Consultando Google Analytics 4...")
+
+        # Intenta consultar Analytics sin romper flujo global.
+        try:
+            # Carga dataset opcional de Analytics.
+            datos_analytics = cargar_datos_analytics(configuracion)
+
+            # Guarda datos Analytics en resultado consolidado.
+            resultado.analytics = datos_analytics
+
+            # Registra fuente activa cuando existan datos válidos.
+            if datos_analytics.activo and datos_analytics.paginas:
+                # Añade Analytics a fuentes activas.
+                resultado.fuentes_activas.append("analytics")
+            else:
+                # Añade Analytics a fuentes fallidas para trazabilidad.
+                resultado.fuentes_fallidas.append("analytics")
+
+                # Informa motivo de degradación elegante en consola.
+                print(f"Aviso: Analytics no devolvió datos útiles: {datos_analytics.error or 'sin filas en el rango.'}")
+
+        # Captura error inesperado de integración sin detener auditoría.
+        except Exception as exc:
+            # Registra fuente fallida por error de integración.
+            resultado.fuentes_fallidas.append("analytics")
+
+            # Informa fallo no bloqueante con contexto.
+            print(f"Aviso: fallo no bloqueante en Analytics: {exc}")
 
     # Genera el resumen con IA solo si el usuario lo solicita.
     if argumentos.usar_ia:

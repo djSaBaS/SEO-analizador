@@ -72,6 +72,21 @@ class Configuracion:
     # Guarda el máximo de filas por consulta GSC.
     gsc_row_limit: int
 
+    # Guarda si Analytics está habilitado de forma opcional.
+    ga_enabled: bool
+
+    # Guarda el property id de Google Analytics 4.
+    ga_property_id: str
+
+    # Guarda la ruta al JSON de service account de GA4.
+    ga_credentials_file: str
+
+    # Guarda fecha de inicio del rango GA4.
+    ga_date_from: str
+
+    # Guarda fecha final del rango GA4.
+    ga_date_to: str
+
 
 # Carga y valida la configuración desde entorno.
 def cargar_configuracion() -> Configuracion:
@@ -167,4 +182,14 @@ def cargar_configuracion() -> Configuracion:
         gsc_date_to=os.getenv("GSC_DATE_TO", "").strip(),
         # Convierte límite de filas de GSC a entero.
         gsc_row_limit=int(gsc_row_limit_texto),
+        # Evalúa bandera booleana de activación de GA4.
+        ga_enabled=_a_booleano(os.getenv("GA_ENABLED", "false")),
+        # Carga property id de GA4.
+        ga_property_id=os.getenv("GA_PROPERTY_ID", "").strip(),
+        # Carga ruta a credenciales de service account de GA4.
+        ga_credentials_file=os.getenv("GA_CREDENTIALS_FILE", "").strip(),
+        # Carga fecha inicial de GA4.
+        ga_date_from=os.getenv("GA_DATE_FROM", "").strip(),
+        # Carga fecha final de GA4.
+        ga_date_to=os.getenv("GA_DATE_TO", "").strip(),
     )

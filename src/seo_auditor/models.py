@@ -295,6 +295,90 @@ class DatosSearchConsole:
     filas_pais: List[dict[str, object]] = field(default_factory=list)
 
 
+# Define métrica agregada de Google Analytics 4 por página.
+@dataclass(slots=True)
+class MetricaAnalyticsPagina:
+    """
+    Representa una fila agregada de comportamiento de usuario por URL.
+    """
+
+    # Guarda ruta o landing principal de la página.
+    url: str
+
+    # Guarda sesiones agregadas en el rango.
+    sesiones: float
+
+    # Guarda usuarios agregados en el rango.
+    usuarios: float
+
+    # Guarda tasa de rebote agregada en formato decimal.
+    rebote: float
+
+    # Guarda duración media de sesión en segundos.
+    duracion_media: float
+
+    # Guarda conversiones agregadas cuando existan.
+    conversiones: float
+
+    # Guarda evaluación cualitativa de calidad de tráfico.
+    calidad_trafico: str = "media"
+
+
+# Define resumen agregado de Google Analytics 4.
+@dataclass(slots=True)
+class ResumenAnalytics:
+    """
+    Resume métricas globales de comportamiento para la propiedad GA4.
+    """
+
+    # Guarda total de sesiones en el rango.
+    sesiones_totales: float = 0.0
+
+    # Guarda total de usuarios en el rango.
+    usuarios_totales: float = 0.0
+
+    # Guarda rebote promedio ponderado por sesiones.
+    rebote_medio: float = 0.0
+
+    # Guarda duración media ponderada por sesiones.
+    duracion_media: float = 0.0
+
+    # Guarda conversiones totales.
+    conversiones: float = 0.0
+
+
+# Define bloque completo de datos Analytics opcionales.
+@dataclass(slots=True)
+class DatosAnalytics:
+    """
+    Contiene datos autenticados opcionales de Google Analytics 4.
+    """
+
+    # Indica si la extracción de GA4 fue efectiva.
+    activo: bool
+
+    # Guarda mensaje de error controlado cuando exista.
+    error: Optional[str] = None
+
+    # Guarda property id consultado.
+    property_id: str = ""
+
+    # Guarda fecha inicial efectiva de consulta.
+    date_from: str = ""
+
+    # Guarda fecha final efectiva de consulta.
+    date_to: str = ""
+
+    # Guarda métricas por página.
+    paginas: List[MetricaAnalyticsPagina] = field(default_factory=list)
+
+    # Guarda resumen agregado del periodo.
+    resumen: ResumenAnalytics = field(default_factory=ResumenAnalytics)
+
+    # Guarda hallazgos de cruce GA4 + GSC cuando aplique.
+    cruces_gsc: List[dict[str, object]] = field(default_factory=list)
+
+
 # Define una recomendación operativa de gestión de indexación por URL.
 @dataclass(slots=True)
 class DecisionIndexacion:
@@ -375,6 +459,9 @@ class ResultadoAuditoria:
 
     # Guarda datos opcionales autenticados de Search Console.
     search_console: DatosSearchConsole = field(default_factory=lambda: DatosSearchConsole(activo=False, error="No configurado"))
+
+    # Guarda datos opcionales autenticados de Google Analytics 4.
+    analytics: DatosAnalytics = field(default_factory=lambda: DatosAnalytics(activo=False, error="Analytics no configurado"))
 
     # Guarda el informe narrativo opcional generado por IA.
     resumen_ia: Optional[str] = None
