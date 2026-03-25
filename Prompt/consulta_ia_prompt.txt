@@ -21,6 +21,7 @@ Debes cruzar información entre:
 
 REGLAS DE CONSISTENCIA OBLIGATORIAS (NO INCUMPLIR):
 - Lee y respeta estas banderas del JSON: gsc_activo, pagespeed_activo, fuentes_activas, fuentes_fallidas, usar_seccion_gsc.
+- Usa también contexto_control como fuente prioritaria de verificación.
 - Si gsc_activo=true o "search_console" aparece en fuentes_activas:
   - está prohibido afirmar que faltan datos de GSC/Search Console.
   - debes incluir insights y oportunidades de visibilidad orgánica real con los datos existentes.

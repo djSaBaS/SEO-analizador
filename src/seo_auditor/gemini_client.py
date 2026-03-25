@@ -72,6 +72,7 @@ Debes cruzar información entre:
 
 REGLAS DE CONSISTENCIA OBLIGATORIAS (NO INCUMPLIR):
 - Lee y respeta estas banderas del JSON: gsc_activo, pagespeed_activo, fuentes_activas, fuentes_fallidas, usar_seccion_gsc.
+- Usa también contexto_control como fuente prioritaria de verificación.
 - Si gsc_activo=true o "search_console" aparece en fuentes_activas:
   - está prohibido afirmar que faltan datos de GSC/Search Console.
   - debes incluir insights y oportunidades de visibilidad orgánica real con los datos existentes.
@@ -286,6 +287,13 @@ def construir_contexto_ia(resultado: ResultadoAuditoria, max_muestras: int) -> d
         "gsc_activo": gsc_activo,
         "pagespeed_activo": pagespeed_activo,
         "usar_seccion_gsc": usar_seccion_gsc,
+        "contexto_control": {
+            "gsc_activo": gsc_activo,
+            "pagespeed_activo": pagespeed_activo,
+            "fuentes_activas": resultado.fuentes_activas,
+            "fuentes_fallidas": resultado.fuentes_fallidas,
+            "usar_seccion_gsc": usar_seccion_gsc,
+        },
         "total_urls": resultado.total_urls,
         "total_incidencias": sum(contador_problemas.values()),
         "distribucion_severidad": dict(contador_severidad),
@@ -320,6 +328,13 @@ def validar_consistencia_resumen_ia(texto: str, datos_contexto: dict) -> str:
 
     # Obtiene bandera de actividad GSC desde contexto inyectado.
     gsc_activo = bool(datos_contexto.get("gsc_activo"))
+
+    # Obtiene fuentes activas normalizadas para validación cruzada.
+    fuentes_activas = datos_contexto.get("fuentes_activas")
+    fuentes = fuentes_activas if isinstance(fuentes_activas, list) else []
+
+    # Refuerza actividad GSC cuando la fuente está explícitamente activa.
+    gsc_activo = bool(gsc_activo or "search_console" in fuentes)
 
     # Si GSC no está activo no aplica limpieza de contradicción.
     if not gsc_activo:

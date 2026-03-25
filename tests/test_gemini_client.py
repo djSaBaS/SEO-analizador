@@ -119,3 +119,34 @@ def test_validar_consistencia_resumen_ia_filtra_frases_contradictorias() -> None
 
     # Verifica eliminación de la frase incorrecta.
     assert "no se proporcionan datos específicos de gsc" not in salida.lower()
+
+
+# Verifica coherencia usando también la lista de fuentes activas.
+def test_validar_consistencia_resumen_ia_respeta_fuentes_activas() -> None:
+    """Garantiza limpieza de negaciones cuando Search Console está en fuentes activas."""
+
+    # Simula respuesta IA contradictoria heredada.
+    texto = "Sin datos de Search Console en esta ejecución."
+
+    # Ejecuta validación con fuente activa aunque gsc_activo no venga explícito.
+    salida = gemini_client.validar_consistencia_resumen_ia(
+        texto,
+        {"fuentes_activas": ["search_console"], "gsc": {"clics_totales": 14, "impresiones_totales": 450}},
+    )
+
+    # Comprueba eliminación de contradicción con fuente activa.
+    assert "sin datos de search console" not in salida.lower()
+
+
+# Verifica que no se altere el texto cuando GSC no está activo.
+def test_validar_consistencia_resumen_ia_conserva_texto_sin_gsc() -> None:
+    """Confirma que las frases de ausencia se mantengan cuando GSC no está activo."""
+
+    # Define texto legítimo de ausencia de datos GSC.
+    texto = "No se proporcionan datos específicos de GSC en esta ejecución."
+
+    # Ejecuta validación sin fuente activa de Search Console.
+    salida = gemini_client.validar_consistencia_resumen_ia(texto, {"gsc_activo": False, "fuentes_activas": []})
+
+    # Verifica que el mensaje permanezca sin cambios.
+    assert salida == texto
