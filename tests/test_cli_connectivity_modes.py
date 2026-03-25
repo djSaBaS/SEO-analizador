@@ -179,3 +179,64 @@ def test_main_testgsc_error_sin_sitemap(monkeypatch) -> None:
 
     # Verifica error esperado en modo de prueba fallido.
     assert codigo == 1
+
+
+# Verifica que --testga aplique --date-from/--date-to antes de consultar GA4.
+def test_main_testga_aplica_rango_fechas_cli(monkeypatch) -> None:
+    """Comprueba que la prueba de conectividad use el rango temporal indicado por CLI."""
+
+    # Construye argumentos de modo test GA4 con rango explícito.
+    argumentos = SimpleNamespace(
+        sitemap="",
+        output="",
+        usar_ia=False,
+        testia=False,
+        testga=True,
+        testgsc=False,
+        modelo_ia="",
+        pagepsi="",
+        pagepsi_list="",
+        max_pagepsi_urls=0,
+        pagepsi_timeout=0,
+        pagepsi_reintentos=-1,
+        gestor="Gestor",
+        max_muestras_ia=5,
+        modo="completo",
+        modo_rapido=False,
+        cache_ttl=0,
+        invalidar_cache=False,
+        noGSC=False,
+        date_from="2026-01-01",
+        date_to="2026-01-31",
+    )
+
+    # Define parser simulado para evitar CLI real.
+    class _ParserFalso:
+        """Parser mínimo que devuelve argumentos simulados."""
+
+        # Devuelve argumentos preconstruidos.
+        def parse_args(self):
+            """Retorna argumentos simulados de forma estable."""
+            return argumentos
+
+    # Inyecta parser falso en el módulo CLI.
+    monkeypatch.setattr(cli, "crear_parser", lambda: _ParserFalso())
+
+    # Inyecta configuración base estable.
+    monkeypatch.setattr(cli, "cargar_configuracion", _configuracion_base)
+
+    # Simula carga GA4 verificando el rango recibido en configuración.
+    def _carga_ga4_verificando_rango(configuracion):
+        """Valida que el helper haya aplicado fechas CLI a la configuración efectiva."""
+        assert configuracion.ga_date_from == "2026-01-01"
+        assert configuracion.ga_date_to == "2026-01-31"
+        return DatosAnalytics(activo=True, error=None, property_id="123456", date_from="2026-01-01", date_to="2026-01-31", paginas=[])
+
+    # Inyecta simulador GA4 con aserciones de rango.
+    monkeypatch.setattr(cli, "cargar_datos_analytics", _carga_ga4_verificando_rango)
+
+    # Ejecuta flujo principal.
+    codigo = cli.main()
+
+    # Verifica éxito en modo de prueba.
+    assert codigo == 0
