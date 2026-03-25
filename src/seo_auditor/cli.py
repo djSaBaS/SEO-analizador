@@ -7,6 +7,9 @@ from datetime import date, timedelta
 # Importa Path para gestionar la carpeta de salida con seguridad.
 from pathlib import Path
 
+# Importa tipos para funciones de conectividad reutilizables.
+from typing import Any, Callable
+
 # Importa el motor de auditoría SEO.
 from seo_auditor.analyzer import auditar_urls
 
@@ -106,6 +109,66 @@ def _resolver_periodo_analisis(argumentos: argparse.Namespace) -> tuple[str, str
 
     # Devuelve periodo efectivo serializado por defecto.
     return fecha_desde.isoformat(), fecha_hasta.isoformat()
+
+
+# Ejecuta una prueba de conectividad reutilizable para integraciones externas.
+def _ejecutar_prueba_conectividad(
+    nombre_modo: str,
+    nombre_servicio: str,
+    configuracion: Any,
+    funcion_carga: Callable[[Any], Any],
+    mensaje_error_defecto: str,
+    pistas_error: list[tuple[list[str], list[str]]],
+    formatear_exito: Callable[[Any], str],
+) -> int:
+    """
+    Ejecuta una validación de conectividad e imprime diagnóstico accionable.
+    """
+
+    # Informa del servicio externo que se va a validar.
+    print(f"[{nombre_modo}] Validando conexión con {nombre_servicio}...")
+
+    # Intenta ejecutar la carga real con la configuración efectiva.
+    try:
+        # Obtiene dataset o estado de integración.
+        datos = funcion_carga(configuracion)
+
+    # Captura errores inesperados de red/auth/dependencias externas.
+    except Exception as exc:
+        # Informa fallo inesperado con representación detallada.
+        print(f"[{nombre_modo}] Error inesperado al conectar con {nombre_servicio}: {exc!r}")
+
+        # Devuelve error al sistema operativo.
+        return 1
+
+    # Evalúa si la integración devolvió estado no activo.
+    if not datos.activo:
+        # Obtiene el texto de error original cuando exista.
+        error_original = (datos.error or "").strip()
+
+        # Informa error principal con fallback explícito.
+        print(f"[{nombre_modo}] Error: {error_original or mensaje_error_defecto}")
+
+        # Normaliza el error para detectar pistas por patrones.
+        error_normalizado = error_original.lower()
+
+        # Recorre mapa de patrones->pistas configurado para el servicio.
+        for patrones, pistas in pistas_error:
+            # Evalúa si algún patrón aparece en el error.
+            if any(patron in error_normalizado for patron in patrones):
+                # Emite todas las pistas asociadas al patrón.
+                for pista in pistas:
+                    # Informa detalle accionable para resolver el fallo.
+                    print(f"[{nombre_modo}] Detalle: {pista}")
+
+        # Devuelve error al sistema operativo.
+        return 1
+
+    # Informa resultado exitoso con datos de contexto del servicio.
+    print(f"[{nombre_modo}] OK. {formatear_exito(datos)}")
+
+    # Devuelve éxito tras la validación.
+    return 0
 
 
 # Carga una lista de URLs desde archivo de texto.
@@ -235,6 +298,12 @@ def crear_parser() -> argparse.ArgumentParser:
     # Añade modo de prueba de IA sin generar informes.
     parser.add_argument("--testia", action="store_true", help="Valida conexión y modelo IA con una llamada mínima.")
 
+    # Añade modo de prueba de Google Analytics 4 sin auditoría completa.
+    parser.add_argument("--testga", action="store_true", help="Valida conexión con Google Analytics 4 y finaliza.")
+
+    # Añade modo de prueba de Google Search Console sin auditoría completa.
+    parser.add_argument("--testgsc", action="store_true", help="Valida conexión con Google Search Console y finaliza.")
+
     # Añade parámetro opcional para forzar modelo IA en --testia o --usar-ia.
     parser.add_argument("--modelo-ia", default="", help="Sobrescribe temporalmente el modelo de IA para esta ejecución.")
 
@@ -331,10 +400,106 @@ def main() -> int:
             # Finaliza con código de error.
             return 1
 
+    # Valida y resuelve periodo efectivo global del análisis.
+    try:
+        # Obtiene fecha inicial y final para toda fuente temporal.
+        periodo_desde, periodo_hasta = _resolver_periodo_analisis(argumentos)
+    except ValueError as exc:
+        # Informa error de validación de fechas.
+        print(f"Error: {exc}")
+        # Devuelve error por parámetros inválidos.
+        return 1
+
+    # Aplica periodo global a GSC para desacoplar del .env.
+    configuracion.gsc_date_from = periodo_desde
+
+    # Aplica periodo global a GSC para desacoplar del .env.
+    configuracion.gsc_date_to = periodo_hasta
+
+    # Aplica periodo global a GA4 para desacoplar del .env.
+    configuracion.ga_date_from = periodo_desde
+
+    # Aplica periodo global a GA4 para desacoplar del .env.
+    configuracion.ga_date_to = periodo_hasta
+
+    # Ejecuta modo de prueba GSC cuando se solicite explícitamente.
+    if argumentos.testgsc:
+        # Define patrones y pistas accionables específicas de GSC.
+        pistas_gsc = [
+            (
+                ["no existe archivo de credenciales"],
+                ["revisa GSC_CREDENTIALS_FILE; la ruta debe apuntar a un JSON de service account accesible."],
+            ),
+            (
+                ["falta gsc_site_url"],
+                ["define GSC_SITE_URL (ej.: sc-domain:midominio.com o https://www.midominio.com/)."],
+            ),
+            (
+                ["insufficient", "forbidden", "403"],
+                ["la service account no tiene permisos en la propiedad de Search Console."],
+            ),
+        ]
+
+        # Ejecuta verificación de conectividad GSC reutilizando helper.
+        return _ejecutar_prueba_conectividad(
+            "testgsc",
+            "Google Search Console",
+            configuracion,
+            cargar_datos_search_console,
+            "No se pudo validar la conexión con Search Console.",
+            pistas_gsc,
+            lambda datos: (
+                f"site_url={datos.site_url or configuracion.gsc_site_url} | "
+                f"periodo={datos.date_from}..{datos.date_to} | "
+                f"filas_paginas={len(datos.paginas)} | "
+                f"filas_queries={len(datos.queries)}"
+            ),
+        )
+
+    # Ejecuta modo de prueba GA4 cuando se solicite explícitamente.
+    if argumentos.testga:
+        # Define patrones y pistas accionables específicas de GA4.
+        pistas_ga4 = [
+            (
+                ["no existe archivo de credenciales"],
+                ["revisa GA_CREDENTIALS_FILE; debe apuntar a un JSON de service account accesible."],
+            ),
+            (
+                ["falta ga_property_id"],
+                ["define GA_PROPERTY_ID con el identificador numérico de la propiedad GA4."],
+            ),
+            (
+                ["ga_property_id debe ser numérico"],
+                ["elimina prefijos como 'properties/' y deja solo dígitos (ej.: 123456789)."],
+            ),
+            (
+                ["403", "sufficient permissions"],
+                [
+                    "la service account no tiene acceso a la propiedad GA4.",
+                    "añade el email de la service account como Viewer/Analyst en Administrar acceso de la propiedad.",
+                ],
+            ),
+        ]
+
+        # Ejecuta verificación de conectividad GA4 reutilizando helper.
+        return _ejecutar_prueba_conectividad(
+            "testga",
+            "Google Analytics 4",
+            configuracion,
+            cargar_datos_analytics,
+            "No se pudo validar la conexión con Google Analytics 4.",
+            pistas_ga4,
+            lambda datos: (
+                f"property_id={datos.property_id or configuracion.ga_property_id} | "
+                f"periodo={datos.date_from}..{datos.date_to} | "
+                f"filas_paginas={len(datos.paginas)}"
+            ),
+        )
+
     # Exige sitemap en modo auditoría normal.
     if not argumentos.sitemap:
         # Informa falta de argumento obligatorio en este modo.
-        print("Error: --sitemap es obligatorio salvo en modo --testia.")
+        print("Error: --sitemap es obligatorio salvo en modo --testia, --testga o --testgsc.")
 
         # Devuelve código de error.
         return 1
@@ -402,28 +567,6 @@ def main() -> int:
 
         # Devuelve error al sistema.
         return 1
-
-    # Valida y resuelve periodo efectivo global del análisis.
-    try:
-        # Obtiene fecha inicial y final para toda fuente temporal.
-        periodo_desde, periodo_hasta = _resolver_periodo_analisis(argumentos)
-    except ValueError as exc:
-        # Informa error de validación de fechas.
-        print(f"Error: {exc}")
-        # Devuelve error por parámetros inválidos.
-        return 1
-
-    # Aplica periodo global a GSC para desacoplar del .env.
-    configuracion.gsc_date_from = periodo_desde
-
-    # Aplica periodo global a GSC para desacoplar del .env.
-    configuracion.gsc_date_to = periodo_hasta
-
-    # Aplica periodo global a GA4 para desacoplar del .env.
-    configuracion.ga_date_from = periodo_desde
-
-    # Aplica periodo global a GA4 para desacoplar del .env.
-    configuracion.ga_date_to = periodo_hasta
 
     # Genera metadatos reales de ejecución.
     fecha = fecha_ejecucion_iso()
