@@ -244,14 +244,35 @@ def construir_contexto_ia(resultado: ResultadoAuditoria, max_muestras: int) -> d
         "impresiones_totales": round(sum(item.impresiones for item in resultado.search_console.paginas), 2),
     }
 
-    # Detecta si Search Console está activo por bandera y por fuentes.
-    gsc_activo = bool(resultado.search_console.activo or "search_console" in resultado.fuentes_activas)
+    # Detecta si GSC trae filas utilizables para narrativa y recomendaciones.
+    gsc_con_datos_utiles = bool(resultado.search_console.paginas or resultado.search_console.queries)
 
-    # Detecta si PageSpeed está activo por estado o fuente declarada.
-    pagespeed_activo = bool(resultado.rendimiento or "pagespeed" in resultado.fuentes_activas or resultado.pagespeed_estado)
+    # Marca GSC como activo solo con datos útiles o fuente validada por CLI.
+    gsc_activo = bool(gsc_con_datos_utiles or "search_console" in resultado.fuentes_activas)
+
+    # Detecta filas de PageSpeed con métricas reales y sin errores de ejecución.
+    pagespeed_con_metricas_validas = any(
+        (
+            item.performance_score is not None
+            or item.accessibility_score is not None
+            or item.best_practices_score is not None
+            or item.seo_score is not None
+            or item.lcp is not None
+            or item.cls is not None
+            or item.inp is not None
+            or item.fcp is not None
+            or item.tbt is not None
+            or item.speed_index is not None
+        )
+        and not item.error
+        for item in resultado.rendimiento
+    )
+
+    # Marca PageSpeed activo solo cuando hay métricas útiles o fuente validada por CLI.
+    pagespeed_activo = bool(pagespeed_con_metricas_validas or "pagespeed" in resultado.fuentes_activas)
 
     # Detecta si existen datos útiles de GSC para habilitar secciones dedicadas.
-    usar_seccion_gsc = bool(gsc_activo and (resultado.search_console.paginas or resultado.search_console.queries))
+    usar_seccion_gsc = bool(gsc_activo and gsc_con_datos_utiles)
 
     # Devuelve el contexto agregado y limitado para IA.
     return {
@@ -400,8 +421,8 @@ def generar_resumen_ia(
 
         # Devuelve respuesta cacheada cuando exista.
         if isinstance(respuesta_cache, str) and respuesta_cache.strip():
-            # Retorna texto cacheado para ahorrar coste y latencia.
-            return respuesta_cache
+            # Corrige contradicciones también en cache para mantener coherencia.
+            return validar_consistencia_resumen_ia(respuesta_cache, datos)
 
     # Carga la plantilla de prompt desde archivo externo editable.
     plantilla_prompt = cargar_plantilla_prompt_ia()
