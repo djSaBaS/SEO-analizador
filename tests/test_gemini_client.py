@@ -229,3 +229,29 @@ def test_generar_resumen_ia_inyecta_modo_y_contexto_extendido(monkeypatch) -> No
 
     # Verifica inclusión del modo efectivo en el JSON inyectado.
     assert '"modo": "quickwins"' in capturado["prompt"].lower()
+
+
+# Verifica compatibilidad con prompt único legacy `Prompt/consulta_ia_prompt.txt`.
+def test_resolver_ruta_prompt_ia_prioriza_consulta_legacy_si_no_hay_modulares(monkeypatch, tmp_path) -> None:
+    """Garantiza recuperación de customizaciones legacy cuando no hay carpeta `prompts/`."""
+
+    # Define carpeta principal de prompts vacía (sin archivos).
+    carpeta_prompts = tmp_path / "prompts"
+    carpeta_prompts.mkdir()
+
+    # Crea carpeta legacy y archivo histórico de prompt único.
+    carpeta_legacy = tmp_path / "Prompt"
+    carpeta_legacy.mkdir()
+    ruta_consulta = carpeta_legacy / "consulta_ia_prompt.txt"
+    ruta_consulta.write_text("Legacy\n{datos_json}", encoding="utf-8")
+
+    # Inyecta rutas temporales para el resolver.
+    monkeypatch.setattr(gemini_client, "RUTA_CARPETA_PROMPTS", carpeta_prompts)
+    monkeypatch.setattr(gemini_client, "RUTA_CARPETA_PROMPTS_LEGACY", carpeta_legacy)
+    monkeypatch.setattr(gemini_client, "RUTA_PROMPT_UNICO_LEGACY", ruta_consulta)
+
+    # Resuelve un modo cualquiera forzando fallback hacia legacy.
+    ruta_resuelta = gemini_client.resolver_ruta_prompt_ia("roadmap")
+
+    # Verifica que se use el archivo histórico editable.
+    assert ruta_resuelta == ruta_consulta

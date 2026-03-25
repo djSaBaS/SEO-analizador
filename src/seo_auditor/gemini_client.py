@@ -22,6 +22,9 @@ RUTA_CARPETA_PROMPTS = Path(__file__).resolve().parents[2] / "prompts"
 # Define carpeta heredada para compatibilidad retroactiva.
 RUTA_CARPETA_PROMPTS_LEGACY = Path(__file__).resolve().parents[2] / "Prompt"
 
+# Define la ruta heredada original del prompt único editable.
+RUTA_PROMPT_UNICO_LEGACY = RUTA_CARPETA_PROMPTS_LEGACY / "consulta_ia_prompt.txt"
+
 # Define el mapa de modos CLI a nombre de archivo de prompt.
 MAPA_PROMPTS_POR_MODO = {
     "completo": "informe_general.txt",
@@ -165,7 +168,7 @@ Datos de auditoría en JSON:
 
 # Resuelve ruta de prompt por modo con fallback a informe general.
 def resolver_ruta_prompt_ia(modo: str) -> Path:
-    """Obtiene ruta del prompt modular priorizando carpeta `prompts/`."""
+    """Obtiene ruta del prompt modular priorizando `prompts/` y compatibilidad legacy."""
 
     # Normaliza modo para evitar errores por mayúsculas o espacios.
     modo_normalizado = (modo or MODO_PROMPT_POR_DEFECTO).strip().lower()
@@ -173,29 +176,28 @@ def resolver_ruta_prompt_ia(modo: str) -> Path:
     # Obtiene nombre de archivo para el modo solicitado.
     nombre_prompt = MAPA_PROMPTS_POR_MODO.get(modo_normalizado, MAPA_PROMPTS_POR_MODO[MODO_PROMPT_POR_DEFECTO])
 
-    # Construye ruta principal del prompt modular.
-    ruta_principal = RUTA_CARPETA_PROMPTS / nombre_prompt
+    # Guarda nombre de archivo por defecto para fallback controlado.
+    nombre_prompt_default = MAPA_PROMPTS_POR_MODO[MODO_PROMPT_POR_DEFECTO]
 
-    # Devuelve ruta principal cuando exista.
-    if ruta_principal.is_file():
-        return ruta_principal
+    # Define rutas candidatas en orden de prioridad funcional.
+    rutas_candidatas = [
+        RUTA_CARPETA_PROMPTS / nombre_prompt,
+        RUTA_CARPETA_PROMPTS_LEGACY / nombre_prompt,
+        RUTA_CARPETA_PROMPTS / nombre_prompt_default,
+        RUTA_PROMPT_UNICO_LEGACY,
+        RUTA_CARPETA_PROMPTS_LEGACY / nombre_prompt_default,
+    ]
 
-    # Construye ruta heredada para compatibilidad con instalaciones previas.
-    ruta_legacy = RUTA_CARPETA_PROMPTS_LEGACY / nombre_prompt
+    # Elimina duplicados manteniendo el orden para evitar comprobaciones repetidas.
+    rutas_unicas = list(dict.fromkeys(rutas_candidatas))
 
-    # Devuelve ruta heredada cuando exista.
-    if ruta_legacy.is_file():
-        return ruta_legacy
+    # Devuelve la primera ruta existente dentro del orden definido.
+    for ruta in rutas_unicas:
+        if ruta.is_file():
+            return ruta
 
-    # Aplica fallback explícito a informe general en carpeta principal.
-    fallback_principal = RUTA_CARPETA_PROMPTS / MAPA_PROMPTS_POR_MODO[MODO_PROMPT_POR_DEFECTO]
-
-    # Devuelve fallback principal cuando exista.
-    if fallback_principal.is_file():
-        return fallback_principal
-
-    # Devuelve fallback heredado como último intento de compatibilidad.
-    return RUTA_CARPETA_PROMPTS_LEGACY / MAPA_PROMPTS_POR_MODO[MODO_PROMPT_POR_DEFECTO]
+    # Devuelve fallback final al prompt modular por defecto aunque no exista en disco.
+    return RUTA_CARPETA_PROMPTS / nombre_prompt_default
 
 
 # Carga la plantilla de prompt desde archivo externo para facilitar su edición.
@@ -485,8 +487,11 @@ def generar_resumen_ia(
     # Construye el contexto resumido de IA con límite de muestras.
     datos = construir_contexto_ia(resultado, max_muestras)
 
+    # Normaliza el modo recibido para evitar valores vacíos o con espacios.
+    modo_efectivo = (modo_prompt or "").strip().lower()
+
     # Añade modo efectivo para trazabilidad del sistema modular.
-    datos["modo"] = (modo_prompt or MODO_PROMPT_POR_DEFECTO).strip().lower() or MODO_PROMPT_POR_DEFECTO
+    datos["modo"] = modo_efectivo or MODO_PROMPT_POR_DEFECTO
 
     # Expone modo también dentro de contexto_control para validación robusta del prompt.
     contexto_control = datos.get("contexto_control")
