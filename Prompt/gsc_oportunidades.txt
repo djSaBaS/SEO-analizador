@@ -1,0 +1,6 @@
+Analiza datos de Search Console.
+Detecta:
+- páginas con muchas impresiones y bajo CTR
+- páginas en posición 4-15
+- queries con potencial
+Genera oportunidades claras y accionables.
