@@ -160,6 +160,102 @@ def test_construir_cruces_gsc_analytics_normaliza_componentes_url() -> None:
     assert cruces[0]["sesiones"] == 60.0
 
 
+# Verifica cruce con slashes múltiples en la URL.
+def test_construir_cruces_gsc_analytics_normaliza_slashes_multiples() -> None:
+    """Comprueba que el cruce colapse slashes múltiples en rutas."""
+
+    # Construye auditoría con URL con slashes dobles.
+    auditoria = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=1,
+        resultados=[],
+        cliente="Ejemplo",
+        fecha_ejecucion="2026-03-25",
+        gestor="Gestor",
+        search_console=DatosSearchConsole(
+            activo=True,
+            paginas=[
+                MetricaGscPagina(
+                    url="https://ejemplo.com/categoria//producto-b",
+                    clicks=5,
+                    impresiones=100,
+                    ctr=0.05,
+                    posicion_media=5.0,
+                )
+            ],
+        ),
+        analytics=DatosAnalytics(
+            activo=True,
+            paginas=[
+                MetricaAnalyticsPagina(
+                    url="/categoria/producto-b",
+                    sesiones=20,
+                    usuarios=18,
+                    rebote=0.3,
+                    duracion_media=120,
+                    conversiones=1,
+                    calidad_trafico="alta",
+                )
+            ],
+        ),
+    )
+
+    # Ejecuta cruce entre fuentes por URL.
+    cruces = construir_cruces_gsc_analytics(auditoria)
+
+    # Verifica que la URL se haya cruzado pese a slashes múltiples.
+    assert len(cruces) == 1
+    assert cruces[0]["url"] == "https://ejemplo.com/categoria//producto-b"
+    assert cruces[0]["sesiones"] == 20.0
+
+
+# Verifica que no se decodifique %2F para evitar mezclar rutas distintas.
+def test_construir_cruces_gsc_analytics_no_decodifica_slash_escapado() -> None:
+    """Comprueba que '/producto%2Fvip' no colapse con '/producto/vip'."""
+
+    # Construye auditoría con rutas intencionalmente distintas.
+    auditoria = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=1,
+        resultados=[],
+        cliente="Ejemplo",
+        fecha_ejecucion="2026-03-25",
+        gestor="Gestor",
+        search_console=DatosSearchConsole(
+            activo=True,
+            paginas=[
+                MetricaGscPagina(
+                    url="https://ejemplo.com/producto%2Fvip",
+                    clicks=5,
+                    impresiones=100,
+                    ctr=0.05,
+                    posicion_media=5.0,
+                )
+            ],
+        ),
+        analytics=DatosAnalytics(
+            activo=True,
+            paginas=[
+                MetricaAnalyticsPagina(
+                    url="/producto/vip",
+                    sesiones=20,
+                    usuarios=18,
+                    rebote=0.3,
+                    duracion_media=120,
+                    conversiones=1,
+                    calidad_trafico="alta",
+                )
+            ],
+        ),
+    )
+
+    # Ejecuta cruce entre fuentes por URL.
+    cruces = construir_cruces_gsc_analytics(auditoria)
+
+    # Verifica que no se cruce por tratarse de rutas distintas.
+    assert cruces == []
+
+
 # Verifica que la transformación de markdown IA cree secciones limpias.
 def test_construir_secciones_desde_ia_limpia_markdown() -> None:
     """Comprueba conversión de markdown crudo a estructura de secciones."""

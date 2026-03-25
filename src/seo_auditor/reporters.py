@@ -10,8 +10,8 @@ from collections import Counter
 # Importa la clase Path para gestionar rutas de forma robusta.
 from pathlib import Path
 
-# Importa parseo y decodificación de URL para normalizar cruces entre fuentes.
-from urllib.parse import unquote, urlparse
+# Importa parseo de URL para normalizar cruces entre fuentes.
+from urllib.parse import urlparse
 
 # Importa escape para sanear texto potencialmente interpretado como etiquetas XML.
 from xml.sax.saxutils import escape
@@ -867,6 +867,24 @@ def construir_filas_analytics_paginas(resultado: ResultadoAuditoria) -> list[dic
     return filas
 
 
+# Decodifica solo percent-encoding de caracteres no reservados RFC3986.
+def _decodificar_percent_unreserved(path: str) -> str:
+    """Decodifica escapes seguros y preserva delimitadores reservados como %2F."""
+
+    # Define delimitadores reservados que no deben alterarse en la ruta.
+    reservados = ":/?#[]@!$&'()*+,;="
+
+    # Reemplaza cada token %XX cuando sea carácter unreserved.
+    def reemplazo(match: re.Match[str]) -> str:
+        # Convierte valor hexadecimal a carácter candidato.
+        caracter = chr(int(match.group(1), 16))
+        # Decodifica solo si no representa delimitador reservado.
+        return caracter if caracter not in reservados else match.group(0).upper()
+
+    # Aplica reemplazo sobre toda la ruta.
+    return re.sub(r"%([0-9A-Fa-f]{2})", reemplazo, path)
+
+
 # Normaliza una URL o ruta para cruce entre GSC (URL completa) y GA4 (pagePath).
 def _clave_url_cruce(url_o_ruta: str) -> str:
     """Genera una clave comparable común entre distintas fuentes de datos."""
@@ -884,13 +902,10 @@ def _clave_url_cruce(url_o_ruta: str) -> str:
     path = (parseada.path or valor).strip()
 
     # Elimina query/hash residuales cuando el valor original sea ruta relativa.
-    if "?" in path:
-        path = path.split("?", 1)[0]
-    if "#" in path:
-        path = path.split("#", 1)[0]
+    path = path.split("?", 1)[0].split("#", 1)[0]
 
-    # Decodifica caracteres escapados para equiparar rutas equivalentes.
-    path = unquote(path)
+    # Decodifica solo escapes seguros para no mezclar rutas distintas.
+    path = _decodificar_percent_unreserved(path)
 
     # Normaliza slash inicial.
     if not path.startswith("/"):
