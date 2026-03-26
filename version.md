@@ -1,3 +1,11 @@
+## 0.10.2 - 2026-03-26
+- Se añade orquestación de generación compuesta en CLI con perfil centralizado de entregables y atajo `--generar-todo` (equivalente a `--modo entrega-completa`) sin romper compatibilidad de modos existentes.
+- Se centraliza la definición de perfiles/entregables en `cli.py` para evitar condicionales dispersos y dejar base extensible (`auditoria-seo-completa`, `todo`, `solo-ga4-premium`).
+- Se incorpora ejecución aislada de exportadores con degradación elegante: un fallo puntual de exportación no detiene el resto y queda trazado en resumen final.
+- Se integra GA4 premium como entregable opcional dentro del perfil compuesto `todo`, con omisión controlada cuando GA4 no está habilitado o no hay datos.
+- Se amplían tests de CLI para perfiles de generación, compatibilidad del nuevo modo, degradación por fallo de exportador e invocación de GA4 premium en `--generar-todo`.
+- Se actualiza documentación operativa (`README.md`, `CLI.md`, `src/info.md`, `tests/info.md`, `docs/info.md`) para reflejar el nuevo flujo compuesto.
+
 ## 0.10.1 - 2026-03-26
 - Se corrige una regresión funcional en la capa semántica: la sección `Rendimiento y experiencia de usuario` vuelve a incluir tabla detallada de métricas PageSpeed y tabla de oportunidades priorizadas en DOCX/PDF/HTML.
 - Se corrige el `colspan` de tablas vacías en HTML para que sea dinámico según el número real de columnas de cada tabla.

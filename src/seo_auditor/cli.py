@@ -53,6 +53,45 @@ from seo_auditor.utils import es_url_http_valida, fecha_ejecucion_iso, inferir_c
 # Define gestor por defecto para metadatos de informe.
 GESTOR_POR_DEFECTO = "Juan Antonio Sánchez Plaza"
 
+# Define identificadores canónicos de entregables SEO.
+ENTREGABLE_JSON_TECNICO = "json_tecnico"
+
+# Define identificador canónico de entregable Excel SEO.
+ENTREGABLE_EXCEL_SEO = "excel_seo"
+
+# Define identificador canónico de entregable Word SEO.
+ENTREGABLE_WORD_SEO = "word_seo"
+
+# Define identificador canónico de entregable PDF SEO.
+ENTREGABLE_PDF_SEO = "pdf_seo"
+
+# Define identificador canónico de entregable HTML SEO.
+ENTREGABLE_HTML_SEO = "html_seo"
+
+# Define identificador canónico de entregable Markdown IA.
+ENTREGABLE_MARKDOWN_IA = "markdown_ia"
+
+# Define identificador canónico de entregable GA4 premium compuesto.
+ENTREGABLE_GA4_PREMIUM = "ga4_premium"
+
+# Centraliza la definición de entregables base de auditoría SEO.
+ENTREGABLES_BASE_AUDITORIA = [
+    ENTREGABLE_JSON_TECNICO,
+    ENTREGABLE_EXCEL_SEO,
+    ENTREGABLE_WORD_SEO,
+    ENTREGABLE_PDF_SEO,
+    ENTREGABLE_HTML_SEO,
+    ENTREGABLE_MARKDOWN_IA,
+]
+
+# Centraliza perfiles de generación para composición de salidas.
+PERFILES_GENERACION: dict[str, list[str]] = {
+    "auditoria-seo-completa": ENTREGABLES_BASE_AUDITORIA,
+    "entrega-cliente": ENTREGABLES_BASE_AUDITORIA,
+    "todo": ENTREGABLES_BASE_AUDITORIA + [ENTREGABLE_GA4_PREMIUM],
+    "solo-ga4-premium": [ENTREGABLE_GA4_PREMIUM],
+}
+
 
 # Convierte una fecha ISO textual en objeto date con validación clara.
 def _parsear_fecha_cli(valor: str, parametro: str) -> date:
@@ -313,6 +352,69 @@ def _resolver_cliente_informe_ga4(cliente_cli: str | None, sitemap: str | None) 
     return "Cliente GA4"
 
 
+# Resuelve perfil de generación compuesto desde los argumentos CLI.
+def _resolver_perfil_generacion(argumentos: argparse.Namespace) -> str:
+    """
+    Determina el perfil compuesto de entregables preservando compatibilidad histórica.
+    """
+
+    # Prioriza atajo operativo explícito para entrega completa.
+    if argumentos.generar_todo:
+        # Devuelve perfil compuesto que incluye SEO y GA4 premium opcional.
+        return "todo"
+
+    # Devuelve perfil dedicado cuando el modo sea exclusivo de GA4.
+    if argumentos.modo == "informe-ga4":
+        # Retorna perfil dedicado del informe premium.
+        return "solo-ga4-premium"
+
+    # Devuelve perfil compuesto para el nuevo modo de entrega completa.
+    if argumentos.modo == "entrega-completa":
+        # Retorna perfil que incluye SEO y GA4 premium opcional.
+        return "todo"
+
+    # Mantiene comportamiento por defecto para modos históricos SEO.
+    return "auditoria-seo-completa"
+
+
+# Convierte un identificador de entregable en etiqueta legible para logs.
+def _etiqueta_entregable(entregable: str) -> str:
+    """
+    Traduce identificadores internos a etiquetas amigables de consola.
+    """
+
+    # Define diccionario de etiquetas de visualización.
+    etiquetas = {
+        ENTREGABLE_JSON_TECNICO: "JSON técnico",
+        ENTREGABLE_EXCEL_SEO: "Excel SEO",
+        ENTREGABLE_WORD_SEO: "Word SEO",
+        ENTREGABLE_PDF_SEO: "PDF SEO",
+        ENTREGABLE_HTML_SEO: "HTML SEO",
+        ENTREGABLE_MARKDOWN_IA: "Markdown IA",
+        ENTREGABLE_GA4_PREMIUM: "GA4 premium (HTML/PDF/Excel)",
+    }
+
+    # Devuelve etiqueta conocida o el identificador en fallback.
+    return etiquetas.get(entregable, entregable)
+
+
+# Construye mapa de funciones exportadoras reutilizable por perfil.
+def _crear_exportadores_seo(resultado: Any, carpeta_salida: Path) -> dict[str, Callable[[], Any]]:
+    """
+    Construye tabla de exportadores SEO sin duplicar lógica documental.
+    """
+
+    # Devuelve función de exportación por cada formato SEO.
+    return {
+        ENTREGABLE_JSON_TECNICO: lambda: exportar_json(resultado, carpeta_salida),
+        ENTREGABLE_EXCEL_SEO: lambda: exportar_excel(resultado, carpeta_salida),
+        ENTREGABLE_WORD_SEO: lambda: exportar_word(resultado, carpeta_salida),
+        ENTREGABLE_PDF_SEO: lambda: exportar_pdf(resultado, carpeta_salida),
+        ENTREGABLE_HTML_SEO: lambda: exportar_html(resultado, carpeta_salida),
+        ENTREGABLE_MARKDOWN_IA: lambda: exportar_markdown_ia(resultado, carpeta_salida),
+    }
+
+
 # Construye el parser de argumentos del programa.
 def crear_parser() -> argparse.ArgumentParser:
     """
@@ -346,9 +448,16 @@ def crear_parser() -> argparse.ArgumentParser:
     # Añade selector de modo de prompt para el sistema IA modular.
     parser.add_argument(
         "--modo",
-        choices=["completo", "resumen", "quickwins", "gsc", "roadmap", "informe-ga4"],
+        choices=["completo", "resumen", "quickwins", "gsc", "roadmap", "informe-ga4", "entrega-completa"],
         default="completo",
-        help="Selecciona el modo de ejecución/prompt: completo, resumen, quickwins, gsc, roadmap o informe-ga4.",
+        help="Selecciona el modo de ejecución/prompt: completo, resumen, quickwins, gsc, roadmap, entrega-completa o informe-ga4.",
+    )
+
+    # Añade atajo operativo para generar una entrega completa en una ejecución.
+    parser.add_argument(
+        "--generar-todo",
+        action="store_true",
+        help="Atajo de orquestación equivalente a --modo entrega-completa.",
     )
 
     # Añade parámetro para analizar una URL concreta con PageSpeed.
@@ -425,6 +534,9 @@ def main() -> int:
 
     # Resuelve el modelo IA efectivo según argumento opcional.
     modelo_ia = argumentos.modelo_ia.strip() or configuracion.gemini_model
+
+    # Resuelve perfil compuesto de generación según argumentos.
+    perfil_generacion = _resolver_perfil_generacion(argumentos)
 
     # Ejecuta modo de prueba IA cuando se solicite explícitamente.
     if argumentos.testia:
@@ -546,8 +658,8 @@ def main() -> int:
             ),
         )
 
-    # Ejecuta modo dedicado de informe GA4 premium cuando se solicite por CLI.
-    if argumentos.modo == "informe-ga4":
+    # Ejecuta modo dedicado de informe GA4 premium cuando el perfil sea exclusivo.
+    if perfil_generacion == "solo-ga4-premium":
         # Aplica carpeta de salida por defecto para compatibilidad CLI histórica.
         if not argumentos.output:
             # Informa fallback aplicado para trazabilidad.
@@ -687,6 +799,24 @@ def main() -> int:
 
     # Construye la ruta de salida profesional por dominio y fecha.
     carpeta_salida = Path(argumentos.output) / slug_dominio / fecha
+
+    # Obtiene lista de entregables objetivo del perfil resuelto.
+    entregables_perfil = PERFILES_GENERACION.get(perfil_generacion, ENTREGABLES_BASE_AUDITORIA)
+
+    # Informa perfil compuesto activo para trazabilidad.
+    print(f"[perfil] Ejecutando perfil de generación: {perfil_generacion}")
+
+    # Informa fuentes potenciales según configuración y flags.
+    print(
+        "[perfil] Fuentes potenciales: "
+        f"ia={'on' if argumentos.usar_ia else 'off'} | "
+        f"gsc={'off' if argumentos.noGSC else ('on' if configuracion.gsc_enabled else 'off')} | "
+        f"ga4={'on' if configuracion.ga_enabled else 'off'} | "
+        f"pagespeed={'on' if bool(configuracion.pagespeed_api_key) else 'off'}"
+    )
+
+    # Informa entregables planeados para la ejecución.
+    print(f"[perfil] Entregables planificados: {', '.join(_etiqueta_entregable(item) for item in entregables_perfil)}")
 
     # Informa progreso de obtención de URLs.
     print("[1/6] Extrayendo URLs del sitemap...")
@@ -919,26 +1049,110 @@ def main() -> int:
     # Informa progreso de exportación de entregables.
     print("[5/6] Exportando entregables profesionales...")
 
-    # Define tareas de exportación para ejecutar con progreso controlado.
-    tareas_exportacion = [
-        ("JSON técnico", lambda: exportar_json(resultado, carpeta_salida)),
-        ("Excel", lambda: exportar_excel(resultado, carpeta_salida)),
-        ("Word", lambda: exportar_word(resultado, carpeta_salida)),
-        ("PDF", lambda: exportar_pdf(resultado, carpeta_salida)),
-        ("HTML", lambda: exportar_html(resultado, carpeta_salida)),
-        ("Markdown IA", lambda: exportar_markdown_ia(resultado, carpeta_salida)),
-    ]
+    # Inicializa colección de entregables generados correctamente.
+    archivos_generados: list[str] = []
 
-    # Recorre tareas de exportación con barra de progreso.
-    for nombre_tarea, funcion in iterar_con_progreso(tareas_exportacion, "Exportación", "archivo"):
-        # Ejecuta la función de exportación concreta.
-        funcion()
+    # Inicializa colección de entregables omitidos por perfil o disponibilidad.
+    archivos_omitidos: list[str] = []
 
-        # Informa tarea completada de forma legible.
-        print(f"  - Exportado: {nombre_tarea}")
+    # Inicializa colección de errores no fatales por exportador.
+    errores_no_fatales: list[str] = []
+
+    # Construye mapa de exportadores SEO para evitar condicionales dispersos.
+    exportadores_seo = _crear_exportadores_seo(resultado, carpeta_salida)
+
+    # Recorre entregables planificados según perfil compuesto.
+    for entregable in iterar_con_progreso(entregables_perfil, "Exportación", "archivo"):
+        # Resuelve etiqueta legible del entregable actual.
+        etiqueta = _etiqueta_entregable(entregable)
+
+        # Ejecuta exportación SEO estándar cuando exista función registrada.
+        if entregable in exportadores_seo:
+            # Intenta generar cada exportador de forma aislada.
+            try:
+                # Ejecuta la función concreta de exportación.
+                exportadores_seo[entregable]()
+                # Añade entregable a la colección de éxito.
+                archivos_generados.append(etiqueta)
+                # Informa tarea completada en consola.
+                print(f"  - Exportado: {etiqueta}")
+            # Captura fallo aislado sin romper toda la entrega.
+            except Exception as exc:
+                # Registra error no fatal para resumen final.
+                errores_no_fatales.append(f"{etiqueta}: {exc}")
+                # Informa degradación elegante sin cortar ejecución.
+                print(f"  - Aviso: no se pudo exportar {etiqueta}: {exc}")
+            # Continúa con el siguiente entregable del perfil.
+            continue
+
+        # Ejecuta integración opcional de informe GA4 premium compuesto.
+        if entregable == ENTREGABLE_GA4_PREMIUM:
+            # Omite GA4 premium cuando la fuente GA4 no esté habilitada.
+            if not configuracion.ga_enabled:
+                # Registra omisión por incompatibilidad de fuente.
+                archivos_omitidos.append(f"{etiqueta} (GA4 no habilitado)")
+                # Informa omisión controlada en consola.
+                print("  - Omitido: GA4 premium porque GA4 no está habilitado.")
+                # Continúa con el siguiente entregable del perfil.
+                continue
+
+            # Resuelve cliente premium reutilizando helper existente.
+            cliente_premium = _resolver_cliente_informe_ga4(argumentos.cliente, argumentos.sitemap)
+
+            # Construye carpeta específica del informe premium.
+            carpeta_salida_premium = Path(argumentos.output) / "ga4_premium" / fecha
+
+            # Intenta generar bloque premium sin romper auditoría base.
+            try:
+                # Ejecuta generación premium con el mismo periodo temporal.
+                salida_premium = generar_informe_ga4_premium(
+                    configuracion,
+                    carpeta_salida_premium,
+                    cliente_premium,
+                    argumentos.gestor,
+                    periodo_desde,
+                    periodo_hasta,
+                    argumentos.comparar,
+                    argumentos.provincia,
+                )
+
+                # Registra omisión cuando el generador no esté activo.
+                if not salida_premium.get("activo", False):
+                    # Registra motivo controlado de omisión premium.
+                    motivo = salida_premium.get("error", "sin detalle de error")
+                    archivos_omitidos.append(f"{etiqueta} ({motivo})")
+                    # Informa degradación premium no bloqueante.
+                    print(f"  - Omitido: {etiqueta}. Motivo: {motivo}")
+                else:
+                    # Registra entregable premium como generado.
+                    archivos_generados.append(etiqueta)
+                    # Informa salidas premium individuales para trazabilidad.
+                    print(f"  - Exportado: {etiqueta}")
+                    print(f"    · HTML: {salida_premium.get('html')}")
+                    print(f"    · PDF: {salida_premium.get('pdf')}")
+                    print(f"    · Excel: {salida_premium.get('excel')}")
+            # Captura fallos premium como error no fatal aislado.
+            except Exception as exc:
+                # Registra incidencia premium como no fatal.
+                errores_no_fatales.append(f"{etiqueta}: {exc}")
+                # Informa error no bloqueante del entregable premium.
+                print(f"  - Aviso: no se pudo exportar {etiqueta}: {exc}")
+            # Continúa con el siguiente entregable del perfil.
+            continue
+
+        # Registra entregable desconocido como omitido para diagnóstico.
+        archivos_omitidos.append(f"{etiqueta} (no reconocido)")
+        # Informa inconsistencia de perfil para trazabilidad.
+        print(f"  - Omitido: {etiqueta} no está registrado en el orquestador.")
 
     # Finaliza con mensaje de éxito y ruta final.
-    print(f"[6/6] Auditoría completada. Archivos generados en: {carpeta_salida.resolve()}")
+    print(f"[6/6] Auditoría completada. Ruta base de salida: {carpeta_salida.resolve()}")
+    # Informa entregables realmente generados.
+    print(f"[6/6] Generados: {archivos_generados or ['ninguno']}")
+    # Informa entregables omitidos cuando aplique.
+    print(f"[6/6] Omitidos: {archivos_omitidos or ['ninguno']}")
+    # Informa errores no fatales para revisión operativa.
+    print(f"[6/6] Errores no fatales: {errores_no_fatales or ['ninguno']}")
 
     # Calcula score y promedios de rendimiento para resumen de cierre.
     total_incidencias = sum(len(item.hallazgos) for item in resultado.resultados)

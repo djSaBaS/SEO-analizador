@@ -110,9 +110,11 @@ python src/main.py --sitemap https://www.ejemplo.com/sitemap.xml --output ./sali
 - `--testia`: prueba de conectividad IA (sin auditoría completa).
 - `--modelo-ia <modelo>`: sobrescribe el modelo para esta ejecución.
 - `--max-muestras-ia <N>`: máximo de muestras agregadas para IA.
-- `--modo <completo|resumen|quickwins|gsc|roadmap|informe-ga4>`:
+- `--modo <completo|resumen|quickwins|gsc|roadmap|entrega-completa|informe-ga4>`:
   - En auditoría con IA usa plantillas de prompt (`completo`, `resumen`, `quickwins`, `gsc`, `roadmap`).
+  - `entrega-completa` activa orquestación compuesta (auditoría SEO + bloque premium opcional).
   - `informe-ga4` activa modo dedicado de informe GA4 premium.
+- `--generar-todo`: atajo operativo equivalente a `--modo entrega-completa`.
 
 ### PageSpeed
 - `--pagepsi <url>`: analiza una URL concreta con PageSpeed.
@@ -145,6 +147,25 @@ Reglas:
 - `--comparar <periodo-anterior|anio-anterior>`
 - `--provincia <nombre>`
 - `--cliente <nombre>`
+
+### Perfiles de generación compuesta
+- `auditoria-seo-completa`: perfil por defecto de la CLI histórica (JSON, Excel, Word, PDF, HTML, Markdown IA).
+- `todo`: perfil compuesto (equivalente a `--generar-todo` o `--modo entrega-completa`) que añade GA4 premium de forma controlada.
+- `solo-ga4-premium`: perfil interno del modo `--modo informe-ga4`.
+
+Comportamiento del orquestador:
+- Ejecuta la auditoría base una sola vez.
+- Reutiliza el resultado consolidado para todos los exportadores SEO.
+- Intenta exportar cada entregable de forma aislada (degradación elegante).
+- Informa en logs: perfil activo, fuentes, entregables planificados, generados, omitidos y errores no fatales.
+- Si GA4 premium no está disponible (por configuración o error), se omite sin romper el resto de entregables.
+
+## Ejemplos de generación compuesta
+```bash
+python src/main.py --sitemap https://www.colegiolegamar.com/sitemap_index.xml --output ./salidas --usar-ia --date-from 2026-02-01 --date-to 2026-02-28 --generar-todo
+python src/main.py --sitemap https://www.colegiolegamar.com/sitemap_index.xml --output ./salidas --usar-ia --date-from 2026-02-01 --date-to 2026-02-28 --modo entrega-completa
+python src/main.py --modo entrega-completa --sitemap https://www.colegiolegamar.com/sitemap_index.xml --comparar periodo-anterior --cliente \"Colegio Legamar\"
+```
 
 ## Archivo de referencia de CLI
 Se incluye documentación ampliada y ejemplos completos en [`CLI.md`](./CLI.md).

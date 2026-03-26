@@ -68,6 +68,10 @@ def test_main_testga_ok_sin_sitemap(monkeypatch) -> None:
         noGSC=False,
         date_from="",
         date_to="",
+        generar_todo=False,
+        comparar="periodo-anterior",
+        provincia="",
+        cliente="",
     )
 
     # Define parser simulado para evitar CLI real.
@@ -136,6 +140,10 @@ def test_main_testgsc_error_sin_sitemap(monkeypatch) -> None:
         noGSC=False,
         date_from="",
         date_to="",
+        generar_todo=False,
+        comparar="periodo-anterior",
+        provincia="",
+        cliente="",
     )
 
     # Define parser simulado para evitar CLI real.
@@ -208,6 +216,10 @@ def test_main_testga_aplica_rango_fechas_cli(monkeypatch) -> None:
         noGSC=False,
         date_from="2026-01-01",
         date_to="2026-01-31",
+        generar_todo=False,
+        comparar="periodo-anterior",
+        provincia="",
+        cliente="",
     )
 
     # Define parser simulado para evitar CLI real.
