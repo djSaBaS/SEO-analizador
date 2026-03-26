@@ -65,6 +65,8 @@ JERARQUIA_INFORME = [
     "Resumen ejecutivo",
     "KPIs principales",
     "Visibilidad orgánica real",
+    "Comportamiento y conversión",
+    "Páginas prioritarias",
     "Oportunidades SEO prioritarias",
     "Cruce auditoría técnica + Search Console",
     "Keyword / query mapping inicial",
@@ -73,7 +75,6 @@ JERARQUIA_INFORME = [
     "Acciones técnicas",
     "Acciones de contenido",
     "Rendimiento y experiencia de usuario",
-    "Comportamiento de usuario (Analytics)",
     "Indexación y rastreo",
     "Gestión de indexación",
     "Roadmap",
@@ -127,6 +128,22 @@ CRUCE_GSC_MAX_POSICION_POTENCIAL = 12.0
 CRUCE_GA_MIN_SESIONES_SIN_CONVERSION = 40.0
 CRUCE_GA_MAX_CONVERSIONES = 0.0
 
+# Define umbrales y pesos de priorización para páginas estratégicas.
+PRIORIDAD_GSC_MIN_IMPRESIONES_CTR = 500.0
+PRIORIDAD_GSC_MAX_CTR = 0.02
+PRIORIDAD_SCORE_CTR_BAJO = 40.0
+PRIORIDAD_GA_MIN_SESIONES_SIN_CONVERSION = 80.0
+PRIORIDAD_GA_MAX_CONVERSIONES = 0.0
+PRIORIDAD_SCORE_SIN_CONVERSION = 35.0
+PRIORIDAD_GSC_MIN_IMPRESIONES_ENGAGEMENT_BAJO = 400.0
+PRIORIDAD_GA_MIN_REBOTE_BAJO_ENGAGEMENT = 0.65
+PRIORIDAD_SCORE_ENGAGEMENT_BAJO = 25.0
+PRIORIDAD_GSC_MIN_POSICION = 4.0
+PRIORIDAD_GSC_MAX_POSICION = 15.0
+PRIORIDAD_SCORE_POSICION_POTENCIAL = 15.0
+PRIORIDAD_SCORE_MAX_HALLAZGOS = 20.0
+PRIORIDAD_SCORE_HALLAZGO = 5.0
+
 # Define umbrales para quick wins basados en Analytics.
 QUICK_WIN_GA_MIN_SESIONES_REBOTE = 100.0
 QUICK_WIN_GA_MIN_REBOTE = 0.65
@@ -156,7 +173,7 @@ def construir_jerarquia_visible(resultado: ResultadoAuditoria) -> list[str]:
     # Oculta sección de Analytics cuando la fuente no esté activa.
     if not resultado.analytics.activo:
         # Mantiene solo secciones no dependientes de GA4.
-        jerarquia = [seccion for seccion in jerarquia if seccion != "Comportamiento de usuario (Analytics)"]
+        jerarquia = [seccion for seccion in jerarquia if seccion != "Comportamiento y conversión"]
 
     # Devuelve jerarquía visible final.
     return jerarquia
@@ -916,6 +933,9 @@ def construir_cruces_gsc_analytics(resultado: ResultadoAuditoria) -> list[dict]:
     # Inicializa colección de cruces.
     cruces: list[dict] = []
 
+    # Construye índice de gestión de indexación para enriquecer insights de negocio.
+    indice_indexacion = {_clave_url_cruce(item.url): item for item in resultado.gestion_indexacion if _clave_url_cruce(item.url)}
+
     # Recorre URLs comunes y deriva insights.
     for url in urls_cruzables:
         # Obtiene métricas de Search Console para la URL.
@@ -945,6 +965,17 @@ def construir_cruces_gsc_analytics(resultado: ResultadoAuditoria) -> list[dict]:
         ):
             # Inserta insight de bajo rendimiento de conversión.
             insights.append("Potencial SEO sin conversión (revisar intención/CTA).")
+
+        # Detecta impresiones elevadas con CTR bajo para optimización de snippet.
+        if metrica_gsc.impresiones >= OPORTUNIDAD_GSC_MIN_IMPRESIONES_CTR and metrica_gsc.ctr <= OPORTUNIDAD_GSC_MAX_CTR:
+            # Inserta insight de bajo rendimiento de clic.
+            insights.append("Muchas impresiones y CTR bajo (optimizar snippet).")
+
+        # Detecta conversiones en URLs que no deberían indexarse.
+        decision_indexacion = indice_indexacion.get(url)
+        if decision_indexacion and decision_indexacion.clasificacion == "NO_INDEXAR" and metrica_analytics.conversiones > 0:
+            # Inserta insight de conflicto entre negocio e indexación.
+            insights.append("Convierte pero está marcada como NO_INDEXAR (validar estrategia).")
 
         # Añade fila de cruce con métricas comparables.
         cruces.append(
@@ -987,6 +1018,83 @@ def construir_filas_gestion_indexacion(resultado: ResultadoAuditoria) -> list[di
 
     # Devuelve filas finales de gestión de indexación.
     return filas
+
+
+# Construye priorización de páginas combinando visibilidad, tráfico y conversión.
+def construir_paginas_prioritarias(resultado: ResultadoAuditoria, limite: int = 10) -> list[dict]:
+    """Ordena páginas por potencial SEO y negocio usando GSC, GA4 y on-page."""
+
+    # Construye índices de datos por URL normalizada para cruces consistentes.
+    gsc_por_clave = {_clave_url_cruce(item.url): item for item in resultado.search_console.paginas if _clave_url_cruce(item.url)}
+    ga_por_clave = {_clave_url_cruce(item.url): item for item in resultado.analytics.paginas if _clave_url_cruce(item.url)}
+    tecnico_por_clave = {_clave_url_cruce(item.url): item for item in resultado.resultados if _clave_url_cruce(item.url)}
+
+    # Calcula universo de URLs disponibles en cualquier fuente.
+    claves = sorted(set(gsc_por_clave.keys()) | set(ga_por_clave.keys()) | set(tecnico_por_clave.keys()))
+
+    # Inicializa colección de páginas priorizadas.
+    prioridades: list[dict] = []
+
+    # Recorre cada URL candidata para asignar puntuación de priorización.
+    for clave in claves:
+        # Obtiene métricas por fuente cuando existan.
+        gsc = gsc_por_clave.get(clave)
+        ga = ga_por_clave.get(clave)
+        tecnico = tecnico_por_clave.get(clave)
+
+        # Resuelve URL legible priorizando formato completo.
+        url = (gsc.url if gsc else "") or (ga.url if ga else "") or (tecnico.url if tecnico else clave)
+
+        # Inicializa puntuación y razones ejecutivas de prioridad.
+        score_prioridad = 0.0
+        razones: list[str] = []
+
+        # Evalúa señal de visibilidad alta con CTR bajo.
+        if gsc and gsc.impresiones >= PRIORIDAD_GSC_MIN_IMPRESIONES_CTR and gsc.ctr <= PRIORIDAD_GSC_MAX_CTR:
+            score_prioridad += PRIORIDAD_SCORE_CTR_BAJO
+            razones.append("Muchas impresiones y CTR bajo.")
+
+        # Evalúa señal de tráfico sin conversión.
+        if ga and ga.sesiones >= PRIORIDAD_GA_MIN_SESIONES_SIN_CONVERSION and ga.conversiones <= PRIORIDAD_GA_MAX_CONVERSIONES:
+            score_prioridad += PRIORIDAD_SCORE_SIN_CONVERSION
+            razones.append("Sesiones altas sin conversión.")
+
+        # Evalúa señal de alta visibilidad con engagement bajo.
+        if gsc and ga and gsc.impresiones >= PRIORIDAD_GSC_MIN_IMPRESIONES_ENGAGEMENT_BAJO and ga.rebote >= PRIORIDAD_GA_MIN_REBOTE_BAJO_ENGAGEMENT:
+            score_prioridad += PRIORIDAD_SCORE_ENGAGEMENT_BAJO
+            razones.append("Alta visibilidad con engagement bajo.")
+
+        # Evalúa oportunidades por posición de ascenso rápido.
+        if gsc and PRIORIDAD_GSC_MIN_POSICION <= gsc.posicion_media <= PRIORIDAD_GSC_MAX_POSICION:
+            score_prioridad += PRIORIDAD_SCORE_POSICION_POTENCIAL
+            razones.append("Posición 4-15 con potencial de crecimiento.")
+
+        # Evalúa impacto técnico por volumen de hallazgos on-page.
+        if tecnico and tecnico.hallazgos:
+            score_prioridad += min(PRIORIDAD_SCORE_MAX_HALLAZGOS, len(tecnico.hallazgos) * PRIORIDAD_SCORE_HALLAZGO)
+            razones.append(f"Acumula {len(tecnico.hallazgos)} hallazgos on-page/técnicos.")
+
+        # Descarta URLs sin señales de priorización claras.
+        if score_prioridad <= 0:
+            continue
+
+        # Añade fila consolidada de priorización.
+        prioridades.append(
+            {
+                "url": url,
+                "prioridad_score": round(score_prioridad, 1),
+                "impresiones": round(gsc.impresiones, 2) if gsc else 0.0,
+                "ctr": round(gsc.ctr, 4) if gsc else 0.0,
+                "posicion_media": round(gsc.posicion_media, 2) if gsc else 0.0,
+                "sesiones": round(ga.sesiones, 2) if ga else 0.0,
+                "conversiones": round(ga.conversiones, 2) if ga else 0.0,
+                "hallazgos_onpage": len(tecnico.hallazgos) if tecnico else 0,
+                "motivos": razones,
+            }
+        )
+
+    # Devuelve páginas priorizadas por score descendente.
+    return sorted(prioridades, key=lambda item: (-float(item["prioridad_score"]), -float(item["impresiones"]), -float(item["sesiones"])))[:limite]
 
 
 # Construye oportunidades SEO accionables cruzando técnica y Search Console.
@@ -1510,10 +1618,10 @@ def _construir_bloques_narrativos(resultado: ResultadoAuditoria) -> dict[str, li
                 else "No se han recibido datos de PageSpeed en esta ejecución."
             )
 
-    # Construye fallback de comportamiento de usuario cuando Analytics esté activo.
-    if not bloques["Comportamiento de usuario (Analytics)"] and resultado.analytics.activo:
+    # Construye fallback de comportamiento y conversión cuando Analytics esté activo.
+    if not bloques["Comportamiento y conversión"] and resultado.analytics.activo:
         # Inserta resumen agregado de comportamiento.
-        bloques["Comportamiento de usuario (Analytics)"].append(
+        bloques["Comportamiento y conversión"].append(
             "Sesiones: "
             f"{metricas_analytics.get('sesiones_totales', 0.0)} | "
             f"Usuarios: {metricas_analytics.get('usuarios_totales', 0.0)} | "
@@ -1524,13 +1632,13 @@ def _construir_bloques_narrativos(resultado: ResultadoAuditoria) -> dict[str, li
 
         # Añade páginas con más tráfico.
         for fila in sorted(filas_analytics_paginas, key=lambda item: float(item.get("sesiones", 0.0)), reverse=True)[:ANALYTICS_TOP_TRAFICO_LIMITE]:
-            bloques["Comportamiento de usuario (Analytics)"].append(
+            bloques["Comportamiento y conversión"].append(
                 f"Top tráfico: {fila.get('url', '')} | sesiones={fila.get('sesiones', 0)} | rebote={fila.get('rebote', 0)}."
             )
 
         # Añade páginas con peor rebote.
         for fila in sorted(filas_analytics_paginas, key=lambda item: float(item.get("rebote", 0.0)), reverse=True)[:ANALYTICS_PEORES_REBOTE_LIMITE]:
-            bloques["Comportamiento de usuario (Analytics)"].append(
+            bloques["Comportamiento y conversión"].append(
                 f"Peor rebote: {fila.get('url', '')} | rebote={fila.get('rebote', 0)} | sesiones={fila.get('sesiones', 0)}."
             )
 
@@ -1541,14 +1649,39 @@ def _construir_bloques_narrativos(resultado: ResultadoAuditoria) -> dict[str, li
             reverse=True,
         )[:ANALYTICS_MEJORES_ENGAGEMENT_LIMITE]
         for fila in mejores_engagement:
-            bloques["Comportamiento de usuario (Analytics)"].append(
+            bloques["Comportamiento y conversión"].append(
                 f"Mejor engagement: {fila.get('url', '')} | duración={fila.get('duracion', 0)}s | rebote={fila.get('rebote', 0)}."
             )
+
+        # Añade páginas con tráfico y sin conversión como foco de negocio.
+        contador_sin_conversion = 0
+        for fila in sorted(filas_analytics_paginas, key=lambda item: float(item.get("sesiones", 0.0)), reverse=True):
+            if float(fila.get("sesiones", 0.0)) >= CRUCE_GA_MIN_SESIONES_SIN_CONVERSION and float(fila.get("conversiones", 0.0)) <= 0.0:
+                bloques["Comportamiento y conversión"].append(
+                    f"Tráfico sin conversión: {fila.get('url', '')} | sesiones={fila.get('sesiones', 0)} | conversiones={fila.get('conversiones', 0)}."
+                )
+                contador_sin_conversion += 1
+                if contador_sin_conversion >= 3:
+                    break
 
         # Añade insights derivados del cruce GSC + Analytics.
         for fila in filas_cruce_gsc_analytics[:ANALYTICS_CRUCES_LIMITE]:
             for insight in fila.get("insights", []):
-                bloques["Comportamiento de usuario (Analytics)"].append(f"{fila.get('url', '')}: {insight}")
+                bloques["Comportamiento y conversión"].append(f"{fila.get('url', '')}: {insight}")
+
+    # Construye fallback de páginas prioritarias combinando señales SEO y negocio.
+    if not bloques["Páginas prioritarias"]:
+        # Obtiene shortlist consolidada de páginas a priorizar.
+        paginas_prioritarias = construir_paginas_prioritarias(resultado, limite=8)
+
+        # Recorre páginas para justificar priorización.
+        for pagina in paginas_prioritarias:
+            bloques["Páginas prioritarias"].append(
+                f"{pagina.get('url', '')} | score_prioridad={pagina.get('prioridad_score', 0)} | "
+                f"impresiones={pagina.get('impresiones', 0)} | CTR={pagina.get('ctr', 0)} | "
+                f"posición={pagina.get('posicion_media', 0)} | sesiones={pagina.get('sesiones', 0)} | "
+                f"conversiones={pagina.get('conversiones', 0)} | motivos={'; '.join(pagina.get('motivos', []))}"
+            )
 
     # Construye fallback de indexación y rastreo con datos técnicos reales.
     if not bloques["Indexación y rastreo"]:
@@ -1699,11 +1832,14 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     # Crea libro de trabajo.
     libro = Workbook()
 
-    # Prepara hoja dashboard.
-    hoja_dashboard = libro.active
+    # Prepara hoja de KPIs como primera pestaña ejecutiva.
+    hoja_kpis = libro.active
 
-    # Renombra hoja principal.
-    hoja_dashboard.title = "Dashboard"
+    # Renombra hoja principal a KPIs.
+    hoja_kpis.title = "KPIs"
+
+    # Crea hoja dashboard analítica como segunda pestaña.
+    hoja_dashboard = libro.create_sheet("Dashboard")
 
     # Crea hojas auxiliares de trabajo.
     hoja_errores = libro.create_sheet("Errores")
@@ -2178,6 +2314,9 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     # Obtiene sesiones totales de Analytics desde métrica centralizada.
     sesiones_totales_analytics = float(metricas_analytics.get("sesiones_totales", 0.0))
 
+    # Obtiene usuarios totales de Analytics desde métrica centralizada.
+    usuarios_totales_analytics = float(metricas_analytics.get("usuarios_totales", 0.0))
+
     # Obtiene rebote medio de Analytics desde métrica centralizada.
     rebote_medio_analytics = float(metricas_analytics.get("rebote_medio", 0.0))
 
@@ -2190,43 +2329,54 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     # Obtiene resumen de gestión de indexación para KPIs.
     resumen_gestion_indexacion = metricas.get("gestion_indexacion", {}) if isinstance(metricas.get("gestion_indexacion", {}), dict) else {}
 
-    # Define tarjetas KPI ampliadas para dashboard profesional.
+    # Define KPIs ejecutivos mínimos obligatorios de la pestaña KPIs.
     kpis_dashboard = [
-        ("Total URLs auditadas", metricas["total_urls"]),
+        ("Total URLs", metricas["total_urls"]),
         ("Total incidencias", metricas["total_incidencias"]),
-        ("Total incidencias agrupadas", metricas.get("total_incidencias_agrupadas", 0)),
-        ("URLs sanas", metricas["urls_sanas"]),
-        ("Score SEO global", metricas["score"]),
-        ("Score indexación/arquitectura", score_bloques.get("indexacion_arquitectura", {}).get("score", "No disponible")),
-        ("Score contenido on-page", score_bloques.get("contenido_onpage", {}).get("score", "No disponible")),
-        ("Score rendimiento", score_bloques.get("rendimiento", {}).get("score", "No disponible")),
-        ("Score multimedia/accesibilidad", score_bloques.get("multimedia_accesibilidad", {}).get("score", "No disponible")),
-        ("Incidencias críticas", incidencias_criticas),
-        ("Incidencias altas", incidencias_altas),
-        ("Incidencias medias", incidencias_medias),
-        ("Incidencias bajas", incidencias_bajas),
-        ("Incidencias informativas", metricas["severidades"].get("informativa", 0)),
-        ("Total imágenes sin alt", total_imagenes_sin_alt),
-        ("Total titles largos", total_titles_largos),
-        ("Total metas vacías", total_metas_vacias),
-        ("Páginas con H1 problemático", total_h1_problematico),
-        ("Total oportunidades PageSpeed", total_oportunidades),
-        ("Clics totales GSC", clics_totales_gsc),
-        ("Impresiones totales GSC", impresiones_totales_gsc),
-        ("CTR medio GSC", ctr_medio_gsc),
-        ("Posición media GSC", posicion_media_gsc),
-        ("Sesiones totales Analytics", sesiones_totales_analytics),
-        ("Rebote medio Analytics", rebote_medio_analytics),
-        ("Duración media Analytics", duracion_media_analytics),
-        ("Páginas con oportunidad GSC", total_oportunidades_gsc),
-        ("URLs indexables (gestión)", resumen_gestion_indexacion.get("indexable", 0)),
-        ("URLs a revisar (gestión)", resumen_gestion_indexacion.get("revisar", 0)),
-        ("URLs no indexar (gestión)", resumen_gestion_indexacion.get("no_indexar", 0)),
-        ("Score medio móvil", score_medio_mobile),
-        ("Score medio escritorio", score_medio_desktop),
-        ("% URLs con incidencia", porcentaje_urls_con_incidencia),
-        ("% incidencias resueltas", porcentaje_resueltas),
+        ("Score global", metricas["score"]),
+        ("Score técnico", metricas["score_tecnico"]),
+        ("Score contenido", metricas["score_contenido"]),
+        ("Score rendimiento", metricas["score_rendimiento"]),
+        ("Clics GSC", clics_totales_gsc),
+        ("Impresiones GSC", impresiones_totales_gsc),
+        ("CTR medio", ctr_medio_gsc),
+        ("Posición media", posicion_media_gsc),
+        ("Sesiones GA4", sesiones_totales_analytics),
+        ("Usuarios GA4", usuarios_totales_analytics),
+        ("Rebote medio", rebote_medio_analytics),
+        ("Duración media", duracion_media_analytics),
+        ("Conversiones", float(metricas_analytics.get("conversiones", 0.0))),
+        ("Indexables", resumen_gestion_indexacion.get("indexable", 0)),
+        ("Revisar", resumen_gestion_indexacion.get("revisar", 0)),
+        ("No indexar", resumen_gestion_indexacion.get("no_indexar", 0)),
     ]
+
+    # Renderiza cabecera de la hoja KPI ejecutiva.
+    hoja_kpis["A1"] = "KPIs SEO ejecutivos"
+    hoja_kpis["A1"].font = Font(size=18, bold=True, color=COLOR_DASHBOARD_TITULO)
+    hoja_kpis["A2"] = f"Cliente: {resultado.cliente} | Fecha: {resultado.fecha_ejecucion}"
+    hoja_kpis["A2"].font = Font(size=11, color="4B5563")
+    hoja_kpis["A4"] = "KPI"
+    hoja_kpis["B4"] = "Valor"
+    hoja_kpis["A4"].font = Font(bold=True, color="FFFFFF")
+    hoja_kpis["B4"].font = Font(bold=True, color="FFFFFF")
+    hoja_kpis["A4"].fill = PatternFill(fill_type="solid", fgColor=COLOR_DASHBOARD_TITULO)
+    hoja_kpis["B4"].fill = PatternFill(fill_type="solid", fgColor=COLOR_DASHBOARD_TITULO)
+
+    # Escribe KPIs ejecutivos en la parte visible inicial sin scroll horizontal.
+    for indice, (titulo_kpi, valor_kpi) in enumerate(kpis_dashboard, start=5):
+        hoja_kpis[f"A{indice}"] = titulo_kpi
+        hoja_kpis[f"B{indice}"] = valor_kpi
+        hoja_kpis[f"A{indice}"].fill = PatternFill(fill_type="solid", fgColor=COLOR_KPI_TITULO_FONDO)
+        hoja_kpis[f"A{indice}"].font = Font(bold=True, color=COLOR_DASHBOARD_TITULO)
+        hoja_kpis[f"B{indice}"].fill = PatternFill(fill_type="solid", fgColor=COLOR_KPI_VALOR_FONDO)
+        hoja_kpis[f"A{indice}"].alignment = Alignment(vertical="top", wrap_text=True)
+        hoja_kpis[f"B{indice}"].alignment = Alignment(vertical="top", wrap_text=True)
+
+    # Configura formato y navegación de la hoja KPI.
+    hoja_kpis.column_dimensions["A"].width = 34
+    hoja_kpis.column_dimensions["B"].width = 18
+    hoja_kpis.freeze_panes = "A5"
 
     # Define tarjetas visuales principales en primera franja del dashboard.
     tarjetas_superiores = [
@@ -2269,16 +2419,6 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
         hoja_dashboard[f"{letra_inicio}4"].font = Font(size=18, bold=True, color=color_texto)
         hoja_dashboard[f"{letra_inicio}4"].alignment = Alignment(horizontal="center", vertical="center")
         hoja_dashboard[f"{letra_inicio}4"].fill = PatternFill(fill_type="solid", fgColor=color_fondo)
-
-    # Escribe KPIs completos en rejilla detallada para trazabilidad operativa.
-    for indice, (titulo_kpi, valor_kpi) in enumerate(kpis_dashboard, start=9):
-        # Escribe nombre del KPI.
-        hoja_dashboard[f"A{indice}"] = titulo_kpi
-        # Escribe valor del KPI.
-        hoja_dashboard[f"B{indice}"] = valor_kpi
-        hoja_dashboard[f"A{indice}"].fill = PatternFill(fill_type="solid", fgColor=COLOR_KPI_TITULO_FONDO)
-        hoja_dashboard[f"A{indice}"].font = Font(bold=True, color=COLOR_DASHBOARD_TITULO)
-        hoja_dashboard[f"B{indice}"].fill = PatternFill(fill_type="solid", fgColor=COLOR_KPI_VALOR_FONDO)
 
     # Obtiene top páginas por impresiones para bloque de visibilidad.
     top_paginas = ", ".join(str(fila.get("url", "")) for fila in sorted(filas_gsc_paginas, key=lambda item: float(item.get("impresiones", 0.0)), reverse=True)[:3]) or "Sin datos"
@@ -2442,11 +2582,13 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     _renderizar_bloque_dashboard(
         hoja_dashboard,
         "D28",
-        "Comportamiento de usuario (Analytics)",
+        "Comportamiento Analytics",
         [
             f"Sesiones totales: {sesiones_totales_analytics}",
+            f"Usuarios totales: {usuarios_totales_analytics}",
             f"Rebote medio: {rebote_medio_analytics}",
             f"Duración media: {duracion_media_analytics}",
+            f"Conversiones: {float(metricas_analytics.get('conversiones', 0.0))}",
             f"Top páginas tráfico: {top_paginas_analytics}",
             f"Páginas peor comportamiento: {peores_paginas_analytics}",
         ],
@@ -2478,6 +2620,32 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
             "Por familia: " + ", ".join(f"{k}={v}" for k, v in list(incidencias_por_familia.items())[:3]),
         ],
         COLOR_BLOQUE_INCIDENCIAS,
+    )
+
+    # Renderiza bloque de ranking de páginas y queries prioritarias.
+    _renderizar_bloque_dashboard(
+        hoja_dashboard,
+        "L20",
+        "Top páginas y queries",
+        [
+            f"Top páginas GSC: {top_paginas}",
+            f"Top queries GSC: {top_queries}",
+            f"Top páginas GA4: {top_paginas_analytics}",
+        ],
+        "334155",
+    )
+
+    # Renderiza bloque de páginas prioritarias por cruce SEO + negocio.
+    _renderizar_bloque_dashboard(
+        hoja_dashboard,
+        "L30",
+        "Páginas prioritarias",
+        [
+            f"{item.get('url', '')} (score={item.get('prioridad_score', 0)})"
+            for item in construir_paginas_prioritarias(resultado, limite=4)
+        ]
+        or ["Sin señales suficientes para priorizar."],
+        "7C3AED",
     )
 
     # Crea gráfico de distribución de severidad de rendimiento.
@@ -2618,14 +2786,17 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
 
     # Aplica autoajuste global de todas las hojas de datos.
     hojas_a_ajustar = [
+        hoja_kpis,
         hoja_dashboard,
         hoja_errores,
         hoja_contenido,
         hoja_rendimiento,
         hoja_indexacion,
+        hoja_analytics,
         hoja_gsc_paginas,
         hoja_gsc_queries,
         hoja_oportunidades_gsc,
+        hoja_aux,
     ]
 
     # Recorre hojas de datos para aplicar ajuste homogéneo.
@@ -2757,6 +2928,33 @@ def exportar_word(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
                     documento.add_paragraph("-----------------------------------")
 
             # Continúa con la siguiente sección.
+            continue
+
+        # Inserta bloque tabular de comportamiento y conversión basado en GA4.
+        if titulo_seccion == "Comportamiento y conversión":
+            # Construye filas de Analytics por página para la tabla ejecutiva.
+            filas_analytics = sorted(construir_filas_analytics_paginas(resultado), key=lambda item: float(item.get("sesiones", 0.0)), reverse=True)[:8]
+
+            # Inserta mensaje cuando no hay datos de Analytics.
+            if not filas_analytics:
+                documento.add_paragraph("No hay datos de Analytics disponibles para esta ejecución.")
+            else:
+                tabla_ga = documento.add_table(rows=1, cols=6)
+                tabla_ga.style = "Table Grid"
+                tabla_ga.rows[0].cells[0].text = "URL"
+                tabla_ga.rows[0].cells[1].text = "Sesiones"
+                tabla_ga.rows[0].cells[2].text = "Usuarios"
+                tabla_ga.rows[0].cells[3].text = "Rebote"
+                tabla_ga.rows[0].cells[4].text = "Duración"
+                tabla_ga.rows[0].cells[5].text = "Conversiones"
+                for fila in filas_analytics:
+                    celdas = tabla_ga.add_row().cells
+                    celdas[0].text = str(fila.get("url", ""))
+                    celdas[1].text = str(fila.get("sesiones", 0))
+                    celdas[2].text = str(fila.get("usuarios", 0))
+                    celdas[3].text = str(fila.get("rebote", 0))
+                    celdas[4].text = str(fila.get("duracion", 0))
+                    celdas[5].text = str(fila.get("conversiones", 0))
             continue
 
         # Inserta bloque específico de rendimiento.
@@ -3159,6 +3357,14 @@ def exportar_html(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     # Construye bloques narrativos para secciones ejecutivas adicionales.
     bloques = _construir_bloques_narrativos(resultado)
 
+    # Construye datasets complementarios para versión premium HTML.
+    filas_gsc_paginas = construir_filas_search_console_paginas(resultado)
+    filas_gsc_queries = construir_filas_search_console_queries(resultado)
+    filas_analytics_paginas = construir_filas_analytics_paginas(resultado)
+    filas_indexacion = construir_filas_gestion_indexacion(resultado)
+    filas_cruce = construir_cruces_gsc_analytics(resultado)
+    paginas_prioritarias = construir_paginas_prioritarias(resultado, limite=8)
+
     # Construye incidencias agrupadas para capa ejecutiva.
     incidencias_agrupadas = data if isinstance(data := metricas.get("incidencias_agrupadas"), dict) else {}
 
@@ -3225,6 +3431,60 @@ def exportar_html(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
       <thead><tr><th>Familia</th><th>Total</th></tr></thead>
       <tbody>
         {''.join(f"<tr><td>{familia}</td><td>{total}</td></tr>" for familia, total in incidencias_agrupadas.items()) or '<tr><td colspan=\"2\">No disponible</td></tr>'}
+      </tbody>
+    </table>
+  </div>
+  <div class="bloque">
+    <h2>Comportamiento y conversión</h2>
+    <table>
+      <thead><tr><th>URL</th><th>Sesiones</th><th>Usuarios</th><th>Rebote</th><th>Duración</th><th>Conversiones</th></tr></thead>
+      <tbody>
+        {''.join(f"<tr><td>{fila.get('url','')}</td><td>{fila.get('sesiones',0)}</td><td>{fila.get('usuarios',0)}</td><td>{fila.get('rebote',0)}</td><td>{fila.get('duracion',0)}</td><td>{fila.get('conversiones',0)}</td></tr>" for fila in sorted(filas_analytics_paginas, key=lambda item: float(item.get('sesiones',0.0)), reverse=True)[:10]) or '<tr><td colspan=\"6\">No disponible</td></tr>'}
+      </tbody>
+    </table>
+  </div>
+  <div class="bloque">
+    <h2>Gestión de indexación</h2>
+    <table>
+      <thead><tr><th>URL</th><th>Clasificación</th><th>Motivo</th><th>Acción recomendada</th></tr></thead>
+      <tbody>
+        {''.join(f"<tr><td>{fila.get('url','')}</td><td>{fila.get('clasificacion','')}</td><td>{fila.get('motivo','')}</td><td>{fila.get('accion_recomendada','')}</td></tr>" for fila in filas_indexacion[:12]) or '<tr><td colspan=\"4\">No disponible</td></tr>'}
+      </tbody>
+    </table>
+  </div>
+  <div class="bloque">
+    <h2>Páginas prioritarias</h2>
+    <table>
+      <thead><tr><th>URL</th><th>Score prioridad</th><th>Impresiones</th><th>CTR</th><th>Sesiones</th><th>Conversiones</th><th>Motivo</th></tr></thead>
+      <tbody>
+        {''.join(f"<tr><td>{fila.get('url','')}</td><td>{fila.get('prioridad_score',0)}</td><td>{fila.get('impresiones',0)}</td><td>{fila.get('ctr',0)}</td><td>{fila.get('sesiones',0)}</td><td>{fila.get('conversiones',0)}</td><td>{'; '.join(fila.get('motivos',[]))}</td></tr>" for fila in paginas_prioritarias) or '<tr><td colspan=\"7\">No disponible</td></tr>'}
+      </tbody>
+    </table>
+  </div>
+  <div class="bloque">
+    <h2>Cruce GSC + GA4 inteligente</h2>
+    <table>
+      <thead><tr><th>URL</th><th>Impresiones</th><th>CTR</th><th>Sesiones</th><th>Rebote</th><th>Conversiones</th><th>Insights</th></tr></thead>
+      <tbody>
+        {''.join(f"<tr><td>{fila.get('url','')}</td><td>{fila.get('impresiones',0)}</td><td>{fila.get('ctr',0)}</td><td>{fila.get('sesiones',0)}</td><td>{fila.get('rebote',0)}</td><td>{fila.get('conversiones',0)}</td><td>{' | '.join(fila.get('insights',[]))}</td></tr>" for fila in filas_cruce[:10]) or '<tr><td colspan=\"7\">No disponible</td></tr>'}
+      </tbody>
+    </table>
+  </div>
+  <div class="bloque">
+    <h2>Top oportunidades (GSC)</h2>
+    <table>
+      <thead><tr><th>URL</th><th>Impresiones</th><th>CTR</th><th>Posición</th><th>Oportunidad</th></tr></thead>
+      <tbody>
+        {''.join(f"<tr><td>{fila.get('url','')}</td><td>{fila.get('impresiones',0)}</td><td>{fila.get('ctr',0)}</td><td>{fila.get('posicion_media',0)}</td><td>{fila.get('oportunidad','')}</td></tr>" for fila in construir_oportunidades_gsc(resultado)[:10]) or '<tr><td colspan=\"5\">No disponible</td></tr>'}
+      </tbody>
+    </table>
+  </div>
+  <div class="bloque">
+    <h2>Top queries</h2>
+    <table>
+      <thead><tr><th>Query</th><th>Clics</th><th>Impresiones</th><th>CTR</th><th>Posición</th></tr></thead>
+      <tbody>
+        {''.join(f"<tr><td>{fila.get('query','')}</td><td>{fila.get('clics',0)}</td><td>{fila.get('impresiones',0)}</td><td>{fila.get('ctr',0)}</td><td>{fila.get('posicion_media',0)}</td></tr>" for fila in filas_gsc_queries[:10]) or '<tr><td colspan=\"5\">No disponible</td></tr>'}
       </tbody>
     </table>
   </div>

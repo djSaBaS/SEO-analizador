@@ -1,3 +1,17 @@
+## 0.8.6 - 2026-03-26
+- Se corrige un bug crítico en `exportar_word` eliminando un bloque duplicado que usaba objetos de ReportLab dentro del flujo DOCX.
+- Se mejora la mantenibilidad de `construir_paginas_prioritarias` sustituyendo números mágicos por constantes descriptivas de umbrales y puntuación.
+- Se optimiza el bloque de `Comportamiento y conversión` evitando recálculos repetitivos al limitar páginas con tráfico sin conversión mediante contador incremental.
+- Se añade test de regresión para asegurar que la exportación Word funciona con Analytics activo en la sección de comportamiento y conversión.
+
+## 0.8.5 - 2026-03-26
+- Se rediseña la exportación Excel con separación explícita entre `KPIs` (primera pestaña ejecutiva), `Dashboard` analítico y hojas de detalle, incorporando los KPI críticos de negocio (GSC, GA4 e indexación) sin necesidad de scroll horizontal.
+- Se refuerza el dashboard con bloques visuales adicionales (comportamiento Analytics, top páginas/queries y páginas prioritarias), manteniendo compatibilidad cuando GSC o GA4 no están activos.
+- Se aplica autoajuste global y legibilidad transversal (wrap/alturas/anchos) a todas las hojas relevantes del Excel, incluyendo KPIs, Analytics y auxiliares.
+- Se amplía la narrativa y render de Word/PDF/HTML con la sección `Comportamiento y conversión`, la nueva sección `Páginas prioritarias` y un cruce GSC+GA4 más orientado a negocio.
+- Se mejora el HTML para que deje de ser simplificado e incluya tablas de GA4, gestión de indexación, cruce inteligente y top oportunidades.
+- Se actualizan pruebas de reporters para validar nueva jerarquía editorial y estructura de pestañas KPI/Dashboard.
+
 ## 0.8.4 - 2026-03-25
 - Se implementa sistema de prompts modulares IA en `prompts/` con selector CLI `--modo` (`completo`, `resumen`, `quickwins`, `gsc`, `roadmap`).
 - Se añade resolución de prompt por modo con fallback automático a `informe_general.txt` y compatibilidad retroactiva con la carpeta legacy `Prompt/`.

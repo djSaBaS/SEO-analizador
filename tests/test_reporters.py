@@ -14,6 +14,7 @@ from seo_auditor.reporters import (
     construir_jerarquia_visible,
     construir_secciones_desde_ia,
     exportar_excel,
+    exportar_word,
     sanear_texto_para_pdf,
 )
 
@@ -59,7 +60,7 @@ def test_construir_jerarquia_visible_oculta_analytics_si_esta_inactivo() -> None
     jerarquia = construir_jerarquia_visible(auditoria)
 
     # Verifica que la sección de Analytics no esté visible.
-    assert "Comportamiento de usuario (Analytics)" not in jerarquia
+    assert "Comportamiento y conversión" not in jerarquia
 
 
 # Verifica cruce GSC+Analytics normalizando URL completa vs pagePath.
@@ -374,20 +375,20 @@ def test_exportar_excel_score_medio_desde_ejecuciones_unicas(tmp_path: Path) -> 
     # Abre libro generado para validación de KPI.
     libro = load_workbook(ruta_excel)
 
-    # Obtiene hoja Dashboard.
-    hoja_dashboard = libro["Dashboard"]
+    # Obtiene hoja KPIs para validar el bloque ejecutivo mínimo.
+    hoja_kpis = libro["KPIs"]
 
     # Verifica que exista hoja específica de indexación.
     assert "Indexacion" in libro.sheetnames
 
-    # Busca fila del KPI de score medio móvil para evitar acoplamiento por posición.
-    fila_score_mobile = next((fila for fila in range(3, 60) if hoja_dashboard[f"A{fila}"].value == "Score medio móvil"), None)
+    # Busca fila del KPI de score rendimiento para evitar acoplamiento por posición.
+    fila_score_rend = next((fila for fila in range(5, 60) if hoja_kpis[f"A{fila}"].value == "Score rendimiento"), None)
 
-    # Verifica que la fila del KPI exista en el dashboard.
-    assert fila_score_mobile is not None
+    # Verifica que la fila del KPI exista en la hoja de KPIs.
+    assert fila_score_rend is not None
 
-    # Verifica score medio móvil basado en ejecuciones únicas: (50 + 100) / 2 = 75.
-    assert hoja_dashboard[f"B{fila_score_mobile}"].value == 75.0
+    # Verifica score rendimiento basado en ejecuciones únicas: (50 + 100) / 2 = 75.
+    assert hoja_kpis[f"B{fila_score_rend}"].value == 75.0
 
 
 # Verifica que el dashboard conserve los gráficos esperados.
@@ -466,6 +467,8 @@ def test_exportar_excel_incluye_hojas_gsc(tmp_path: Path) -> None:
     libro = load_workbook(ruta_excel)
 
     # Verifica que existan hojas nuevas de Search Console.
+    assert libro.sheetnames[0] == "KPIs"
+    assert libro.sheetnames[1] == "Dashboard"
     assert "Search_Console_Paginas" in libro.sheetnames
     assert "Search_Console_Queries" in libro.sheetnames
     assert "Oportunidades_GSC" in libro.sheetnames
@@ -647,3 +650,38 @@ def test_exportar_excel_tabla_rendimiento_valida(tmp_path: Path) -> None:
     # Verifica existencia de tabla y rango válido esperado.
     assert "TablaRendimiento" in rendimiento.tables
     assert rendimiento.tables["TablaRendimiento"].ref == "A1:T2"
+
+
+# Verifica que Word exporte correctamente la sección de comportamiento y conversión.
+def test_exportar_word_comportamiento_conversion_sin_error(tmp_path: Path) -> None:
+    """Comprueba que el DOCX se genere sin errores con Analytics activo."""
+
+    # Construye auditoría con Analytics para activar sección de comportamiento.
+    auditoria = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=1,
+        resultados=[],
+        cliente="Ejemplo",
+        fecha_ejecucion="2026-03-26",
+        gestor="Gestor",
+        analytics=DatosAnalytics(
+            activo=True,
+            paginas=[
+                MetricaAnalyticsPagina(
+                    url="/",
+                    sesiones=120,
+                    usuarios=95,
+                    rebote=0.61,
+                    duracion_media=84,
+                    conversiones=3,
+                    calidad_trafico="media",
+                )
+            ],
+        ),
+    )
+
+    # Exporta archivo Word en carpeta temporal.
+    ruta_word = exportar_word(auditoria, tmp_path)
+
+    # Verifica que el archivo DOCX exista en disco.
+    assert ruta_word.exists()
