@@ -128,6 +128,22 @@ CRUCE_GSC_MAX_POSICION_POTENCIAL = 12.0
 CRUCE_GA_MIN_SESIONES_SIN_CONVERSION = 40.0
 CRUCE_GA_MAX_CONVERSIONES = 0.0
 
+# Define umbrales y pesos de priorización para páginas estratégicas.
+PRIORIDAD_GSC_MIN_IMPRESIONES_CTR = 500.0
+PRIORIDAD_GSC_MAX_CTR = 0.02
+PRIORIDAD_SCORE_CTR_BAJO = 40.0
+PRIORIDAD_GA_MIN_SESIONES_SIN_CONVERSION = 80.0
+PRIORIDAD_GA_MAX_CONVERSIONES = 0.0
+PRIORIDAD_SCORE_SIN_CONVERSION = 35.0
+PRIORIDAD_GSC_MIN_IMPRESIONES_ENGAGEMENT_BAJO = 400.0
+PRIORIDAD_GA_MIN_REBOTE_BAJO_ENGAGEMENT = 0.65
+PRIORIDAD_SCORE_ENGAGEMENT_BAJO = 25.0
+PRIORIDAD_GSC_MIN_POSICION = 4.0
+PRIORIDAD_GSC_MAX_POSICION = 15.0
+PRIORIDAD_SCORE_POSICION_POTENCIAL = 15.0
+PRIORIDAD_SCORE_MAX_HALLAZGOS = 20.0
+PRIORIDAD_SCORE_HALLAZGO = 5.0
+
 # Define umbrales para quick wins basados en Analytics.
 QUICK_WIN_GA_MIN_SESIONES_REBOTE = 100.0
 QUICK_WIN_GA_MIN_REBOTE = 0.65
@@ -1034,28 +1050,28 @@ def construir_paginas_prioritarias(resultado: ResultadoAuditoria, limite: int = 
         razones: list[str] = []
 
         # Evalúa señal de visibilidad alta con CTR bajo.
-        if gsc and gsc.impresiones >= 500 and gsc.ctr <= 0.02:
-            score_prioridad += 40
+        if gsc and gsc.impresiones >= PRIORIDAD_GSC_MIN_IMPRESIONES_CTR and gsc.ctr <= PRIORIDAD_GSC_MAX_CTR:
+            score_prioridad += PRIORIDAD_SCORE_CTR_BAJO
             razones.append("Muchas impresiones y CTR bajo.")
 
         # Evalúa señal de tráfico sin conversión.
-        if ga and ga.sesiones >= 80 and ga.conversiones <= 0:
-            score_prioridad += 35
+        if ga and ga.sesiones >= PRIORIDAD_GA_MIN_SESIONES_SIN_CONVERSION and ga.conversiones <= PRIORIDAD_GA_MAX_CONVERSIONES:
+            score_prioridad += PRIORIDAD_SCORE_SIN_CONVERSION
             razones.append("Sesiones altas sin conversión.")
 
         # Evalúa señal de alta visibilidad con engagement bajo.
-        if gsc and ga and gsc.impresiones >= 400 and ga.rebote >= 0.65:
-            score_prioridad += 25
+        if gsc and ga and gsc.impresiones >= PRIORIDAD_GSC_MIN_IMPRESIONES_ENGAGEMENT_BAJO and ga.rebote >= PRIORIDAD_GA_MIN_REBOTE_BAJO_ENGAGEMENT:
+            score_prioridad += PRIORIDAD_SCORE_ENGAGEMENT_BAJO
             razones.append("Alta visibilidad con engagement bajo.")
 
         # Evalúa oportunidades por posición de ascenso rápido.
-        if gsc and 4 <= gsc.posicion_media <= 15:
-            score_prioridad += 15
+        if gsc and PRIORIDAD_GSC_MIN_POSICION <= gsc.posicion_media <= PRIORIDAD_GSC_MAX_POSICION:
+            score_prioridad += PRIORIDAD_SCORE_POSICION_POTENCIAL
             razones.append("Posición 4-15 con potencial de crecimiento.")
 
         # Evalúa impacto técnico por volumen de hallazgos on-page.
         if tecnico and tecnico.hallazgos:
-            score_prioridad += min(20, len(tecnico.hallazgos) * 5)
+            score_prioridad += min(PRIORIDAD_SCORE_MAX_HALLAZGOS, len(tecnico.hallazgos) * PRIORIDAD_SCORE_HALLAZGO)
             razones.append(f"Acumula {len(tecnico.hallazgos)} hallazgos on-page/técnicos.")
 
         # Descarta URLs sin señales de priorización claras.
@@ -1638,13 +1654,15 @@ def _construir_bloques_narrativos(resultado: ResultadoAuditoria) -> dict[str, li
             )
 
         # Añade páginas con tráfico y sin conversión como foco de negocio.
+        contador_sin_conversion = 0
         for fila in sorted(filas_analytics_paginas, key=lambda item: float(item.get("sesiones", 0.0)), reverse=True):
             if float(fila.get("sesiones", 0.0)) >= CRUCE_GA_MIN_SESIONES_SIN_CONVERSION and float(fila.get("conversiones", 0.0)) <= 0.0:
                 bloques["Comportamiento y conversión"].append(
                     f"Tráfico sin conversión: {fila.get('url', '')} | sesiones={fila.get('sesiones', 0)} | conversiones={fila.get('conversiones', 0)}."
                 )
-            if len([linea for linea in bloques["Comportamiento y conversión"] if "Tráfico sin conversión:" in linea]) >= 3:
-                break
+                contador_sin_conversion += 1
+                if contador_sin_conversion >= 3:
+                    break
 
         # Añade insights derivados del cruce GSC + Analytics.
         for fila in filas_cruce_gsc_analytics[:ANALYTICS_CRUCES_LIMITE]:
@@ -2910,32 +2928,6 @@ def exportar_word(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
                     documento.add_paragraph("-----------------------------------")
 
             # Continúa con la siguiente sección.
-            continue
-
-        # Inserta bloque tabular de comportamiento y conversión basado en GA4.
-        if titulo_seccion == "Comportamiento y conversión":
-            # Construye top páginas de Analytics por sesiones.
-            filas_analytics = sorted(construir_filas_analytics_paginas(resultado), key=lambda item: float(item.get("sesiones", 0.0)), reverse=True)[:8]
-
-            # Inserta mensaje cuando no haya datos útiles.
-            if not filas_analytics:
-                elementos.append(Paragraph("No hay datos de Analytics disponibles para esta ejecución.", estilos["Normal"]))
-            else:
-                tabla_ga = [["URL", "Sesiones", "Usuarios", "Rebote", "Duración", "Conversiones"]]
-                for fila in filas_analytics:
-                    tabla_ga.append(
-                        [
-                            sanear_texto_para_pdf(str(fila.get("url", ""))),
-                            str(fila.get("sesiones", 0)),
-                            str(fila.get("usuarios", 0)),
-                            str(fila.get("rebote", 0)),
-                            str(fila.get("duracion", 0)),
-                            str(fila.get("conversiones", 0)),
-                        ]
-                    )
-                tabla_comportamiento = Table(tabla_ga, repeatRows=1)
-                tabla_comportamiento.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1F4E78")), ("TEXTCOLOR", (0, 0), (-1, 0), colors.white), ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#D9D9D9"))]))
-                elementos.append(tabla_comportamiento)
             continue
 
         # Inserta bloque tabular de comportamiento y conversión basado en GA4.

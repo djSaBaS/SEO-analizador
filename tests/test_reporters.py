@@ -14,6 +14,7 @@ from seo_auditor.reporters import (
     construir_jerarquia_visible,
     construir_secciones_desde_ia,
     exportar_excel,
+    exportar_word,
     sanear_texto_para_pdf,
 )
 
@@ -649,3 +650,38 @@ def test_exportar_excel_tabla_rendimiento_valida(tmp_path: Path) -> None:
     # Verifica existencia de tabla y rango válido esperado.
     assert "TablaRendimiento" in rendimiento.tables
     assert rendimiento.tables["TablaRendimiento"].ref == "A1:T2"
+
+
+# Verifica que Word exporte correctamente la sección de comportamiento y conversión.
+def test_exportar_word_comportamiento_conversion_sin_error(tmp_path: Path) -> None:
+    """Comprueba que el DOCX se genere sin errores con Analytics activo."""
+
+    # Construye auditoría con Analytics para activar sección de comportamiento.
+    auditoria = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=1,
+        resultados=[],
+        cliente="Ejemplo",
+        fecha_ejecucion="2026-03-26",
+        gestor="Gestor",
+        analytics=DatosAnalytics(
+            activo=True,
+            paginas=[
+                MetricaAnalyticsPagina(
+                    url="/",
+                    sesiones=120,
+                    usuarios=95,
+                    rebote=0.61,
+                    duracion_media=84,
+                    conversiones=3,
+                    calidad_trafico="media",
+                )
+            ],
+        ),
+    )
+
+    # Exporta archivo Word en carpeta temporal.
+    ruta_word = exportar_word(auditoria, tmp_path)
+
+    # Verifica que el archivo DOCX exista en disco.
+    assert ruta_word.exists()

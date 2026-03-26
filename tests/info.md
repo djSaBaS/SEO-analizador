@@ -15,6 +15,7 @@ Contiene pruebas unitarias y de regresión.
 - Validar resolución de prompts modulares por modo (`--modo`) con fallback a `informe_general` y conservación de inyección `{datos_json}`.
 - Validar mejoras de legibilidad del dashboard (bloques ejecutivos y panel congelado).
 - Validar la nueva separación Excel `KPIs` + `Dashboard` y jerarquía editorial actualizada para Analytics.
+- Validar regresión de exportación Word en la sección `Comportamiento y conversión` con Analytics activo.
 
 - `test_indexacion.py`: valida filtrado de directivas Disallow por User-agent para evitar falsos positivos en robots.
 - `test_indexacion.py`: valida filtrado de directivas Disallow por User-agent y clasificación inteligente de indexación (INDEXABLE/REVISAR/NO_INDEXAR) con señales de URL/contenido/SEO/GSC.
