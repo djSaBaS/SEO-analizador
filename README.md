@@ -42,7 +42,7 @@ pip install -r requirements.txt
 
 ### IA (Gemini)
 - `GEMINI_API_KEY`
-- `GEMINI_MODEL` (por defecto: `gemini-2.0-flash`)
+- `GEMINI_MODEL` (por defecto: `gemini-2.5-flash`)
 
 ### Núcleo de rastreo
 - `HTTP_TIMEOUT` (por defecto: `15`)

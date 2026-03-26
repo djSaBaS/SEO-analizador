@@ -84,7 +84,7 @@ Qué hace:
 
 ### 2.6 Forzar modelo IA
 ```bash
-python src/main.py --sitemap https://www.ejemplo.com/sitemap.xml --output ./salidas --usar-ia --modelo-ia gemini-2.0-flash
+python src/main.py --sitemap https://www.ejemplo.com/sitemap.xml --output ./salidas --usar-ia --modelo-ia gemini-2.5-flash
 ```
 Qué hace:
 - Sobrescribe el modelo configurado en entorno para esta ejecución.
@@ -99,7 +99,7 @@ Qué hace:
 ### 2.8 Test de conectividad IA
 ```bash
 python src/main.py --testia
-python src/main.py --testia --modelo-ia gemini-2.0-flash
+python src/main.py --testia --modelo-ia gemini-2.5-flash
 ```
 Qué hace:
 - Verifica API/modelo de IA sin generar informes.

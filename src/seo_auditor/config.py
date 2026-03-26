@@ -166,7 +166,7 @@ def cargar_configuracion() -> Configuracion:
         # Carga la clave de Gemini o deja cadena vacía si no existe.
         gemini_api_key=os.getenv("GEMINI_API_KEY", "").strip(),
         # Carga el modelo de Gemini con un valor por defecto estable.
-        gemini_model=os.getenv("GEMINI_MODEL", "gemini-2.0-flash").strip(),
+        gemini_model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip(),
         # Carga la clave de PageSpeed o deja vacío cuando no exista.
         pagespeed_api_key=os.getenv("PAGESPEED_API_KEY", "").strip(),
         # Convierte el timeout validado a entero.
