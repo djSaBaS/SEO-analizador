@@ -57,6 +57,7 @@ def test_main_modo_informe_ga4_ejecuta_exportador(monkeypatch, tmp_path) -> None
         pagepsi_timeout=0,
         pagepsi_reintentos=-1,
         gestor="Gestor",
+        cliente="",
         max_muestras_ia=5,
         modo="informe-ga4",
         modo_rapido=False,

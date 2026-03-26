@@ -280,6 +280,36 @@ def _ejecutar_pagespeed(
     return resultados
 
 
+# Resuelve nombre de cliente para informe premium desde argumento o sitemap.
+def _resolver_cliente_informe_ga4(cliente_cli: str, sitemap: str) -> str:
+    """
+    Prioriza nombre explícito de cliente y aplica inferencia robusta desde sitemap.
+    """
+
+    # Usa nombre explícito cuando se reciba por CLI.
+    if cliente_cli.strip():
+        # Devuelve nombre saneado para portada del informe.
+        return cliente_cli.strip()
+
+    # Intenta inferir cliente desde sitemap HTTP/HTTPS válido.
+    if sitemap.strip() and es_url_http_valida(sitemap):
+        # Deriva cliente desde el slug del dominio.
+        return inferir_cliente_desde_slug(slug_dominio_desde_url(sitemap))
+
+    # Intenta inferir cliente desde ruta local cuando no sea URL.
+    if sitemap.strip():
+        # Calcula nombre base del archivo o carpeta como fallback.
+        nombre = Path(sitemap).stem.strip()
+
+        # Devuelve nombre inferido cuando exista valor útil.
+        if nombre:
+            # Capitaliza para presentación ejecutiva.
+            return nombre.replace("_", " ").replace("-", " ").title()
+
+    # Aplica cliente genérico como último recurso.
+    return "Cliente GA4"
+
+
 # Construye el parser de argumentos del programa.
 def crear_parser() -> argparse.ArgumentParser:
     """
@@ -335,6 +365,9 @@ def crear_parser() -> argparse.ArgumentParser:
 
     # Añade parámetro para definir gestor de la auditoría.
     parser.add_argument("--gestor", default=GESTOR_POR_DEFECTO, help="Nombre del gestor responsable del informe.")
+
+    # Añade parámetro opcional de cliente para portada del informe premium.
+    parser.add_argument("--cliente", default="", help="Nombre de cliente para portada de informe premium (opcional).")
 
     # Añade parámetro para controlar muestras enviadas a IA.
     parser.add_argument("--max-muestras-ia", type=int, default=15, help="Número máximo de muestras agregadas para la IA.")
@@ -520,13 +553,8 @@ def main() -> int:
             # Asigna ruta por defecto de salida.
             argumentos.output = "./salidas"
 
-        # Deriva cliente textual desde sitemap cuando se proporcione.
-        if argumentos.sitemap and es_url_http_valida(argumentos.sitemap):
-            # Calcula cliente desde dominio del sitemap.
-            cliente = inferir_cliente_desde_slug(slug_dominio_desde_url(argumentos.sitemap))
-        else:
-            # Aplica cliente genérico cuando no exista sitemap válido.
-            cliente = "Cliente GA4"
+        # Resuelve cliente con prioridad explícita y fallback robusto.
+        cliente = _resolver_cliente_informe_ga4(argumentos.cliente, argumentos.sitemap)
 
         # Construye carpeta de salida específica del informe premium.
         carpeta_salida = Path(argumentos.output) / "ga4_premium" / fecha_ejecucion_iso()

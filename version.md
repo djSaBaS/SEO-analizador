@@ -1,3 +1,12 @@
+## 0.9.1 - 2026-03-26
+- Se refuerza el modo `informe-ga4` con resolución robusta de cliente: prioridad a `--cliente`, inferencia desde sitemap HTTP y fallback desde ruta local (nombre de archivo).
+- Se corrige la comparación `anio-anterior` para manejar años bisiestos (29 de febrero -> 28 de febrero del año previo).
+- Se mejora mantenibilidad de `ga4_premium.py` extrayendo funciones auxiliares de carga, cálculo y exportación (HTML/Excel/PDF).
+- Se eliminan números mágicos en insights y límites de Excel mediante constantes descriptivas.
+- Se mejora el comparativo de adquisición usando merge `outer` para incluir canales presentes solo en el periodo comparado.
+- Se añade aviso explícito cuando falla la generación de un gráfico PNG para PDF en lugar de silenciar el error.
+- Se incorporan tests de regresión para comparación bisiesta e insights en `tests/test_ga4_premium.py`.
+
 ## 0.9.0 - 2026-03-26
 - Se incorpora un nuevo modo CLI `--modo informe-ga4` para generar un informe GA4 premium dedicado sin ejecutar la auditoría SEO completa.
 - Se añade exportación específica del informe GA4 premium a HTML interactivo (Plotly), PDF estático y Excel (`Dashboard` + hoja `GA4`) con comparación temporal (`--comparar`) y filtro provincial (`--provincia`).

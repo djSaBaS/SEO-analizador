@@ -22,3 +22,5 @@ Contiene el código fuente principal del auditor SEO.
 
 - `seo_auditor/ga4.py`: integración opcional con Google Analytics 4 para métricas por página y resumen agregado.
 - `seo_auditor/ga4_premium.py`: generador del modo `--modo informe-ga4` con consultas avanzadas por secciones, gráficos Plotly y exportación premium a HTML/PDF/Excel.
+
+- `seo_auditor/cli.py`: CLI principal con modo dedicado `--modo informe-ga4`, soporte de comparación (`--comparar`), filtro local (`--provincia`) y nombre explícito de cliente (`--cliente`).

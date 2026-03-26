@@ -14,10 +14,10 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill
 
 # Importa utilidades de maquetación PDF.
+from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
-from reportlab.lib import colors
 
 # Importa configuración global del proyecto.
 from seo_auditor.config import Configuracion
@@ -25,6 +25,44 @@ from seo_auditor.config import Configuracion
 
 # Define dimensiones y métricas base para consultas agregadas del informe.
 METRICAS_KPI = ["totalUsers", "newUsers", "activeUsers", "sessions", "eventCount", "conversions", "userEngagementDuration"]
+
+# Define umbrales de insights para evitar números mágicos.
+INSIGHT_MIN_SESIONES_SIN_CONVERSION = 30.0
+INSIGHT_MAX_CONVERSIONES_SIN_CONVERSION = 0.0
+INSIGHT_MIN_SESIONES_REBOTE = 30.0
+INSIGHT_MIN_REBOTE = 0.7
+INSIGHT_MIN_SESIONES_ALTO_VALOR = 40.0
+INSIGHT_MIN_CONVERSIONES_ALTO_VALOR = 2.0
+INSIGHT_MUESTRA_URLS = 3
+
+# Define límites de exportación para hoja Excel GA4.
+EXCEL_MAX_FILAS_PAISES = 50
+EXCEL_MAX_FILAS_COMUNIDADES = 50
+EXCEL_MAX_FILAS_CIUDADES = 50
+EXCEL_MAX_FILAS_ADQUISICION = 50
+EXCEL_MAX_FILAS_REFERIDOS = 50
+EXCEL_MAX_FILAS_LANDINGS = 80
+
+# Define dimensiones y límites de render para gráficos PDF.
+PDF_GRAFICO_ANCHO = 500
+PDF_GRAFICO_ALTO = 280
+PNG_GRAFICO_ANCHO = 1200
+PNG_GRAFICO_ALTO = 700
+
+
+# Calcula fecha equivalente restando un año con compatibilidad bisiesta.
+def _restar_un_anio(fecha: date) -> date:
+    """Resta un año ajustando 29 de febrero al 28 de febrero cuando aplique."""
+
+    # Intenta reemplazar directamente el año para fechas válidas.
+    try:
+        # Devuelve fecha con año restado en caso normal.
+        return fecha.replace(year=fecha.year - 1)
+
+    # Corrige únicamente el caso bisiesto de 29 de febrero.
+    except ValueError:
+        # Devuelve 28 de febrero del año anterior cuando no existe el 29.
+        return fecha.replace(month=2, day=28, year=fecha.year - 1)
 
 
 # Calcula el rango de comparación para periodo anterior o año anterior.
@@ -37,13 +75,13 @@ def _resolver_comparacion(fecha_desde: str, fecha_hasta: str, modo: str) -> tupl
     # Convierte la fecha final a objeto date.
     fin = datetime.strptime(fecha_hasta, "%Y-%m-%d").date()
 
-    # Calcula longitud del periodo base de forma inclusiva.
-    dias = (fin - inicio).days + 1
-
     # Resuelve comparación frente al mismo periodo del año anterior.
     if modo == "anio-anterior":
-        # Devuelve rango desplazado 365 días para simplificar compatibilidad.
-        return (inicio - timedelta(days=365)).isoformat(), (fin - timedelta(days=365)).isoformat()
+        # Devuelve rango desplazado exactamente un año con control de bisiestos.
+        return _restar_un_anio(inicio).isoformat(), _restar_un_anio(fin).isoformat()
+
+    # Calcula longitud del periodo base de forma inclusiva.
+    dias = (fin - inicio).days + 1
 
     # Aplica comparación frente al periodo inmediatamente anterior.
     return (inicio - timedelta(days=dias)).isoformat(), (inicio - timedelta(days=1)).isoformat()
@@ -127,34 +165,45 @@ def _construir_insights(landings: list[dict[str, Any]]) -> list[str]:
     insights: list[str] = []
 
     # Detecta páginas con tráfico y cero conversiones.
-    sin_conversion = [fila for fila in landings if fila.get("sessions", 0.0) >= 30 and fila.get("conversions", 0.0) <= 0]
+    sin_conversion = [
+        fila
+        for fila in landings
+        if fila.get("sessions", 0.0) >= INSIGHT_MIN_SESIONES_SIN_CONVERSION
+        and fila.get("conversions", 0.0) <= INSIGHT_MAX_CONVERSIONES_SIN_CONVERSION
+    ]
 
     # Añade insight si existe al menos una página candidata.
     if sin_conversion:
         # Construye muestra compacta de URLs con mayor impacto potencial.
-        muestra = ", ".join(str(fila.get("landingPagePlusQueryString", "")) for fila in sin_conversion[:3])
+        muestra = ", ".join(str(fila.get("landingPagePlusQueryString", "")) for fila in sin_conversion[:INSIGHT_MUESTRA_URLS])
 
         # Registra insight de oportunidad de conversión.
         insights.append(f"Páginas con tráfico pero sin conversión: {muestra}.")
 
     # Detecta páginas con rebote alto en muestra suficiente.
-    alto_rebote = [fila for fila in landings if fila.get("sessions", 0.0) >= 30 and fila.get("bounceRate", 0.0) >= 0.7]
+    alto_rebote = [
+        fila for fila in landings if fila.get("sessions", 0.0) >= INSIGHT_MIN_SESIONES_REBOTE and fila.get("bounceRate", 0.0) >= INSIGHT_MIN_REBOTE
+    ]
 
     # Añade insight si existen páginas con rebote alto.
     if alto_rebote:
         # Construye muestra compacta de páginas con peor rebote.
-        muestra = ", ".join(str(fila.get("landingPagePlusQueryString", "")) for fila in alto_rebote[:3])
+        muestra = ", ".join(str(fila.get("landingPagePlusQueryString", "")) for fila in alto_rebote[:INSIGHT_MUESTRA_URLS])
 
         # Registra insight de fricción UX/contenido.
         insights.append(f"Páginas con alto rebote detectadas: {muestra}.")
 
     # Detecta páginas con valor alto por combinación de sesiones y conversiones.
-    alto_valor = [fila for fila in landings if fila.get("sessions", 0.0) >= 40 and fila.get("conversions", 0.0) >= 2]
+    alto_valor = [
+        fila
+        for fila in landings
+        if fila.get("sessions", 0.0) >= INSIGHT_MIN_SESIONES_ALTO_VALOR and fila.get("conversions", 0.0) >= INSIGHT_MIN_CONVERSIONES_ALTO_VALOR
+    ]
 
     # Añade insight de valor si hay páginas destacadas.
     if alto_valor:
         # Construye muestra de landings de alto valor.
-        muestra = ", ".join(str(fila.get("landingPagePlusQueryString", "")) for fila in alto_valor[:3])
+        muestra = ", ".join(str(fila.get("landingPagePlusQueryString", "")) for fila in alto_valor[:INSIGHT_MUESTRA_URLS])
 
         # Registra insight de replicación estratégica.
         insights.append(f"Páginas con alto valor para escalar: {muestra}.")
@@ -163,93 +212,38 @@ def _construir_insights(landings: list[dict[str, Any]]) -> list[str]:
     return insights or ["No se detectaron patrones críticos automáticos en el rango analizado."]
 
 
-# Genera ficheros HTML/PDF/Excel para el informe premium de GA4.
-def generar_informe_ga4_premium(
-    configuracion: Configuracion,
-    carpeta_salida: Path,
-    cliente_nombre: str,
-    gestor: str,
-    fecha_desde: str,
-    fecha_hasta: str,
-    comparacion: str,
-    provincia: str,
-) -> dict[str, Any]:
-    """Construye un informe GA4 premium con exportación múltiple y degradación elegante."""
+# Consulta todos los datasets necesarios para el informe premium.
+def _cargar_datasets_ga4(cliente: Any, property_id: str, fecha_desde: str, fecha_hasta: str, fecha_comp_desde: str, fecha_comp_hasta: str) -> dict[str, list[dict[str, Any]]]:
+    """Agrupa consultas GA4 para simplificar la orquestación del informe."""
 
-    # Inicializa respuesta por defecto cuando no se pueda consultar GA4.
-    salida: dict[str, Any] = {"activo": False, "error": ""}
-
-    # Valida configuración mínima antes de conectar con GA4.
-    if not configuracion.ga_enabled or not configuracion.ga_property_id or not configuracion.ga_credentials_file:
-        # Registra causa funcional sin lanzar excepción.
-        salida["error"] = "GA4 no está disponible en la configuración actual."
-        return salida
-
-    # Garantiza existencia de carpeta destino para exportaciones.
-    carpeta_salida.mkdir(parents=True, exist_ok=True)
-
-    # Resuelve periodo comparativo según preferencia CLI.
-    fecha_comp_desde, fecha_comp_hasta = _resolver_comparacion(fecha_desde, fecha_hasta, comparacion)
-
-    # Inicializa cliente y datasets en bloque controlado.
-    try:
-        # Crea cliente autenticado para consultas GA4.
-        cliente = _crear_cliente(configuracion.ga_credentials_file)
-
-        # Obtiene KPIs agregados del periodo principal.
-        kpi_actual = _consultar_ga4(cliente, configuracion.ga_property_id, fecha_desde, fecha_hasta, [], METRICAS_KPI, 1)
-
-        # Obtiene KPIs agregados del periodo comparativo.
-        kpi_comparado = _consultar_ga4(cliente, configuracion.ga_property_id, fecha_comp_desde, fecha_comp_hasta, [], METRICAS_KPI, 1)
-
-        # Obtiene audiencia por país.
-        paises = _consultar_ga4(cliente, configuracion.ga_property_id, fecha_desde, fecha_hasta, ["country"], ["totalUsers"], 250)
-
-        # Obtiene audiencia por comunidad autónoma con dimensión `region`.
-        comunidades = _consultar_ga4(cliente, configuracion.ga_property_id, fecha_desde, fecha_hasta, ["region"], ["totalUsers"], 250)
-
-        # Obtiene top ciudades para gráficos y tablas.
-        ciudades = _consultar_ga4(cliente, configuracion.ga_property_id, fecha_desde, fecha_hasta, ["city"], ["totalUsers"], 250)
-
-        # Obtiene distribución por dispositivo.
-        dispositivos = _consultar_ga4(cliente, configuracion.ga_property_id, fecha_desde, fecha_hasta, ["deviceCategory"], ["sessions"], 10)
-
-        # Obtiene distribución por navegador.
-        navegadores = _consultar_ga4(cliente, configuracion.ga_property_id, fecha_desde, fecha_hasta, ["browser"], ["sessions"], 20)
-
-        # Obtiene adquisición por canal con comparación temporal.
-        adquisicion_actual = _consultar_ga4(cliente, configuracion.ga_property_id, fecha_desde, fecha_hasta, ["sessionDefaultChannelGroup"], ["sessions"], 30)
-
-        # Obtiene adquisición por canal para periodo comparado.
-        adquisicion_comparada = _consultar_ga4(cliente, configuracion.ga_property_id, fecha_comp_desde, fecha_comp_hasta, ["sessionDefaultChannelGroup"], ["sessions"], 30)
-
-        # Obtiene referidos por fuente/medio.
-        referidos = _consultar_ga4(cliente, configuracion.ga_property_id, fecha_desde, fecha_hasta, ["sessionSourceMedium"], ["sessions", "conversions"], 50)
-
-        # Obtiene social orgánico y paid por canal.
-        social = _consultar_ga4(cliente, configuracion.ga_property_id, fecha_desde, fecha_hasta, ["sessionDefaultChannelGroup"], ["sessions"], 30)
-
-        # Obtiene landing pages con métricas de comportamiento.
-        landings = _consultar_ga4(
+    # Devuelve todos los datasets en un único diccionario.
+    return {
+        "kpi_actual": _consultar_ga4(cliente, property_id, fecha_desde, fecha_hasta, [], METRICAS_KPI, 1),
+        "kpi_comparado": _consultar_ga4(cliente, property_id, fecha_comp_desde, fecha_comp_hasta, [], METRICAS_KPI, 1),
+        "paises": _consultar_ga4(cliente, property_id, fecha_desde, fecha_hasta, ["country"], ["totalUsers"], 250),
+        "comunidades": _consultar_ga4(cliente, property_id, fecha_desde, fecha_hasta, ["region"], ["totalUsers"], 250),
+        "ciudades": _consultar_ga4(cliente, property_id, fecha_desde, fecha_hasta, ["city"], ["totalUsers"], 250),
+        "dispositivos": _consultar_ga4(cliente, property_id, fecha_desde, fecha_hasta, ["deviceCategory"], ["sessions"], 10),
+        "navegadores": _consultar_ga4(cliente, property_id, fecha_desde, fecha_hasta, ["browser"], ["sessions"], 20),
+        "adquisicion_actual": _consultar_ga4(cliente, property_id, fecha_desde, fecha_hasta, ["sessionDefaultChannelGroup"], ["sessions"], 30),
+        "adquisicion_comparada": _consultar_ga4(cliente, property_id, fecha_comp_desde, fecha_comp_hasta, ["sessionDefaultChannelGroup"], ["sessions"], 30),
+        "referidos": _consultar_ga4(cliente, property_id, fecha_desde, fecha_hasta, ["sessionSourceMedium"], ["sessions", "conversions"], 50),
+        "social": _consultar_ga4(cliente, property_id, fecha_desde, fecha_hasta, ["sessionDefaultChannelGroup"], ["sessions"], 30),
+        "landings": _consultar_ga4(
             cliente,
-            configuracion.ga_property_id,
+            property_id,
             fecha_desde,
             fecha_hasta,
             ["landingPagePlusQueryString"],
             ["sessions", "totalUsers", "bounceRate", "conversions"],
             150,
-        )
+        ),
+    }
 
-    # Maneja cualquier error remoto/auth de forma no bloqueante.
-    except Exception as exc:
-        # Propaga mensaje de error controlado para CLI.
-        salida["error"] = f"No fue posible consultar GA4: {exc}"
-        return salida
 
-    # Importa librerías de visualización de manera perezosa.
-    import pandas as pd
-    import plotly.express as px
-    import plotly.graph_objects as go
+# Calcula kpis y variaciones para reutilizar en todas las exportaciones.
+def _calcular_kpis(kpi_actual: list[dict[str, Any]], kpi_comparado: list[dict[str, Any]]) -> tuple[dict[str, float], dict[str, float]]:
+    """Calcula KPIs requeridos y variaciones frente al periodo comparado."""
 
     # Obtiene fila única de KPI actual con fallback vacío.
     kpi_a = kpi_actual[0] if kpi_actual else {nombre: 0.0 for nombre in METRICAS_KPI}
@@ -286,29 +280,41 @@ def generar_informe_ga4_premium(
     }
 
     # Calcula variaciones porcentuales con protección ante división por cero.
-    variaciones = {
-        nombre: ((valor - kpis_comp[nombre]) / kpis_comp[nombre] * 100.0) if kpis_comp[nombre] > 0 else 0.0
-        for nombre, valor in kpis.items()
-    }
+    variaciones = {nombre: ((valor - kpis_comp[nombre]) / kpis_comp[nombre] * 100.0) if kpis_comp[nombre] > 0 else 0.0 for nombre, valor in kpis.items()}
+
+    # Devuelve KPIs y variaciones para reutilización en exportaciones.
+    return kpis, variaciones
+
+
+# Genera figuras plotly principales para el informe premium.
+def _generar_graficos(datasets: dict[str, list[dict[str, Any]]]) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Construye gráficos y dataframes base a partir de datasets GA4."""
+
+    # Importa librerías de visualización de manera perezosa.
+    import pandas as pd
+    import plotly.express as px
+    import plotly.graph_objects as go
 
     # Convierte datasets a DataFrame para visualizaciones.
-    df_paises = pd.DataFrame(paises)
-    df_comunidades = pd.DataFrame(comunidades)
-    df_ciudades = pd.DataFrame(ciudades)
-    df_dispositivos = pd.DataFrame(dispositivos)
-    df_navegadores = pd.DataFrame(navegadores)
-    df_adq_actual = pd.DataFrame(adquisicion_actual)
-    df_adq_comp = pd.DataFrame(adquisicion_comparada)
-    df_referidos = pd.DataFrame(referidos)
-    df_landings = pd.DataFrame(landings)
+    dataframes = {
+        "paises": pd.DataFrame(datasets.get("paises", [])),
+        "comunidades": pd.DataFrame(datasets.get("comunidades", [])),
+        "ciudades": pd.DataFrame(datasets.get("ciudades", [])),
+        "dispositivos": pd.DataFrame(datasets.get("dispositivos", [])),
+        "navegadores": pd.DataFrame(datasets.get("navegadores", [])),
+        "adq_actual": pd.DataFrame(datasets.get("adquisicion_actual", [])),
+        "adq_comp": pd.DataFrame(datasets.get("adquisicion_comparada", [])),
+        "referidos": pd.DataFrame(datasets.get("referidos", [])),
+        "landings": pd.DataFrame(datasets.get("landings", [])),
+    }
 
-    # Construye gráficos principales del informe.
+    # Inicializa mapa de gráficos para salida.
     graficos: dict[str, Any] = {}
 
     # Crea mapa mundial por país cuando haya datos disponibles.
-    if not df_paises.empty:
+    if not dataframes["paises"].empty:
         graficos["mapa_mundial"] = px.choropleth(
-            df_paises,
+            dataframes["paises"],
             locations="country",
             locationmode="country names",
             color="totalUsers",
@@ -316,34 +322,48 @@ def generar_informe_ga4_premium(
             color_continuous_scale="Blues",
         )
 
-    # Crea mapa de comunidades usando etiquetas de región de GA4.
-    if not df_comunidades.empty:
-        graficos["mapa_comunidades"] = px.choropleth(
-            df_comunidades,
-            locations="region",
-            locationmode="geojson-id",
-            color="totalUsers",
-            title="Usuarios por comunidad autónoma (según región en GA4)",
-            color_continuous_scale="Teal",
+    # Crea mapa de comunidades con enfoque regional de GA4.
+    if not dataframes["comunidades"].empty:
+        graficos["mapa_comunidades"] = px.bar(
+            dataframes["comunidades"].sort_values("totalUsers", ascending=False).head(20),
+            x="region",
+            y="totalUsers",
+            title="Usuarios por comunidad autónoma (región GA4)",
         )
 
     # Crea gráfico de barras para top ciudades.
-    if not df_ciudades.empty:
-        top_ciudades = df_ciudades.sort_values("totalUsers", ascending=False).head(15)
+    if not dataframes["ciudades"].empty:
+        top_ciudades = dataframes["ciudades"].sort_values("totalUsers", ascending=False).head(15)
         graficos["top_ciudades"] = px.bar(top_ciudades, x="city", y="totalUsers", title="Top ciudades por usuarios")
 
     # Crea donut para distribución de dispositivos.
-    if not df_dispositivos.empty:
-        graficos["dispositivos"] = px.pie(df_dispositivos, names="deviceCategory", values="sessions", hole=0.5, title="Distribución por dispositivo")
+    if not dataframes["dispositivos"].empty:
+        graficos["dispositivos"] = px.pie(
+            dataframes["dispositivos"],
+            names="deviceCategory",
+            values="sessions",
+            hole=0.5,
+            title="Distribución por dispositivo",
+        )
 
     # Crea barras horizontales para navegadores.
-    if not df_navegadores.empty:
-        top_navegadores = df_navegadores.sort_values("sessions", ascending=True).tail(12)
+    if not dataframes["navegadores"].empty:
+        top_navegadores = dataframes["navegadores"].sort_values("sessions", ascending=True).tail(12)
         graficos["navegadores"] = px.bar(top_navegadores, x="sessions", y="browser", orientation="h", title="Navegadores por sesiones")
 
     # Crea barras comparativas para adquisición por canal.
-    if not df_adq_actual.empty:
-        comparativo = df_adq_actual.merge(df_adq_comp, how="left", on="sessionDefaultChannelGroup", suffixes=("_actual", "_comparado")).fillna(0.0)
+    if not dataframes["adq_actual"].empty or not dataframes["adq_comp"].empty:
+        comparativo = dataframes["adq_actual"].merge(
+            dataframes["adq_comp"],
+            how="outer",
+            on="sessionDefaultChannelGroup",
+            suffixes=("_actual", "_comparado"),
+        ).fillna(0.0)
+
+        # Ordena por sesiones del periodo actual para legibilidad.
+        comparativo = comparativo.sort_values("sessions_actual", ascending=False)
+
+        # Construye figura comparativa agrupada por canal.
         graficos["adquisicion"] = go.Figure(
             data=[
                 go.Bar(name="Periodo actual", x=comparativo["sessionDefaultChannelGroup"], y=comparativo["sessions_actual"]),
@@ -352,12 +372,32 @@ def generar_informe_ga4_premium(
         )
         graficos["adquisicion"].update_layout(barmode="group", title="Adquisición por canal")
 
+    # Devuelve gráficos y dataframes para reutilización.
+    return graficos, dataframes
+
+
+# Exporta informe HTML interactivo con secciones ejecutivas.
+def _exportar_html(
+    ruta_html: Path,
+    cliente_nombre: str,
+    gestor: str,
+    fecha_desde: str,
+    fecha_hasta: str,
+    fecha_comp_desde: str,
+    fecha_comp_hasta: str,
+    kpis: dict[str, float],
+    variaciones: dict[str, float],
+    insights: list[str],
+    graficos: dict[str, Any],
+    dataframes: dict[str, Any],
+    social: list[dict[str, Any]],
+    provincia: str,
+) -> None:
+    """Escribe versión HTML interactiva del informe premium."""
+
     # Filtra social orgánico y paid desde canal por defecto.
     social_organico = [fila for fila in social if "Organic Social" in str(fila.get("sessionDefaultChannelGroup", ""))]
     social_paid = [fila for fila in social if "Paid Social" in str(fila.get("sessionDefaultChannelGroup", ""))]
-
-    # Construye insights automáticos requeridos.
-    insights = _construir_insights(landings)
 
     # Construye contenido HTML interactivo.
     bloques_html = [
@@ -396,14 +436,14 @@ def generar_informe_ga4_premium(
         bloques_html.append(figura.to_html(full_html=False, include_plotlyjs="cdn"))
 
     # Inserta tabla de referidos cuando haya filas disponibles.
-    if not df_referidos.empty:
+    if not dataframes["referidos"].empty:
         bloques_html.append("<h2>Referidos (source / medium)</h2>")
-        bloques_html.append(df_referidos.sort_values("sessions", ascending=False).head(20).to_html(index=False))
+        bloques_html.append(dataframes["referidos"].sort_values("sessions", ascending=False).head(20).to_html(index=False))
 
     # Inserta tabla de landings cuando haya filas disponibles.
-    if not df_landings.empty:
+    if not dataframes["landings"].empty:
         bloques_html.append("<h2>Landing pages</h2>")
-        bloques_html.append(df_landings.sort_values("sessions", ascending=False).head(30).to_html(index=False))
+        bloques_html.append(dataframes["landings"].sort_values("sessions", ascending=False).head(30).to_html(index=False))
 
     # Inserta resumen de social orgánico y paid.
     bloques_html.append("<h2>Redes sociales</h2>")
@@ -411,17 +451,21 @@ def generar_informe_ga4_premium(
     bloques_html.append(f"<p>Paid: {sum(float(f.get('sessions', 0.0)) for f in social_paid):,.0f} sesiones</p>")
 
     # Añade bloque opcional de provincia para trazar foco local.
-    if provincia.strip() and not df_ciudades.empty:
+    if provincia.strip() and not dataframes["ciudades"].empty:
         # Filtra filas de ciudad que contengan el texto de provincia.
-        filtro = df_ciudades[df_ciudades["city"].str.contains(provincia, case=False, na=False)]
+        filtro = dataframes["ciudades"][dataframes["ciudades"]["city"].str.contains(provincia, case=False, na=False)]
 
         # Añade resumen provincial al HTML.
         bloques_html.append(f"<h2>Detalle provincial: {provincia}</h2>")
         bloques_html.append(filtro.to_html(index=False) if not filtro.empty else "<p>No hay ciudades para la provincia indicada.</p>")
 
     # Escribe el informe HTML completo en disco.
-    ruta_html = carpeta_salida / "informe_ga4_premium.html"
     ruta_html.write_text("\n".join(bloques_html), encoding="utf-8")
+
+
+# Exporta informe Excel con Dashboard y hoja GA4 de detalle.
+def _exportar_excel(ruta_excel: Path, cliente_nombre: str, fecha_desde: str, fecha_hasta: str, kpis: dict[str, float], variaciones: dict[str, float], datasets: dict[str, list[dict[str, Any]]]) -> None:
+    """Escribe versión Excel del informe premium con hoja GA4 específica."""
 
     # Construye libro Excel con hoja específica de GA4.
     libro = Workbook()
@@ -447,27 +491,27 @@ def generar_informe_ga4_premium(
     hoja_ga4.append(["seccion", "dimension", "metrica_1", "metrica_2", "metrica_3", "metrica_4"])
 
     # Añade filas de países a la hoja GA4.
-    for fila in paises[:50]:
+    for fila in datasets.get("paises", [])[:EXCEL_MAX_FILAS_PAISES]:
         hoja_ga4.append(["audiencia_pais", fila.get("country", ""), fila.get("totalUsers", 0.0), "", "", ""])
 
     # Añade filas de comunidad a la hoja GA4.
-    for fila in comunidades[:50]:
+    for fila in datasets.get("comunidades", [])[:EXCEL_MAX_FILAS_COMUNIDADES]:
         hoja_ga4.append(["audiencia_comunidad", fila.get("region", ""), fila.get("totalUsers", 0.0), "", "", ""])
 
     # Añade filas de ciudad a la hoja GA4.
-    for fila in ciudades[:50]:
+    for fila in datasets.get("ciudades", [])[:EXCEL_MAX_FILAS_CIUDADES]:
         hoja_ga4.append(["audiencia_ciudad", fila.get("city", ""), fila.get("totalUsers", 0.0), "", "", ""])
 
     # Añade filas de adquisición a la hoja GA4.
-    for fila in adquisicion_actual[:50]:
+    for fila in datasets.get("adquisicion_actual", [])[:EXCEL_MAX_FILAS_ADQUISICION]:
         hoja_ga4.append(["adquisicion", fila.get("sessionDefaultChannelGroup", ""), fila.get("sessions", 0.0), "", "", ""])
 
     # Añade filas de referidos a la hoja GA4.
-    for fila in referidos[:50]:
+    for fila in datasets.get("referidos", [])[:EXCEL_MAX_FILAS_REFERIDOS]:
         hoja_ga4.append(["referidos", fila.get("sessionSourceMedium", ""), fila.get("sessions", 0.0), fila.get("conversions", 0.0), "", ""])
 
     # Añade filas de landing pages a la hoja GA4.
-    for fila in landings[:80]:
+    for fila in datasets.get("landings", [])[:EXCEL_MAX_FILAS_LANDINGS]:
         hoja_ga4.append(
             [
                 "landing_pages",
@@ -485,11 +529,14 @@ def generar_informe_ga4_premium(
         celda.fill = PatternFill(fill_type="solid", fgColor="1F4E78")
 
     # Guarda archivo Excel del informe premium.
-    ruta_excel = carpeta_salida / "informe_ga4_premium.xlsx"
     libro.save(ruta_excel)
 
+
+# Exporta informe PDF estático e intenta incluir gráficos como imágenes.
+def _exportar_pdf(ruta_pdf: Path, carpeta_salida: Path, cliente_nombre: str, gestor: str, fecha_desde: str, fecha_hasta: str, kpis: dict[str, float], variaciones: dict[str, float], insights: list[str], graficos: dict[str, Any]) -> None:
+    """Escribe versión PDF del informe premium con degradación por gráfico."""
+
     # Inicializa estructura del PDF premium.
-    ruta_pdf = carpeta_salida / "informe_ga4_premium.pdf"
     documento = SimpleDocTemplate(str(ruta_pdf), pagesize=A4)
     estilos = getSampleStyleSheet()
     contenido = []
@@ -528,16 +575,105 @@ def generar_informe_ga4_premium(
     # Intenta renderizar gráficos estáticos a PNG para el PDF.
     for nombre, figura in graficos.items():
         try:
+            # Define ruta de salida por gráfico para imagen estática.
             ruta_imagen = carpeta_salida / f"{nombre}.png"
-            figura.write_image(str(ruta_imagen), width=1200, height=700, scale=1)
+
+            # Renderiza imagen PNG desde figura plotly.
+            figura.write_image(str(ruta_imagen), width=PNG_GRAFICO_ANCHO, height=PNG_GRAFICO_ALTO, scale=1)
+
+            # Inserta bloque visual en el PDF.
             contenido.append(Spacer(1, 10))
             contenido.append(Paragraph(nombre.replace("_", " ").title(), estilos["Heading3"]))
-            contenido.append(Image(str(ruta_imagen), width=500, height=280))
-        except Exception:
+            contenido.append(Image(str(ruta_imagen), width=PDF_GRAFICO_ANCHO, height=PDF_GRAFICO_ALTO))
+
+        # Informa degradación sin bloquear la generación del PDF.
+        except Exception as exc:
+            print(f"Aviso: no se pudo generar el gráfico '{nombre}' para el PDF: {exc}")
             continue
 
     # Compone el PDF final en disco.
     documento.build(contenido)
+
+
+# Genera ficheros HTML/PDF/Excel para el informe premium de GA4.
+def generar_informe_ga4_premium(
+    configuracion: Configuracion,
+    carpeta_salida: Path,
+    cliente_nombre: str,
+    gestor: str,
+    fecha_desde: str,
+    fecha_hasta: str,
+    comparacion: str,
+    provincia: str,
+) -> dict[str, Any]:
+    """Construye un informe GA4 premium con exportación múltiple y degradación elegante."""
+
+    # Inicializa respuesta por defecto cuando no se pueda consultar GA4.
+    salida: dict[str, Any] = {"activo": False, "error": ""}
+
+    # Valida configuración mínima antes de conectar con GA4.
+    if not configuracion.ga_enabled or not configuracion.ga_property_id or not configuracion.ga_credentials_file:
+        # Registra causa funcional sin lanzar excepción.
+        salida["error"] = "GA4 no está disponible en la configuración actual."
+        return salida
+
+    # Garantiza existencia de carpeta destino para exportaciones.
+    carpeta_salida.mkdir(parents=True, exist_ok=True)
+
+    # Resuelve periodo comparativo según preferencia CLI.
+    fecha_comp_desde, fecha_comp_hasta = _resolver_comparacion(fecha_desde, fecha_hasta, comparacion)
+
+    # Inicializa cliente y datasets en bloque controlado.
+    try:
+        # Crea cliente autenticado para consultas GA4.
+        cliente = _crear_cliente(configuracion.ga_credentials_file)
+
+        # Carga datasets necesarios para el informe premium.
+        datasets = _cargar_datasets_ga4(cliente, configuracion.ga_property_id, fecha_desde, fecha_hasta, fecha_comp_desde, fecha_comp_hasta)
+
+    # Maneja cualquier error remoto/auth de forma no bloqueante.
+    except Exception as exc:
+        # Propaga mensaje de error controlado para CLI.
+        salida["error"] = f"No fue posible consultar GA4: {exc}"
+        return salida
+
+    # Calcula KPIs y variaciones requeridos por el informe.
+    kpis, variaciones = _calcular_kpis(datasets.get("kpi_actual", []), datasets.get("kpi_comparado", []))
+
+    # Construye insights automáticos requeridos.
+    insights = _construir_insights(datasets.get("landings", []))
+
+    # Genera gráficos y dataframes base para exportaciones.
+    graficos, dataframes = _generar_graficos(datasets)
+
+    # Define rutas de salida por formato.
+    ruta_html = carpeta_salida / "informe_ga4_premium.html"
+    ruta_excel = carpeta_salida / "informe_ga4_premium.xlsx"
+    ruta_pdf = carpeta_salida / "informe_ga4_premium.pdf"
+
+    # Exporta versión HTML interactiva.
+    _exportar_html(
+        ruta_html,
+        cliente_nombre,
+        gestor,
+        fecha_desde,
+        fecha_hasta,
+        fecha_comp_desde,
+        fecha_comp_hasta,
+        kpis,
+        variaciones,
+        insights,
+        graficos,
+        dataframes,
+        datasets.get("social", []),
+        provincia,
+    )
+
+    # Exporta versión Excel con dashboard y detalle GA4.
+    _exportar_excel(ruta_excel, cliente_nombre, fecha_desde, fecha_hasta, kpis, variaciones, datasets)
+
+    # Exporta versión PDF estática con degradación por gráfico.
+    _exportar_pdf(ruta_pdf, carpeta_salida, cliente_nombre, gestor, fecha_desde, fecha_hasta, kpis, variaciones, insights, graficos)
 
     # Rellena metadatos de salida exitosa.
     salida["activo"] = True
