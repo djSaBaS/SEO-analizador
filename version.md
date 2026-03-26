@@ -1,3 +1,10 @@
+## 0.9.0 - 2026-03-26
+- Se incorpora un nuevo modo CLI `--modo informe-ga4` para generar un informe GA4 premium dedicado sin ejecutar la auditoría SEO completa.
+- Se añade exportación específica del informe GA4 premium a HTML interactivo (Plotly), PDF estático y Excel (`Dashboard` + hoja `GA4`) con comparación temporal (`--comparar`) y filtro provincial (`--provincia`).
+- Se implementan nuevas consultas GA4 por secciones de negocio (KPIs, audiencia país/comunidad/ciudad, dispositivos, navegadores, adquisición, referidos, redes sociales y landing pages) más insights automáticos sobre páginas sin conversión, alto rebote y alto valor.
+- Se mantiene degradación elegante: si GA4 no está disponible o falla la consulta, el modo dedicado no rompe la ejecución global.
+- Se añaden dependencias `plotly` y `kaleido`, y test de regresión para validar el flujo CLI del modo `informe-ga4`.
+
 ## 0.8.6 - 2026-03-26
 - Se corrige un bug crítico en `exportar_word` eliminando un bloque duplicado que usaba objetos de ReportLab dentro del flujo DOCX.
 - Se mejora la mantenibilidad de `construir_paginas_prioritarias` sustituyendo números mágicos por constantes descriptivas de umbrales y puntuación.

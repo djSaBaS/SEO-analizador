@@ -19,3 +19,6 @@ Contiene el código fuente principal del auditor SEO.
 - `seo_auditor/indexacion.py`: análisis de indexación y rastreo con robots/sitemap usando advertools, más clasificación inteligente de URLs (INDEXABLE/REVISAR/NO_INDEXAR) combinando señales de URL, contenido, SEO y GSC.
 
 - `seo_auditor/gsc.py`: integración opcional con Google Search Console (service account), consultas por página/query y degradación elegante.
+
+- `seo_auditor/ga4.py`: integración opcional con Google Analytics 4 para métricas por página y resumen agregado.
+- `seo_auditor/ga4_premium.py`: generador del modo `--modo informe-ga4` con consultas avanzadas por secciones, gráficos Plotly y exportación premium a HTML/PDF/Excel.
