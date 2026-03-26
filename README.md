@@ -1,169 +1,149 @@
-# Auditor SEO Pro con Python + Gemini + PageSpeed
+# Auditor SEO Pro (Python)
 
-Herramienta de auditoría SEO técnica y ejecutiva para agencia, con exportación profesional a JSON, Excel, Word, PDF y Markdown IA.
+Herramienta de auditoría SEO técnica y ejecutiva con exportación a JSON, Excel, Word, PDF, HTML y Markdown, con integraciones opcionales de IA (Gemini), PageSpeed Insights, Google Search Console y Google Analytics 4.
 
-## Objetivo
-- Analizar sitemaps XML.
-- Auditar URLs y señales SEO on-page.
-- Integrar PageSpeed Insights (móvil/escritorio) con control de alcance.
-- Cachear resultados costosos (PageSpeed e IA) con TTL configurable.
-- Clasificar incidencias automáticamente por severidad, área, impacto, esfuerzo y prioridad.
-- Diferenciar capa técnica (detalle) y capa ejecutiva (incidencias agrupadas).
-- Generar entregables orientados a cliente final sin markdown crudo en DOCX/PDF.
-- Exportar adicionalmente un informe HTML reutilizable.
-- Reducir consumo de tokens en IA mediante contexto agregado.
+## Objetivo del proyecto
+- Auditar URLs a partir de un sitemap XML.
+- Detectar incidencias SEO técnicas y de contenido por URL.
+- Medir rendimiento con PageSpeed (mobile/desktop).
+- Enriquecer narrativa del informe con IA de forma opcional.
+- Incorporar datos autenticados de GSC y GA4 cuando estén disponibles.
+- Generar entregables ejecutivos y técnicos en múltiples formatos.
 
 ## Requisitos
 - Python 3.11 o superior.
-- Conexión a internet para auditar webs y para usar APIs.
-- Variables de entorno opcionales:
-  - `GEMINI_API_KEY`
-  - `GEMINI_MODEL` (opcional, por defecto `gemini-2.0-flash`)
-  - `PAGESPEED_API_KEY`
-  - `HTTP_TIMEOUT` (opcional)
-  - `MAX_URLS` (opcional)
-  - `MAX_PAGESPEED_URLS` (opcional)
-  - `PAGESPEED_TIMEOUT` (opcional, recomendado `45`)
-  - `PAGESPEED_REINTENTOS` (opcional, recomendado `2`)
-  - `CACHE_TTL_SEGUNDOS` (opcional, recomendado `21600`)
-  - `GSC_ENABLED` (opcional)
-  - `GSC_SITE_URL` (opcional)
-  - `GSC_CREDENTIALS_FILE` (opcional)
-  - `GSC_ROW_LIMIT` (opcional, recomendado `250`)
+- Acceso a internet para rastreo web y APIs externas.
 
-## Dónde configurar las API keys
-- Debes definir las claves en tu archivo `.env` (o en variables de entorno del sistema), **no** en `config.py`.
-- `config.py` solo carga y valida valores de entorno; por eso puede verse vacío y aun así funcionar si la variable existe en tu entorno.
-- Ejemplo mínimo en `.env`:
-  - `GEMINI_API_KEY=tu_clave`
-  - `PAGESPEED_API_KEY=tu_clave`
-  - `PAGESPEED_TIMEOUT=45`
-  - `PAGESPEED_REINTENTOS=2`
+## Instalación y entorno
 
-## Ejecución básica
+### Linux / macOS
 ```bash
-python src/main.py --sitemap https://www.ejemplo.com/sitemap_index.xml --output ./salidas
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
-## Ejecución con IA
-```bash
-python src/main.py --sitemap https://www.ejemplo.com/sitemap_index.xml --output ./salidas --usar-ia
+### Windows (CMD)
+```bat
+python -m venv .venv
+.venv\Scripts\activate.bat
+pip install -r requirements.txt
 ```
 
-## Prueba mínima de IA (`--testia`)
-```bash
-python src/main.py --testia
-python src/main.py --testia --modelo-ia gemini-2.0-flash
+### Windows (PowerShell)
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
 ```
 
-## Parámetros CLI (listado completo)
-- `--sitemap <url>`: URL del sitemap XML que se auditará (obligatorio salvo `--testia`).
-- `--output <ruta>`: carpeta raíz de salida de informes (`./salidas` por defecto).
-- `--usar-ia`: activa resumen narrativo con IA (si hay `GEMINI_API_KEY`).
-- `--testia`: ejecuta prueba mínima de conectividad del modelo IA.
-- `--modelo-ia <modelo>`: sobrescribe el modelo IA para esa ejecución.
-- `--pagepsi <url>`: ejecuta PageSpeed sobre una URL concreta.
-- `--pagepsi-list <archivo>`: ejecuta PageSpeed sobre URLs desde archivo (una por línea).
-- `--max-pagepsi-urls <N>`: limita URLs de PageSpeed para la ejecución.
-- `--pagepsi-timeout <N>`: timeout de PageSpeed en segundos para la ejecución.
-- `--pagepsi-reintentos <N>`: reintentos de PageSpeed para la ejecución.
-- `--gestor "Nombre Apellidos"`: define responsable del informe.
-- `--max-muestras-ia <N>`: limita muestras agregadas enviadas a IA.
-- `--modo <completo|resumen|quickwins|gsc|roadmap>`: selecciona el prompt modular que guiará todo el texto generado por IA (`completo` por defecto).
-- `--modo-rapido`: reduce volumen de URLs para auditoría rápida.
-- `--cache-ttl <segundos>`: TTL de caché local para IA y PageSpeed.
-- `--invalidar-cache`: elimina caché local antes de arrancar.
-- `--noGSC`: desactiva Search Console en esa ejecución aunque esté configurado.
-- `--date-from <YYYY-MM-DD>`: fecha inicial del periodo analizado para todas las fuentes temporales.
-- `--date-to <YYYY-MM-DD>`: fecha final del periodo analizado para todas las fuentes temporales.
+## Variables de entorno (`.env`)
+> Las claves y parámetros se configuran en `.env` o en variables del sistema. Nunca en el código.
 
-Regla de fechas:
-- Si pasas `--date-from` y `--date-to`, se usa ese rango en GSC, GA4 y futuras fuentes temporales.
-- Si no pasas fechas, se usa por defecto **últimos 28 días** (de `ayer-27` a `ayer`, inclusivo).
-- Validación obligatoria: formato `YYYY-MM-DD` y `date_from < date_to`.
+### IA (Gemini)
+- `GEMINI_API_KEY`
+- `GEMINI_MODEL` (por defecto: `gemini-2.0-flash`)
 
-## Configuración opcional de Google Search Console
-1. Instala dependencias (`google-api-python-client` y `google-auth`).
-2. Crea una service account en Google Cloud.
-3. Comparte la propiedad de Search Console con el email de la service account (permiso lectura).
-4. Configura en `.env`:
-   - `GSC_ENABLED=true`
-   - `GSC_SITE_URL=https://www.midominio.com/`
-   - `GSC_CREDENTIALS_FILE=./credenciales/gsc-service-account.json`
-   - `GSC_ROW_LIMIT=250`
+### Núcleo de rastreo
+- `HTTP_TIMEOUT` (por defecto: `15`)
+- `MAX_URLS` (por defecto: `200`)
 
-Comportamiento:
-- Si GSC está bien configurado, se añade capa de visibilidad y oportunidades al informe.
-- Si falla por permisos, credenciales o propiedad, se registra en `fuentes_fallidas` y la auditoría sigue.
-- Si no está configurado, el flujo se mantiene igual que antes (sin capa GSC).
+### PageSpeed
+- `PAGESPEED_API_KEY`
+- `MAX_PAGESPEED_URLS` (por defecto: `5`)
+- `PAGESPEED_TIMEOUT` (por defecto: `45`)
+- `PAGESPEED_REINTENTOS` (por defecto: `2`)
 
+### Caché
+- `CACHE_TTL_SEGUNDOS` (por defecto: `21600`)
 
-## Sistema de prompts modulares IA
-- Carpeta principal: `prompts/`.
-- Modos disponibles por CLI (`--modo`):
-  - `completo` → `prompts/informe_general.txt`
-  - `resumen` → `prompts/resumen_ejecutivo.txt`
-  - `quickwins` → `prompts/quick_wins.txt`
-  - `gsc` → `prompts/gsc_oportunidades.txt`
-  - `roadmap` → `prompts/roadmap.txt`
-- Fallback automático: si el archivo del modo no existe, se usa `informe_general.txt`.
-- Compatibilidad: si no usas `--modo`, el comportamiento sigue como antes (modo `completo`).
-- Todos los prompts deben incluir el marcador `{datos_json}` para inyectar el contexto de auditoría.
+### Google Search Console
+- `GSC_ENABLED` (`true/false`)
+- `GSC_SITE_URL`
+- `GSC_CREDENTIALS_FILE`
+- `GSC_DATE_FROM` / `GSC_DATE_TO` (el CLI puede sobrescribirlas)
+- `GSC_ROW_LIMIT` (por defecto: `250`)
 
-Ejemplos:
+### Google Analytics 4
+- `GA_ENABLED` (`true/false`)
+- `GA_PROPERTY_ID`
+- `GA_CREDENTIALS_FILE`
+- `GA_DATE_FROM` / `GA_DATE_TO` (el CLI puede sobrescribirlas)
+- `GA_ROW_LIMIT` (por defecto: `1000`)
+
+## Ejecución rápida
 ```bash
-python src/main.py --sitemap https://www.ejemplo.com/sitemap.xml --output ./salidas --usar-ia --modo completo
-python src/main.py --sitemap https://www.ejemplo.com/sitemap.xml --output ./salidas --usar-ia --modo resumen
-python src/main.py --sitemap https://www.ejemplo.com/sitemap.xml --output ./salidas --usar-ia --modo quickwins
-python src/main.py --sitemap https://www.ejemplo.com/sitemap.xml --output ./salidas --usar-ia --modo gsc
-python src/main.py --sitemap https://www.ejemplo.com/sitemap.xml --output ./salidas --usar-ia --modo roadmap
+python src/main.py --sitemap https://www.ejemplo.com/sitemap.xml --output ./salidas
 ```
 
-## Comportamiento de PageSpeed
-- Si existe `PAGESPEED_API_KEY` y no se indica nada, analiza solo la HOME.
-- La HOME se detecta desde dominio/sitemap.
-- Si se indica `--pagepsi`, solo analiza esa URL.
-- Si se indica `--pagepsi-list`, usa esa lista con límite.
-- Siempre informa en consola qué URL/estrategia se está analizando.
+## Todos los CLI disponibles
+
+### Auditoría SEO general
+- `--sitemap <url>`: sitemap a auditar (obligatorio en modo auditoría estándar).
+- `--output <ruta>`: carpeta raíz de salida (`./salidas` si no se indica).
+- `--gestor "Nombre Apellidos"`: responsable del informe.
+- `--cliente "Nombre cliente"`: nombre de cliente (usado en informe GA4 premium o inferencia cuando aplique).
+- `--modo-rapido`: limita URLs para una auditoría más corta.
+
+### IA
+- `--usar-ia`: activa narrativa con IA.
+- `--testia`: prueba de conectividad IA (sin auditoría completa).
+- `--modelo-ia <modelo>`: sobrescribe el modelo para esta ejecución.
+- `--max-muestras-ia <N>`: máximo de muestras agregadas para IA.
+- `--modo <completo|resumen|quickwins|gsc|roadmap|informe-ga4>`:
+  - En auditoría con IA usa plantillas de prompt (`completo`, `resumen`, `quickwins`, `gsc`, `roadmap`).
+  - `informe-ga4` activa modo dedicado de informe GA4 premium.
+
+### PageSpeed
+- `--pagepsi <url>`: analiza una URL concreta con PageSpeed.
+- `--pagepsi-list <archivo>`: lista de URLs (una por línea).
+- `--max-pagepsi-urls <N>`: límite de URLs para PageSpeed.
+- `--pagepsi-timeout <N>`: timeout por petición.
+- `--pagepsi-reintentos <N>`: reintentos (`-1` usa configuración).
+
+### Caché
+- `--cache-ttl <segundos>`: TTL de caché en esta ejecución.
+- `--invalidar-cache`: borra caché local antes de ejecutar.
+
+### Datos autenticados
+- `--noGSC`: desactiva GSC en esta ejecución.
+- `--testgsc`: prueba conectividad GSC.
+- `--testga`: prueba conectividad GA4.
+
+### Ventana temporal
+- `--date-from <YYYY-MM-DD>`
+- `--date-to <YYYY-MM-DD>`
+
+Reglas:
+- Deben enviarse juntas.
+- Formato ISO obligatorio.
+- `date-from` debe ser anterior a `date-to`.
+- Si no se informan, se usa por defecto una ventana de 28 días (de ayer hacia atrás, inclusive).
+
+### Modo dedicado GA4 premium
+- `--modo informe-ga4`
+- `--comparar <periodo-anterior|anio-anterior>`
+- `--provincia <nombre>`
+- `--cliente <nombre>`
+
+## Archivo de referencia de CLI
+Se incluye documentación ampliada y ejemplos completos en [`CLI.md`](./CLI.md).
 
 ## Estructura de salida
+### Auditoría SEO completa
 ```text
 <output>/<slug_dominio>/<YYYY-MM-DD>/
 ```
 
-## Canonical: nueva lógica de coherencia
-- Se normalizan esquema, host, puertos por defecto, slash final, query ordenada y fragmento.
-- Nuevos estados:
-  - `diferencia menor normalizable` (baja severidad)
-  - `canonical potencialmente incoherente` (media severidad)
-  - `canonical realmente incoherente` (alta severidad)
-- Si la diferencia es solo slash final y la URL auditada responde 200, no escala automáticamente a alta severidad.
+### Informe dedicado GA4 premium
+```text
+<output>/ga4_premium/<YYYY-MM-DD>/
+```
 
-## Capa ejecutiva vs capa técnica
-- Excel y anexo técnico mantienen el detalle de incidencias individuales.
-- Word/PDF/HTML añaden una capa ejecutiva con:
-  - quick wins deduplicados y estructurados
-  - incidencias agrupadas por familia de problema
-  - presentación de rendimiento en formato más legible por métrica
-- El score incluye desglose por bloques para interpretación de negocio.
-- Quick Wins se agrupa por URL y se presenta en tarjetas (Word/PDF/HTML) con problemas, acciones, impacto y esfuerzo.
-- Roadmap incluye fallback obligatorio de fase de medio plazo para evitar bloques vacíos.
-
-## Calidad documental
-- Jerarquía fija del informe: portada, resumen, KPIs, hallazgos, quick wins, acciones, rendimiento, roadmap y anexo.
-- Capa intermedia IA→secciones para evitar markdown crudo en Word/PDF.
-- Anexo técnico generado solo desde datos estructurados.
-- La IA no debe inventar fuentes no activas.
-
-## Ejecutar tests
+## Tests
 ```bash
 pytest -q
 ```
 
-
-## Novedades de auditoría avanzada (v0.6.0)
-- Integración de `trafilatura` para extraer contenido limpio y calcular palabras, densidad, ratio texto/HTML, thin content y duplicidad aproximada por hash.
-- Integración de `advertools` para análisis base de `robots.txt` y coherencia sitemap vs reglas Disallow.
-- Nueva sección ejecutiva **Indexación y rastreo** en Word/PDF/HTML.
-- Nueva hoja **Contenido** en Excel con métricas accionables por URL (palabras, calidad, thin content, headings, imágenes sin alt).
-- Compatibilidad CLI: si no se indica `--output`, se usa `./salidas` automáticamente.
+## Versionado
+Consulta el historial de cambios en [`version.md`](./version.md).

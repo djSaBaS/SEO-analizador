@@ -1,26 +1,26 @@
 # src/info.md
 
-Contiene el código fuente principal del auditor SEO.
+Código fuente principal del proyecto.
 
-## Módulos principales
+## Estructura clave
 - `main.py`: punto de entrada del CLI.
-- `seo_auditor/config.py`: carga segura de configuración (Gemini + PageSpeed + límites).
-- `seo_auditor/config.py`: carga segura de configuración (Gemini + PageSpeed + límites + timeout/reintentos).
-- `seo_auditor/models.py`: modelos tipados de auditoría técnica, rendimiento y metadatos de fuentes activas.
-- `seo_auditor/utils.py`: validación, normalización y utilidades de fecha/slug de dominio.
-- `seo_auditor/fetcher.py`: descarga y parseo de sitemaps y páginas.
-- `seo_auditor/analyzer.py`: análisis SEO y clasificación automática de incidencias.
-- `seo_auditor/pagespeed.py`: integración con API pública de PageSpeed Insights y separación de laboratorio/campo.
-- `seo_auditor/cache.py`: caché local con TTL e invalidación para IA y PageSpeed.
-- `seo_auditor/analyzer.py`: análisis SEO por URL con barra de progreso visible durante la auditoría técnica.
-- `seo_auditor/reporters.py`: exportación profesional a JSON, Excel, Word, PDF, HTML y Markdown IA, con separación entre capa técnica y capa ejecutiva (pestaña `KPIs`, `Dashboard` analítico, incidencias agrupadas, quick wins por URL, gestión de indexación, sección de comportamiento y conversión, páginas prioritarias y cruce GSC+GA4).
-- `seo_auditor/gemini_client.py`: generación de resumen IA optimizado en tokens y validación de conectividad con `--testia`, usando plantilla editable `prompts/` (modular por modo con fallback a `informe_general.txt`) con fallback idéntico y control explícito de coherencia contextual (`contexto_control`) para evitar contradicciones con GSC.
+- `seo_auditor/cli.py`: orquestación principal, parseo de argumentos, modos de prueba y modo dedicado `informe-ga4`.
+- `seo_auditor/config.py`: carga/validación de configuración desde variables de entorno.
+- `seo_auditor/models.py`: modelos de datos tipados para resultados técnicos, rendimiento, GSC y GA4.
 
-- `seo_auditor/indexacion.py`: análisis de indexación y rastreo con robots/sitemap usando advertools, más clasificación inteligente de URLs (INDEXABLE/REVISAR/NO_INDEXAR) combinando señales de URL, contenido, SEO y GSC.
+## Módulos funcionales
+- `seo_auditor/fetcher.py`: lectura y parseo de sitemaps.
+- `seo_auditor/analyzer.py`: auditoría SEO técnica y de contenido por URL.
+- `seo_auditor/pagespeed.py`: integración con Google PageSpeed Insights.
+- `seo_auditor/indexacion.py`: reglas de indexación/rastreo y clasificación de URLs.
+- `seo_auditor/gsc.py`: integración opcional con Google Search Console.
+- `seo_auditor/ga4.py`: integración opcional con Google Analytics 4.
+- `seo_auditor/ga4_premium.py`: generación del informe dedicado GA4 premium (HTML/PDF/Excel).
+- `seo_auditor/gemini_client.py`: integración IA para narrativa y validación de conectividad.
+- `seo_auditor/cache.py`: caché local con TTL e invalidación.
+- `seo_auditor/utils.py`: utilidades generales (fechas, URLs, slug, progreso).
+- `seo_auditor/reporters.py`: exportación a JSON, Excel, Word, PDF, HTML y Markdown.
 
-- `seo_auditor/gsc.py`: integración opcional con Google Search Console (service account), consultas por página/query y degradación elegante.
-
-- `seo_auditor/ga4.py`: integración opcional con Google Analytics 4 para métricas por página y resumen agregado.
-- `seo_auditor/ga4_premium.py`: generador del modo `--modo informe-ga4` con consultas avanzadas por secciones, gráficos Plotly y exportación premium a HTML/PDF/Excel.
-
-- `seo_auditor/cli.py`: CLI principal con modo dedicado `--modo informe-ga4`, soporte de comparación (`--comparar`), filtro local (`--provincia`) y nombre explícito de cliente (`--cliente`).
+## Notas de mantenimiento
+- El flujo admite degradación elegante: si una fuente externa falla, el proceso general continúa.
+- La salida separa capa ejecutiva y capa técnica para facilitar lectura por perfiles no técnicos y técnicos.

@@ -1,38 +1,38 @@
 # Arquitectura del proyecto
 
 ## Resumen
-El sistema sigue una arquitectura modular evolutiva, con separación clara por capas:
+El sistema sigue una arquitectura modular con separación por capas:
 
-1. `cli.py`: orquestación de flujo y validación de parámetros.
-2. `config.py`: configuración de entorno y límites operativos.
-3. `fetcher.py` + `analyzer.py`: extracción de URLs y auditoría técnica SEO.
-4. `pagespeed.py`: auditoría de rendimiento (laboratorio + campo público).
-5. `gemini_client.py`: narrativa IA opcional con control de tokens y fuentes activas.
-6. `reporters.py`: render profesional a JSON/Excel/Word/PDF/HTML.
-7. `cache.py`: capa de caché local para reducir latencia y coste de APIs externas.
+1. **Entrada y orquestación**: `cli.py`.
+2. **Configuración**: `config.py`.
+3. **Adquisición/análisis técnico**: `fetcher.py`, `analyzer.py`, `indexacion.py`.
+4. **Fuentes externas opcionales**: `pagespeed.py`, `gsc.py`, `ga4.py`.
+5. **Narrativa IA opcional**: `gemini_client.py`.
+6. **Exportación de entregables**: `reporters.py`.
+7. **Soporte transversal**: `models.py`, `utils.py`, `cache.py`.
 
-## Flujo actual
-1. Se carga configuración segura desde entorno.
-2. Se extraen URLs del sitemap con límite defensivo.
-3. Se audita SEO técnico por URL.
-4. Se ejecuta PageSpeed:
-   - por defecto solo en HOME
-   - con `--pagepsi` solo URL indicada
-   - con `--pagepsi-list` lista acotada por límite.
-5. Se genera IA solo si `--usar-ia`.
-6. Se exporta documentación final sin markdown crudo en DOCX/PDF.
-7. Se calcula capa ejecutiva (incidencias agrupadas, quick wins deduplicados y score por bloques) sin perder el detalle técnico.
-8. Los quick wins ejecutivos se renderizan como tarjetas por URL en Word/PDF/HTML para mejorar legibilidad.
+## Flujos operativos soportados
 
-## Preparación para futura API propia
-- La orquestación de CLI mantiene separación respecto a dominio (`models.py` + `analyzer.py`).
-- Los servicios externos (`pagespeed.py`, `gemini_client.py`) ya se consumen como funciones desacopladas.
-- Los exportadores permanecen aislados en `reporters.py`, facilitando exponerlos luego como endpoints.
-- La caché local se desacopla en `cache.py`, lista para migrar a Redis u otro backend en modo API.
+### 1) Auditoría SEO completa
+- Entrada por `--sitemap`.
+- Auditoría técnica por URL.
+- Capa opcional de rendimiento (PageSpeed).
+- Capa opcional de datos autenticados (GSC/GA4).
+- Capa opcional narrativa IA.
+- Exportación multi-formato.
 
-## Decisiones técnicas clave
-- Estructura intermedia IA→secciones para desacoplar texto libre de render final.
-- Jerarquía documental fija para evitar duplicidades narrativas.
-- Anexo técnico siempre construido desde datos estructurados.
-- Fuentes activas explícitas en el resultado para evitar recomendaciones inventadas.
-- Preparación de arquitectura para modo pro sin mezclar fuentes no implementadas.
+### 2) Modo dedicado GA4 premium
+- Activado con `--modo informe-ga4`.
+- No requiere ejecutar auditoría SEO completa.
+- Genera entregables específicos de GA4 en HTML, PDF y Excel.
+
+## Principios de diseño
+- **Degradación elegante**: fallo de una integración no bloquea el flujo global.
+- **Separación técnico/ejecutivo**: el detalle técnico convive con narrativa accionable.
+- **Evolución mantenible**: módulos externos desacoplados de la orquestación.
+- **Trazabilidad**: mensajes de consola y estados de fuentes para diagnóstico.
+
+## Extensibilidad
+- Nuevas fuentes pueden añadirse como módulos desacoplados.
+- La capa de reporting reutiliza modelos estructurados, reduciendo acoplamiento con el origen de datos.
+- La capa de caché permite escalar a backends externos en futuras iteraciones.

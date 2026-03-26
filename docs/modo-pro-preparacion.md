@@ -1,26 +1,36 @@
 # Preparación de arquitectura para modo pro
 
 ## Objetivo
-Dejar preparado el diseño para integrar futuras fuentes autenticadas sin acoplar lógica no implementada en el flujo actual.
+Definir una guía de evolución para ampliar fuentes de datos y capacidades de informe sin romper compatibilidad ni mezclar responsabilidades.
 
-## Contrato de fuentes
-- Fuentes públicas activas actuales:
-  - `sitemap`
-  - `rastreo_tecnico`
-  - `html`
-  - `pagespeed`
-  - `ia` (solo para narrativa, no para medición)
-- Fuentes autenticadas futuras (no activas en esta versión):
-  - `search_console`
-  - `ga4`
+## Estado actual (implementado)
 
-## Reglas editoriales activas
-- El informe narrativo solo puede usar `fuentes_activas`.
-- Si una fuente no está activa, no puede aparecer como evidencia factual.
-- Las recomendaciones deben declararse desde los datos realmente disponibles.
+### Fuentes públicas
+- `sitemap`
+- `rastreo_tecnico`
+- `html`
+- `pagespeed`
 
-## Punto de extensión previsto
-1. Crear módulo `sources/publicas/*` para proveedores abiertos.
-2. Crear módulo `sources/autenticadas/*` para conectores OAuth/servicio.
-3. Resolver `fuentes_activas` por ejecución y pasarlas a IA/reporting.
-4. Mantener desacoplamiento entre capa de adquisición de datos y capa de render.
+### Fuentes autenticadas opcionales
+- `search_console`
+- `analytics` (GA4)
+
+### Fuente de narrativa
+- `ia` (Gemini), utilizada para redacción y priorización, no como fuente de medición primaria.
+
+## Reglas editoriales vigentes
+- El informe debe basarse en datos realmente disponibles durante la ejecución.
+- Si una fuente no está activa o falla, se refleja en degradación controlada sin inventar evidencia.
+- Las recomendaciones deben ser coherentes con `fuentes_activas` y métricas consolidadas.
+
+## Ruta de evolución recomendada
+1. Añadir nuevas fuentes como conectores desacoplados.
+2. Mantener contratos de salida tipados en `models.py`.
+3. Reutilizar validaciones y estrategias de fallback ya usadas en GSC/GA4/PageSpeed.
+4. Conservar exportadores independientes de la capa de adquisición.
+
+## Criterios de calidad para nuevas integraciones
+- Validación temprana de configuración y credenciales.
+- Tolerancia a errores de red/permisos con mensajes accionables.
+- Cobertura de tests de conectividad, flujo CLI y reporting.
+- Documentación de variables de entorno y ejemplos CLI en `README.md` y `CLI.md`.
