@@ -281,25 +281,28 @@ def _ejecutar_pagespeed(
 
 
 # Resuelve nombre de cliente para informe premium desde argumento o sitemap.
-def _resolver_cliente_informe_ga4(cliente_cli: str, sitemap: str) -> str:
+def _resolver_cliente_informe_ga4(cliente_cli: str | None, sitemap: str | None) -> str:
     """
     Prioriza nombre explícito de cliente y aplica inferencia robusta desde sitemap.
     """
 
     # Usa nombre explícito cuando se reciba por CLI.
-    if cliente_cli.strip():
+    if (cliente_cli or "").strip():
         # Devuelve nombre saneado para portada del informe.
-        return cliente_cli.strip()
+        return (cliente_cli or "").strip()
 
     # Intenta inferir cliente desde sitemap HTTP/HTTPS válido.
-    if sitemap.strip() and es_url_http_valida(sitemap):
+    sitemap_normalizado = (sitemap or "").strip()
+
+    # Intenta inferir cliente desde sitemap HTTP/HTTPS válido.
+    if sitemap_normalizado and es_url_http_valida(sitemap_normalizado):
         # Deriva cliente desde el slug del dominio.
-        return inferir_cliente_desde_slug(slug_dominio_desde_url(sitemap))
+        return inferir_cliente_desde_slug(slug_dominio_desde_url(sitemap_normalizado))
 
     # Intenta inferir cliente desde ruta local cuando no sea URL.
-    if sitemap.strip():
+    if sitemap_normalizado:
         # Calcula nombre base del archivo o carpeta como fallback.
-        nombre = Path(sitemap).stem.strip()
+        nombre = Path(sitemap_normalizado).stem.strip()
 
         # Devuelve nombre inferido cuando exista valor útil.
         if nombre:

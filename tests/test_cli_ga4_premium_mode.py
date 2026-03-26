@@ -113,3 +113,14 @@ def test_main_modo_informe_ga4_ejecuta_exportador(monkeypatch, tmp_path) -> None
 
     # Verifica que el generador premium fue invocado.
     assert estado["ejecutado"] is True
+
+
+# Verifica que el resolver de cliente soporte sitemap nulo sin romper.
+def test_resolver_cliente_informe_ga4_con_sitemap_none() -> None:
+    """Comprueba compatibilidad cuando `--sitemap` no se informa y queda en None."""
+
+    # Ejecuta helper con valores nulos para reproducir el caso reportado.
+    cliente = cli._resolver_cliente_informe_ga4("", None)
+
+    # Verifica fallback seguro sin excepciones.
+    assert cliente == "Cliente GA4"
