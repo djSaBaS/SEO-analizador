@@ -2,7 +2,7 @@
 from pathlib import Path
 
 # Importa modelos de dominio para construir auditoría sintética.
-from seo_auditor.models import HallazgoSeo, ResultadoAuditoria, ResultadoUrl
+from seo_auditor.models import DatosAnalytics, HallazgoSeo, ResultadoAuditoria, ResultadoUrl
 
 # Importa exportador HTML bajo prueba.
 from seo_auditor.reporters import exportar_html
@@ -90,3 +90,28 @@ def test_exportar_html_orden_severidad(tmp_path: Path) -> None:
 
     # Verifica que la URL alta aparezca antes que la informativa.
     assert indice_alta != -1 and indice_info != -1 and indice_alta < indice_info
+
+
+# Verifica que el colspan vacío sea dinámico según columnas de la tabla.
+def test_exportar_html_colspan_dinamico_en_tablas_vacias(tmp_path: Path) -> None:
+    """Comprueba que tablas vacías usen colspan acorde al número de columnas."""
+
+    # Construye auditoría sin datos de Analytics para forzar tabla vacía de comportamiento.
+    auditoria = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=1,
+        resultados=[],
+        cliente="Ejemplo",
+        fecha_ejecucion="2026-03-26",
+        gestor="Gestor",
+        analytics=DatosAnalytics(activo=True, paginas=[]),
+    )
+
+    # Exporta HTML para validar contenido.
+    ruta_html = exportar_html(auditoria, tmp_path)
+
+    # Lee contenido generado.
+    contenido = ruta_html.read_text(encoding="utf-8")
+
+    # Verifica que exista colspan esperado de 6 columnas para comportamiento.
+    assert 'colspan="6">No disponible' in contenido

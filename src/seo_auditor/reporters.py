@@ -10,6 +10,9 @@ from collections import Counter
 # Importa la clase Path para gestionar rutas de forma robusta.
 from pathlib import Path
 
+# Importa tipos para estructuras semánticas del informe.
+from typing import Any
+
 # Importa parseo de URL para normalizar cruces entre fuentes.
 from urllib.parse import urlparse
 
@@ -156,6 +159,20 @@ ANALYTICS_TOP_TRAFICO_LIMITE = 5
 ANALYTICS_PEORES_REBOTE_LIMITE = 3
 ANALYTICS_MEJORES_ENGAGEMENT_LIMITE = 3
 ANALYTICS_CRUCES_LIMITE = 5
+
+# Define mapa de compatibilidad de emojis para salidas documentales.
+EMOJIS_COMPATIBLES_TEXTO = {
+    "✅": "[OK]",
+    "⚠️": "[ALERTA]",
+    "⚠": "[ALERTA]",
+    "❌": "[ERROR]",
+    "🚨": "[CRÍTICO]",
+    "📈": "[TENDENCIA_ALZA]",
+    "📉": "[TENDENCIA_BAJA]",
+    "🎯": "[OBJETIVO]",
+    "🔥": "[ALTO_IMPACTO]",
+    "💡": "[IDEA]",
+}
 
 
 # Devuelve jerarquía visible según fuentes activas de la ejecución.
@@ -553,8 +570,8 @@ def construir_prefijo_archivo(resultado: ResultadoAuditoria) -> str:
 def sanear_texto_para_pdf(texto: str) -> str:
     """Limpia y escapa texto dinámico para render seguro en PDF."""
 
-    # Normaliza saltos de línea de Windows a formato estándar.
-    texto_normalizado = texto.replace("\r\n", "\n").replace("\r", "\n")
+    # Normaliza capa editorial y evita emojis conflictivos.
+    texto_normalizado = sanitizar_texto_editorial(texto).replace("\r\n", "\n").replace("\r", "\n")
 
     # Escapa caracteres especiales para evitar errores del parser XML interno.
     texto_escapado = escape(texto_normalizado)
@@ -581,6 +598,70 @@ def limpiar_markdown_crudo(texto: str) -> str:
 
     # Devuelve el texto con limpieza por línea.
     return "\n".join(linea.strip() for linea in texto_limpio.splitlines())
+
+
+# Sustituye emojis no seguros por etiquetas textuales compatibles.
+def reemplazar_emojis_problematicos(texto: str) -> str:
+    """Evita glifos no soportados por fuentes PDF/DOCX conservando semántica."""
+
+    # Inicializa salida con el texto original.
+    salida = texto
+
+    # Reemplaza cada emoji conocido por su etiqueta segura.
+    for emoji, etiqueta in EMOJIS_COMPATIBLES_TEXTO.items():
+        # Sustituye ocurrencias para mejorar compatibilidad tipográfica.
+        salida = salida.replace(emoji, etiqueta)
+
+    # Elimina variaciones de selector para evitar símbolos residuales.
+    salida = salida.replace("\ufe0f", "")
+
+    # Devuelve texto sin emojis conflictivos para documentos.
+    return salida
+
+
+# Normaliza contenido narrativo para una capa semántica estable.
+def sanitizar_texto_editorial(texto: str) -> str:
+    """Limpia residuos markdown y homogeniza estilo narrativo del informe."""
+
+    # Limpia markdown crudo de entrada.
+    texto_limpio = limpiar_markdown_crudo(texto)
+
+    # Sustituye emojis no seguros por etiquetas legibles.
+    texto_limpio = reemplazar_emojis_problematicos(texto_limpio)
+
+    # Colapsa espacios múltiples preservando saltos.
+    texto_limpio = re.sub(r"[ \t]+", " ", texto_limpio)
+
+    # Normaliza separación tras porcentajes y tiempos comunes.
+    texto_limpio = re.sub(r"(\d)\s*%", r"\1%", texto_limpio)
+    texto_limpio = re.sub(r"(\d)\s*s\b", r"\1 s", texto_limpio)
+    texto_limpio = re.sub(r"(\d)\s*ms\b", r"\1 ms", texto_limpio)
+
+    # Devuelve texto editorial consistente.
+    return texto_limpio.strip()
+
+
+# Construye un bloque semántico base reutilizable por todos los exportadores.
+def _crear_bloque_semantico(tipo: str, titulo: str, subtitulo: str = "", **campos: Any) -> dict[str, Any]:
+    """Crea un bloque neutral con estructura explícita para render final."""
+
+    # Inicializa bloque con propiedades troncales.
+    bloque: dict[str, Any] = {
+        "tipo_bloque": tipo,
+        "titulo": titulo,
+        "subtitulo": subtitulo,
+        "parrafos": [],
+        "listas": [],
+        "tablas": [],
+        "tarjetas": [],
+        "notas": [],
+    }
+
+    # Inserta campos complementarios enviados por el llamador.
+    bloque.update(campos)
+
+    # Devuelve bloque semántico listo para consumo.
+    return bloque
 
 
 # Convierte narrativa IA en secciones internas estructuradas.
@@ -1020,6 +1101,79 @@ def construir_filas_gestion_indexacion(resultado: ResultadoAuditoria) -> list[di
     return filas
 
 
+# Calcula score y explicación estructurada para priorización SEO por URL.
+def calcular_score_prioridad_pagina(gsc: object | None, ga: object | None, tecnico: object | None) -> dict[str, object]:
+    """Evalúa señales actuales de priorización y devuelve trazabilidad explicable."""
+
+    # Inicializa score acumulado final.
+    score_prioridad = 0.0
+
+    # Inicializa lista de motivos legibles para el informe.
+    razones: list[str] = []
+
+    # Inicializa detalle por componente para evolución futura del motor.
+    componentes = {
+        "potencial_seo": 0.0,
+        "oportunidad_ctr": 0.0,
+        "oportunidad_conversion": 0.0,
+        "friccion_tecnica_onpage": 0.0,
+        "esfuerzo_estimado": 0.0,
+    }
+
+    # Evalúa oportunidad de CTR con alta visibilidad.
+    if gsc and gsc.impresiones >= PRIORIDAD_GSC_MIN_IMPRESIONES_CTR and gsc.ctr <= PRIORIDAD_GSC_MAX_CTR:
+        # Suma peso asociado al componente de CTR.
+        componentes["oportunidad_ctr"] += PRIORIDAD_SCORE_CTR_BAJO
+
+        # Registra motivo explicativo para la capa ejecutiva.
+        razones.append("Muchas impresiones y CTR bajo.")
+
+    # Evalúa oportunidad por tráfico sin conversión.
+    if ga and ga.sesiones >= PRIORIDAD_GA_MIN_SESIONES_SIN_CONVERSION and ga.conversiones <= PRIORIDAD_GA_MAX_CONVERSIONES:
+        # Suma peso asociado a componente de conversión.
+        componentes["oportunidad_conversion"] += PRIORIDAD_SCORE_SIN_CONVERSION
+
+        # Registra motivo explicativo para la capa ejecutiva.
+        razones.append("Sesiones altas sin conversión.")
+
+    # Evalúa fricción de engagement entre visibilidad y rebote.
+    if gsc and ga and gsc.impresiones >= PRIORIDAD_GSC_MIN_IMPRESIONES_ENGAGEMENT_BAJO and ga.rebote >= PRIORIDAD_GA_MIN_REBOTE_BAJO_ENGAGEMENT:
+        # Suma peso asociado a fricción de comportamiento.
+        componentes["friccion_tecnica_onpage"] += PRIORIDAD_SCORE_ENGAGEMENT_BAJO
+
+        # Registra motivo explicativo para la capa ejecutiva.
+        razones.append("Alta visibilidad con engagement bajo.")
+
+    # Evalúa potencial de crecimiento por posición media escalable.
+    if gsc and PRIORIDAD_GSC_MIN_POSICION <= gsc.posicion_media <= PRIORIDAD_GSC_MAX_POSICION:
+        # Suma peso asociado al potencial SEO de ascenso.
+        componentes["potencial_seo"] += PRIORIDAD_SCORE_POSICION_POTENCIAL
+
+        # Registra motivo explicativo para la capa ejecutiva.
+        razones.append("Posición 4-15 con potencial de crecimiento.")
+
+    # Evalúa fricción técnica por volumen de hallazgos detectados.
+    if tecnico and tecnico.hallazgos:
+        # Calcula contribución máxima del bloque técnico.
+        contribucion_hallazgos = min(PRIORIDAD_SCORE_MAX_HALLAZGOS, len(tecnico.hallazgos) * PRIORIDAD_SCORE_HALLAZGO)
+
+        # Suma contribución al componente técnico/on-page.
+        componentes["friccion_tecnica_onpage"] += contribucion_hallazgos
+
+        # Registra motivo explicativo para la capa ejecutiva.
+        razones.append(f"Acumula {len(tecnico.hallazgos)} hallazgos on-page/técnicos.")
+
+    # Suma componentes para obtener score final.
+    score_prioridad = round(sum(float(valor) for valor in componentes.values()), 1)
+
+    # Devuelve estructura trazable de priorización.
+    return {
+        "score_prioridad": score_prioridad,
+        "motivos": razones,
+        "componentes": componentes,
+    }
+
+
 # Construye priorización de páginas combinando visibilidad, tráfico y conversión.
 def construir_paginas_prioritarias(resultado: ResultadoAuditoria, limite: int = 10) -> list[dict]:
     """Ordena páginas por potencial SEO y negocio usando GSC, GA4 y on-page."""
@@ -1045,34 +1199,14 @@ def construir_paginas_prioritarias(resultado: ResultadoAuditoria, limite: int = 
         # Resuelve URL legible priorizando formato completo.
         url = (gsc.url if gsc else "") or (ga.url if ga else "") or (tecnico.url if tecnico else clave)
 
-        # Inicializa puntuación y razones ejecutivas de prioridad.
-        score_prioridad = 0.0
-        razones: list[str] = []
+        # Calcula score y detalle explicable desde función dedicada.
+        evaluacion_prioridad = calcular_score_prioridad_pagina(gsc=gsc, ga=ga, tecnico=tecnico)
 
-        # Evalúa señal de visibilidad alta con CTR bajo.
-        if gsc and gsc.impresiones >= PRIORIDAD_GSC_MIN_IMPRESIONES_CTR and gsc.ctr <= PRIORIDAD_GSC_MAX_CTR:
-            score_prioridad += PRIORIDAD_SCORE_CTR_BAJO
-            razones.append("Muchas impresiones y CTR bajo.")
+        # Obtiene score final consolidado.
+        score_prioridad = float(evaluacion_prioridad["score_prioridad"])
 
-        # Evalúa señal de tráfico sin conversión.
-        if ga and ga.sesiones >= PRIORIDAD_GA_MIN_SESIONES_SIN_CONVERSION and ga.conversiones <= PRIORIDAD_GA_MAX_CONVERSIONES:
-            score_prioridad += PRIORIDAD_SCORE_SIN_CONVERSION
-            razones.append("Sesiones altas sin conversión.")
-
-        # Evalúa señal de alta visibilidad con engagement bajo.
-        if gsc and ga and gsc.impresiones >= PRIORIDAD_GSC_MIN_IMPRESIONES_ENGAGEMENT_BAJO and ga.rebote >= PRIORIDAD_GA_MIN_REBOTE_BAJO_ENGAGEMENT:
-            score_prioridad += PRIORIDAD_SCORE_ENGAGEMENT_BAJO
-            razones.append("Alta visibilidad con engagement bajo.")
-
-        # Evalúa oportunidades por posición de ascenso rápido.
-        if gsc and PRIORIDAD_GSC_MIN_POSICION <= gsc.posicion_media <= PRIORIDAD_GSC_MAX_POSICION:
-            score_prioridad += PRIORIDAD_SCORE_POSICION_POTENCIAL
-            razones.append("Posición 4-15 con potencial de crecimiento.")
-
-        # Evalúa impacto técnico por volumen de hallazgos on-page.
-        if tecnico and tecnico.hallazgos:
-            score_prioridad += min(PRIORIDAD_SCORE_MAX_HALLAZGOS, len(tecnico.hallazgos) * PRIORIDAD_SCORE_HALLAZGO)
-            razones.append(f"Acumula {len(tecnico.hallazgos)} hallazgos on-page/técnicos.")
+        # Obtiene motivos legibles para narrativa y tablas.
+        razones = list(evaluacion_prioridad["motivos"])
 
         # Descarta URLs sin señales de priorización claras.
         if score_prioridad <= 0:
@@ -1090,6 +1224,7 @@ def construir_paginas_prioritarias(resultado: ResultadoAuditoria, limite: int = 
                 "conversiones": round(ga.conversiones, 2) if ga else 0.0,
                 "hallazgos_onpage": len(tecnico.hallazgos) if tecnico else 0,
                 "motivos": razones,
+                "explicacion_prioridad": evaluacion_prioridad["componentes"],
             }
         )
 
@@ -2812,6 +2947,300 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
 
 
 # Exporta un informe ejecutivo en Word.
+def construir_modelo_semantico_informe(resultado: ResultadoAuditoria) -> dict[str, Any]:
+    """Construye una única capa semántica neutral para DOCX/PDF/HTML."""
+
+    # Calcula métricas globales reutilizables.
+    metricas = calcular_metricas(resultado)
+
+    # Construye narrativa base consolidada.
+    bloques_narrativos = _construir_bloques_narrativos(resultado)
+
+    # Construye datasets tabulares para secciones clave.
+    filas_analytics = sorted(construir_filas_analytics_paginas(resultado), key=lambda item: float(item.get("sesiones", 0.0)), reverse=True)[:10]
+    filas_indexacion = construir_filas_gestion_indexacion(resultado)[:12]
+    filas_prioritarias = construir_paginas_prioritarias(resultado, limite=10)
+    quick_wins = _construir_quick_wins(construir_filas_quick_wins(resultado), limite=10)
+
+    # Agrupa datos de rendimiento por URL y estrategia para tablas comparables.
+    rendimiento_por_url: dict[str, dict[str, object]] = {}
+
+    # Recorre resultados de rendimiento para agregarlos por URL.
+    for item in resultado.rendimiento:
+        # Inicializa contenedor por URL cuando no exista.
+        rendimiento_por_url.setdefault(item.url, {})
+
+        # Guarda registro por estrategia de ejecución.
+        rendimiento_por_url[item.url][item.estrategia] = item
+
+    # Define colección de secciones semánticas.
+    secciones: list[dict[str, Any]] = []
+
+    # Crea sección semántica de portada.
+    secciones.append(
+        _crear_bloque_semantico(
+            tipo="portada",
+            titulo="Portada",
+            parrafos=[
+                "INFORME DE AUDITORÍA SEO",
+                f"Cliente: {resultado.cliente}",
+                f"Sitemap: {resultado.sitemap}",
+                f"Fecha: {resultado.fecha_ejecucion}",
+            ],
+        )
+    )
+
+    # Recorre jerarquía visible para montar bloques homogéneos.
+    for titulo_seccion in construir_jerarquia_visible(resultado):
+        # Inicializa bloque semántico de la sección actual.
+        bloque = _crear_bloque_semantico(tipo="seccion", titulo=titulo_seccion)
+
+        # Inserta contenido tabular de KPIs.
+        if titulo_seccion == "KPIs principales":
+            bloque["tablas"].append(
+                {
+                    "titulo": "KPIs principales",
+                    "columnas": ["KPI", "Valor"],
+                    "filas": [
+                        ["Total URLs", str(metricas["total_urls"])],
+                        ["Total incidencias", str(metricas["total_incidencias"])],
+                        ["Score SEO", str(metricas["score"])],
+                        ["Fuentes activas", ", ".join(resultado.fuentes_activas)],
+                    ],
+                }
+            )
+
+        # Inserta tarjetas semánticas de quick wins.
+        elif titulo_seccion == "Quick wins":
+            for item in quick_wins:
+                bloque["tarjetas"].append(
+                    {
+                        "titulo": f"URL: {item['url']}",
+                        "subtitulo": f"Impacto: {item['impacto_maximo']} | Esfuerzo: {item['esfuerzo_maximo']}",
+                        "listas": [
+                            {"titulo": "Problemas", "items": [sanitizar_texto_editorial(str(valor)) for valor in item["problemas"]]},
+                            {"titulo": "Acciones recomendadas", "items": [sanitizar_texto_editorial(str(valor)) for valor in item["recomendaciones"]]},
+                        ],
+                    }
+                )
+
+        # Inserta tabla de comportamiento y conversión.
+        elif titulo_seccion == "Comportamiento y conversión":
+            bloque["tablas"].append(
+                {
+                    "titulo": "Comportamiento y conversión",
+                    "columnas": ["URL", "Sesiones", "Usuarios", "Rebote", "Duración", "Conversiones"],
+                    "filas": [
+                        [
+                            str(fila.get("url", "")),
+                            str(fila.get("sesiones", 0)),
+                            str(fila.get("usuarios", 0)),
+                            str(fila.get("rebote", 0)),
+                            str(fila.get("duracion", 0)),
+                            str(fila.get("conversiones", 0)),
+                        ]
+                        for fila in filas_analytics
+                    ],
+                }
+            )
+
+        # Inserta tabla de gestión de indexación.
+        elif titulo_seccion == "Gestión de indexación":
+            bloque["tablas"].append(
+                {
+                    "titulo": "Gestión de indexación",
+                    "columnas": ["URL", "Clasificación", "Motivo", "Acción recomendada", "Prioridad"],
+                    "filas": [
+                        [
+                            str(fila.get("url", "")),
+                            str(fila.get("clasificacion", "")),
+                            str(fila.get("motivo", "")),
+                            str(fila.get("accion_recomendada", "")),
+                            str(fila.get("prioridad", "")),
+                        ]
+                        for fila in filas_indexacion
+                    ],
+                }
+            )
+
+        # Inserta tabla de páginas prioritarias con explicación estructurada.
+        elif titulo_seccion == "Páginas prioritarias":
+            bloque["tablas"].append(
+                {
+                    "titulo": "Páginas prioritarias",
+                    "columnas": ["URL", "Score", "Impresiones", "CTR", "Sesiones", "Conversiones", "Motivos"],
+                    "filas": [
+                        [
+                            str(fila.get("url", "")),
+                            str(fila.get("prioridad_score", 0)),
+                            str(fila.get("impresiones", 0)),
+                            str(fila.get("ctr", 0)),
+                            str(fila.get("sesiones", 0)),
+                            str(fila.get("conversiones", 0)),
+                            "; ".join(fila.get("motivos", [])),
+                        ]
+                        for fila in filas_prioritarias
+                    ],
+                }
+            )
+
+        # Inserta tabla detallada de rendimiento y oportunidades.
+        elif titulo_seccion == "Rendimiento y experiencia de usuario":
+            # Inicializa filas de métricas para formato vertical.
+            filas_rendimiento: list[list[str]] = []
+
+            # Recorre muestra de URLs para mantener legibilidad.
+            for url_actual, bloque_rend in list(rendimiento_por_url.items())[:4]:
+                # Recorre ambas estrategias en orden estándar.
+                for estrategia in ["mobile", "desktop"]:
+                    # Obtiene registro por estrategia cuando exista.
+                    item = bloque_rend.get(estrategia)
+
+                    # Construye métricas verticales por bloque.
+                    metricas_item = [
+                        ("Performance", _valor_metrica(getattr(item, "performance_score", None))),
+                        ("SEO", _valor_metrica(getattr(item, "seo_score", None))),
+                        ("LCP", _valor_metrica(getattr(item, "lcp", None))),
+                        ("CLS", _valor_metrica(getattr(item, "cls", None))),
+                        ("INP", _valor_metrica(getattr(item, "inp", None))),
+                        ("FCP", _valor_metrica(getattr(item, "fcp", None))),
+                        ("Speed Index", _valor_metrica(getattr(item, "speed_index", None))),
+                    ]
+
+                    # Recorre cada métrica para añadir filas.
+                    for indice_metrica, (nombre_metrica, valor_metrica) in enumerate(metricas_item):
+                        # Añade fila con observación en primera línea del bloque.
+                        filas_rendimiento.append(
+                            [
+                                f"{url_actual} [{estrategia}]" if indice_metrica == 0 else "",
+                                nombre_metrica,
+                                str(valor_metrica),
+                                _interpretacion_rendimiento(getattr(item, "performance_score", None), estrategia) if indice_metrica == 0 else "",
+                            ]
+                        )
+
+            # Inserta tabla de métricas de rendimiento.
+            bloque["tablas"].append(
+                {
+                    "titulo": "Rendimiento por métrica",
+                    "columnas": ["URL / Estrategia", "Métrica", "Valor", "Observación"],
+                    "filas": filas_rendimiento,
+                }
+            )
+
+            # Inicializa filas de oportunidades priorizadas.
+            filas_oportunidades: list[list[str]] = []
+
+            # Recorre resultados con oportunidades reales.
+            for item in [fila for fila in resultado.rendimiento if fila.oportunidades][:6]:
+                # Recorre oportunidades acotadas por bloque.
+                for oportunidad in item.oportunidades[:4]:
+                    # Añade oportunidad priorizada en formato tabular.
+                    filas_oportunidades.append(
+                        [
+                            f"{item.url} [{item.estrategia}]",
+                            str(oportunidad.titulo),
+                            str(oportunidad.severidad),
+                            _valor_metrica(oportunidad.ahorro_estimado),
+                        ]
+                    )
+
+            # Inserta tabla de oportunidades si existen datos.
+            if filas_oportunidades:
+                bloque["tablas"].append(
+                    {
+                        "titulo": "Oportunidades PageSpeed priorizadas",
+                        "columnas": ["URL / Estrategia", "Oportunidad", "Severidad", "Ahorro estimado"],
+                        "filas": filas_oportunidades,
+                    }
+                )
+
+        # Inserta contenido narrativo sanitizado como fallback estándar.
+        else:
+            bloque["parrafos"] = [sanitizar_texto_editorial(str(linea)) for linea in bloques_narrativos.get(titulo_seccion, [])[:10]]
+
+        # Añade nota estándar cuando no haya contenido explícito.
+        if not bloque["parrafos"] and not bloque["tablas"] and not bloque["tarjetas"]:
+            bloque["notas"].append("No disponible para esta ejecución.")
+
+        # Inserta bloque en modelo final.
+        secciones.append(bloque)
+
+    # Construye anexo técnico en bloque separado.
+    secciones.append(
+        _crear_bloque_semantico(
+            tipo="anexo",
+            titulo="Anexo técnico",
+            listas=[
+                {
+                    "titulo": "URLs auditadas (muestra)",
+                    "items": [
+                        sanitizar_texto_editorial(
+                            f"{item.url} | HTTP={item.estado_http} | redirección={'Sí' if item.redirecciona else 'No'} | noindex={'Sí' if item.noindex else 'No'}"
+                        )
+                        for item in resultado.resultados[:20]
+                    ],
+                }
+            ],
+        )
+    )
+
+    # Devuelve modelo semántico único para todos los renderizadores.
+    return {"meta": {"cliente": resultado.cliente, "fecha": resultado.fecha_ejecucion}, "secciones": secciones}
+
+
+# Inserta una tabla semántica en Word de forma homogénea.
+def _renderizar_tabla_word(documento: Document, tabla_semantica: dict[str, Any]) -> None:
+    """Renderiza una tabla semántica en DOCX manteniendo formato corporativo."""
+
+    # Obtiene columnas definidas para la tabla.
+    columnas = list(tabla_semantica.get("columnas", []))
+
+    # Obtiene filas definidas para la tabla.
+    filas = list(tabla_semantica.get("filas", []))
+
+    # Crea tabla base con encabezados.
+    tabla = documento.add_table(rows=1, cols=max(1, len(columnas)))
+
+    # Aplica estilo de rejilla corporativa.
+    tabla.style = "Table Grid"
+
+    # Inserta encabezados de columna.
+    for indice, columna in enumerate(columnas):
+        tabla.rows[0].cells[indice].text = sanitizar_texto_editorial(str(columna))
+
+    # Inserta filas de datos.
+    for fila in filas:
+        celdas = tabla.add_row().cells
+        for indice, valor in enumerate(fila):
+            if indice < len(celdas):
+                celdas[indice].text = sanitizar_texto_editorial(str(valor))
+
+
+# Inserta una tabla semántica en PDF de forma homogénea.
+def _renderizar_tabla_pdf(tabla_semantica: dict[str, Any], estilos: dict[str, Any]) -> Table:
+    """Renderiza tabla semántica para ReportLab usando estilo corporativo."""
+
+    # Construye matriz con encabezado y filas.
+    datos = [list(tabla_semantica.get("columnas", []))] + [list(fila) for fila in tabla_semantica.get("filas", [])]
+
+    # Garantiza matriz mínima para evitar errores de ReportLab.
+    if not datos:
+        datos = [["Dato"], ["No disponible"]]
+
+    # Sanea cada celda para evitar markup inválido.
+    datos_limpios = [[sanear_texto_para_pdf(str(valor)) for valor in fila] for fila in datos]
+
+    # Crea tabla con repetición de encabezado.
+    tabla = Table(datos_limpios, repeatRows=1)
+
+    # Aplica estilo corporativo unificado.
+    tabla.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1F4E78")), ("TEXTCOLOR", (0, 0), (-1, 0), colors.white), ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#D9D9D9"))]))
+
+    # Devuelve tabla maquetada.
+    return tabla
+
+
 def exportar_word(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     """Genera un DOCX corporativo usando estructura semántica intermedia."""
 
@@ -2854,223 +3283,29 @@ def exportar_word(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     # Inserta salto de página tras portada.
     documento.add_page_break()
 
-    # Obtiene métricas para bloque KPI.
-    metricas = calcular_metricas(resultado)
+    # Construye modelo semántico único para render documental.
+    modelo = construir_modelo_semantico_informe(resultado)
 
-    # Construye bloques narrativos sin duplicidades.
-    bloques = _construir_bloques_narrativos(resultado)
-
-    # Renderiza jerarquía fija en orden obligatorio.
-    for titulo_seccion in construir_jerarquia_visible(resultado):
-        # Inserta encabezado de sección.
-        documento.add_heading(titulo_seccion, level=1)
-
-        # Inserta tabla de KPI en su sección dedicada.
-        if titulo_seccion == "KPIs principales":
-            # Crea tabla KPI de dos columnas.
-            tabla = documento.add_table(rows=4, cols=2)
-
-            # Aplica estilo de tabla.
-            tabla.style = "Table Grid"
-
-            # Completa filas de KPI.
-            tabla.cell(0, 0).text = "Total URLs"
-            tabla.cell(0, 1).text = str(metricas["total_urls"])
-            tabla.cell(1, 0).text = "Total incidencias"
-            tabla.cell(1, 1).text = str(metricas["total_incidencias"])
-            tabla.cell(2, 0).text = "Score SEO"
-            tabla.cell(2, 1).text = str(metricas["score"])
-            tabla.cell(3, 0).text = "Fuentes activas"
-            tabla.cell(3, 1).text = ", ".join(resultado.fuentes_activas)
-
-            # Continúa con siguiente sección.
+    # Recorre secciones semánticas excluyendo portada ya pintada.
+    for seccion in modelo["secciones"]:
+        if seccion["tipo_bloque"] == "portada":
             continue
-
-        # Inserta bloque visual de quick wins deduplicados.
-        if titulo_seccion == "Quick wins":
-            # Construye quick wins desde filas técnicas.
-            quick_wins = _construir_quick_wins(construir_filas_quick_wins(resultado), limite=10)
-
-            # Renderiza mensaje de ausencia cuando no haya quick wins.
-            if not quick_wins:
-                # Añade mensaje informativo al documento.
-                documento.add_paragraph("No se identificaron quick wins claros de bajo esfuerzo y alto impacto.")
-            else:
-                # Recorre quick wins para render en tarjetas textuales.
-                for quick_win in quick_wins:
-                    # Inserta separador visual de tarjeta.
-                    documento.add_paragraph("-----------------------------------")
-
-                    # Inserta URL de la tarjeta.
-                    documento.add_paragraph(f"URL: {quick_win['url']}")
-
-                    # Inserta cabecera de problemas.
-                    documento.add_paragraph("Problemas:")
-
-                    # Recorre problemas de la tarjeta.
-                    for problema in quick_win["problemas"]:
-                        # Añade problema en viñeta.
-                        documento.add_paragraph(str(problema), style="List Bullet")
-
-                    # Inserta cabecera de acción recomendada.
-                    documento.add_paragraph("Acción recomendada:")
-
-                    # Recorre recomendaciones de la tarjeta.
-                    for recomendacion in quick_win["recomendaciones"]:
-                        # Añade recomendación en viñeta.
-                        documento.add_paragraph(str(recomendacion), style="List Bullet")
-
-                    # Inserta impacto y esfuerzo de la tarjeta.
-                    documento.add_paragraph(f"Impacto: {quick_win['impacto_maximo']}")
-                    documento.add_paragraph(f"Esfuerzo: {quick_win['esfuerzo_maximo']}")
-
-                    # Inserta cierre visual de tarjeta.
-                    documento.add_paragraph("-----------------------------------")
-
-            # Continúa con la siguiente sección.
-            continue
-
-        # Inserta bloque tabular de comportamiento y conversión basado en GA4.
-        if titulo_seccion == "Comportamiento y conversión":
-            # Construye filas de Analytics por página para la tabla ejecutiva.
-            filas_analytics = sorted(construir_filas_analytics_paginas(resultado), key=lambda item: float(item.get("sesiones", 0.0)), reverse=True)[:8]
-
-            # Inserta mensaje cuando no hay datos de Analytics.
-            if not filas_analytics:
-                documento.add_paragraph("No hay datos de Analytics disponibles para esta ejecución.")
-            else:
-                tabla_ga = documento.add_table(rows=1, cols=6)
-                tabla_ga.style = "Table Grid"
-                tabla_ga.rows[0].cells[0].text = "URL"
-                tabla_ga.rows[0].cells[1].text = "Sesiones"
-                tabla_ga.rows[0].cells[2].text = "Usuarios"
-                tabla_ga.rows[0].cells[3].text = "Rebote"
-                tabla_ga.rows[0].cells[4].text = "Duración"
-                tabla_ga.rows[0].cells[5].text = "Conversiones"
-                for fila in filas_analytics:
-                    celdas = tabla_ga.add_row().cells
-                    celdas[0].text = str(fila.get("url", ""))
-                    celdas[1].text = str(fila.get("sesiones", 0))
-                    celdas[2].text = str(fila.get("usuarios", 0))
-                    celdas[3].text = str(fila.get("rebote", 0))
-                    celdas[4].text = str(fila.get("duracion", 0))
-                    celdas[5].text = str(fila.get("conversiones", 0))
-            continue
-
-        # Inserta bloque específico de rendimiento.
-        if titulo_seccion == "Rendimiento y experiencia de usuario":
-            # Agrupa resultados por URL para comparar mobile vs desktop.
-            rendimiento_por_url: dict[str, dict[str, object]] = {}
-
-            # Recorre todas las entradas de rendimiento disponibles.
-            for item in resultado.rendimiento:
-                # Inicializa estructura por URL cuando no exista.
-                rendimiento_por_url.setdefault(item.url, {})
-
-                # Guarda resultado por estrategia para comparativa.
-                rendimiento_por_url[item.url][item.estrategia] = item
-
-            # Inserta mensaje profesional cuando no hay datos válidos.
-            if not rendimiento_por_url:
-                # Redacta mensaje según tipo de fallo/ausencia.
-                mensaje = (
-                    "No se pudieron obtener métricas de PageSpeed en esta ejecución por timeout o error de la API."
-                    if "pagespeed" in resultado.fuentes_fallidas or resultado.pagespeed_estado
-                    else "No hay datos de rendimiento disponibles en esta ejecución."
-                )
-
-                # Añade mensaje al documento.
-                documento.add_paragraph(mensaje)
-            else:
-                # Crea tabla compacta de rendimiento por métrica.
-                tabla_rend = documento.add_table(rows=1, cols=4)
-
-                # Aplica estilo visual de tabla.
-                tabla_rend.style = "Table Grid"
-
-                # Escribe encabezados obligatorios de la tabla.
-                tabla_rend.rows[0].cells[0].text = "URL / Estrategia"
-                tabla_rend.rows[0].cells[1].text = "Métrica"
-                tabla_rend.rows[0].cells[2].text = "Valor"
-                tabla_rend.rows[0].cells[3].text = "Observación"
-
-                # Recorre URLs para insertar filas comparativas.
-                for url_actual, bloque in list(rendimiento_por_url.items())[:4]:
-                    # Recorre estrategias en orden fijo mobile/desktop.
-                    for estrategia in ["mobile", "desktop"]:
-                        # Obtiene resultado por estrategia cuando exista.
-                        item = bloque.get(estrategia)
-
-                        # Construye lista vertical de métricas para mejor legibilidad.
-                        metricas_item = [
-                            ("Performance", _valor_metrica(getattr(item, "performance_score", None))),
-                            ("SEO", _valor_metrica(getattr(item, "seo_score", None))),
-                            ("LCP", _valor_metrica(getattr(item, "lcp", None))),
-                            ("CLS", _valor_metrica(getattr(item, "cls", None))),
-                            ("INP", _valor_metrica(getattr(item, "inp", None))),
-                            ("FCP", _valor_metrica(getattr(item, "fcp", None))),
-                            ("Speed Index", _valor_metrica(getattr(item, "speed_index", None))),
-                        ]
-
-                        # Recorre métricas para render vertical compacto.
-                        for indice_metrica, (nombre_metrica, valor_metrica) in enumerate(metricas_item):
-                            # Inserta nueva fila en tabla vertical.
-                            fila = tabla_rend.add_row().cells
-
-                            # Escribe URL solo en la primera métrica del bloque.
-                            fila[0].text = f"{url_actual} [{estrategia}]" if indice_metrica == 0 else ""
-
-                            # Escribe nombre de métrica.
-                            fila[1].text = nombre_metrica
-
-                            # Escribe valor de métrica.
-                            fila[2].text = valor_metrica
-
-                            # Escribe observación solo en primera línea del bloque.
-                            fila[3].text = _interpretacion_rendimiento(getattr(item, "performance_score", None), estrategia) if indice_metrica == 0 else ""
-
-                # Inserta subtítulo de oportunidades para lectura accionable.
-                documento.add_paragraph("Oportunidades PageSpeed priorizadas:")
-
-                # Inserta oportunidades en lista estructurada.
-                for item in [item for item in resultado.rendimiento if item.oportunidades][:6]:
-                    # Inserta URL y estrategia de contexto.
-                    documento.add_paragraph(f"{item.url} [{item.estrategia}]", style="List Bullet")
-
-                    # Recorre oportunidades acotadas por bloque.
-                    for oportunidad in item.oportunidades[:4]:
-                        # Inserta oportunidad con severidad y ahorro.
-                        documento.add_paragraph(
-                            f"{oportunidad.titulo} · severidad={oportunidad.severidad} · ahorro={_valor_metrica(oportunidad.ahorro_estimado)}",
-                            style="List Bullet 2",
-                        )
-
-            # Continúa con siguiente sección.
-            continue
-
-        # Inserta narrativa no vacía de la sección.
-        for linea in bloques[titulo_seccion][:8]:
-            # Añade párrafo limpio sin markdown crudo.
-            documento.add_paragraph(linea)
-
-    # Inserta anexo técnico como sección única al final.
-    documento.add_page_break()
-
-    # Inserta encabezado de anexo.
-    documento.add_heading("Anexo técnico", level=1)
-
-    # Recorre una muestra de URLs para anexo estructurado.
-    for item in resultado.resultados[:20]:
-        # Inserta subtítulo por URL.
-        documento.add_heading(item.url, level=2)
-
-        # Inserta línea de estado técnico.
-        documento.add_paragraph(f"HTTP={item.estado_http} · redirección={'Sí' if item.redirecciona else 'No'} · noindex={'Sí' if item.noindex else 'No'}")
-
-        # Recorre hallazgos de la URL.
-        for hallazgo in item.hallazgos[:3]:
-            # Añade hallazgo en formato de lista.
-            documento.add_paragraph(f"[{hallazgo.severidad}] {hallazgo.descripcion}", style="List Bullet")
+        if seccion["titulo"] == "Anexo técnico":
+            documento.add_page_break()
+        documento.add_heading(str(seccion["titulo"]), level=1)
+        for tabla in seccion.get("tablas", []):
+            _renderizar_tabla_word(documento, tabla)
+        for tarjeta in seccion.get("tarjetas", []):
+            documento.add_paragraph(sanitizar_texto_editorial(str(tarjeta.get("titulo", ""))))
+            documento.add_paragraph(sanitizar_texto_editorial(str(tarjeta.get("subtitulo", ""))))
+            for lista in tarjeta.get("listas", []):
+                documento.add_paragraph(sanitizar_texto_editorial(str(lista.get("titulo", ""))))
+                for item in lista.get("items", []):
+                    documento.add_paragraph(sanitizar_texto_editorial(str(item)), style="List Bullet")
+        for linea in seccion.get("parrafos", []):
+            documento.add_paragraph(sanitizar_texto_editorial(str(linea)))
+        for nota in seccion.get("notas", []):
+            documento.add_paragraph(sanitizar_texto_editorial(str(nota)))
 
     # Guarda documento final.
     documento.save(destino)
@@ -3113,189 +3348,30 @@ def exportar_pdf(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     elementos.append(Paragraph(f"Sitemap: {sanear_texto_para_pdf(resultado.sitemap)}", estilos["Normal"]))
     elementos.append(PageBreak())
 
-    # Obtiene bloques narrativos consolidados.
-    bloques = _construir_bloques_narrativos(resultado)
+    # Construye modelo semántico único para render documental.
+    modelo = construir_modelo_semantico_informe(resultado)
 
-    # Obtiene métricas globales.
-    metricas = calcular_metricas(resultado)
-
-    # Recorre jerarquía del informe.
-    for titulo_seccion in construir_jerarquia_visible(resultado):
-        # Inserta título de sección.
-        elementos.append(Paragraph(f"<b>{sanear_texto_para_pdf(titulo_seccion)}</b>", estilos["Heading2"]))
-
-        # Inserta tabla KPI en sección correspondiente.
-        if titulo_seccion == "KPIs principales":
-            # Crea tabla de KPIs.
-            tabla = Table([["KPI", "Valor"], ["Total URLs", str(metricas["total_urls"])], ["Total incidencias", str(metricas["total_incidencias"])], ["Score SEO", str(metricas["score"])], ["Fuentes activas", ", ".join(resultado.fuentes_activas)]], colWidths=[180, 280])
-
-            # Aplica estilo visual de tabla.
-            tabla.setStyle(TableStyle([("BACKGROUND", (0, 0), (1, 0), colors.HexColor("#1F4E78")), ("TEXTCOLOR", (0, 0), (1, 0), colors.white), ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#D9D9D9"))]))
-
-            # Añade tabla al flujo.
-            elementos.append(tabla)
-
-            # Salta a siguiente sección.
+    # Recorre secciones semánticas excluyendo portada ya renderizada.
+    for seccion in modelo["secciones"]:
+        if seccion["tipo_bloque"] == "portada":
             continue
-
-        # Inserta bloque visual de quick wins deduplicados.
-        if titulo_seccion == "Quick wins":
-            # Construye quick wins desde incidencias técnicas.
-            quick_wins = _construir_quick_wins(construir_filas_quick_wins(resultado), limite=10)
-
-            # Renderiza mensaje cuando no existan quick wins claros.
-            if not quick_wins:
-                # Añade mensaje informativo en PDF.
-                elementos.append(Paragraph("No se identificaron quick wins claros de bajo esfuerzo y alto impacto.", estilos["Normal"]))
-            else:
-                # Recorre quick wins para render en tarjetas verticales.
-                for item in quick_wins:
-                    # Inserta separador visual superior.
-                    elementos.append(Paragraph("-----------------------------------", estilos["Normal"]))
-
-                    # Inserta URL de la tarjeta.
-                    elementos.append(Paragraph(sanear_texto_para_pdf(f"URL: {item['url']}"), estilos["Normal"]))
-
-                    # Inserta cabecera de problemas.
-                    elementos.append(Paragraph("Problemas:", estilos["Normal"]))
-
-                    # Recorre problemas para viñetas.
-                    for problema in item["problemas"]:
-                        # Inserta problema en formato limpio.
-                        elementos.append(Paragraph(sanear_texto_para_pdf(f"• {problema}"), estilos["Normal"]))
-
-                    # Inserta cabecera de recomendaciones.
-                    elementos.append(Paragraph("Acción recomendada:", estilos["Normal"]))
-
-                    # Recorre recomendaciones para viñetas.
-                    for recomendacion in item["recomendaciones"]:
-                        # Inserta recomendación en formato limpio.
-                        elementos.append(Paragraph(sanear_texto_para_pdf(f"• {recomendacion}"), estilos["Normal"]))
-
-                    # Inserta impacto de la tarjeta.
-                    elementos.append(Paragraph(sanear_texto_para_pdf(f"Impacto: {item['impacto_maximo']}"), estilos["Normal"]))
-
-                    # Inserta esfuerzo de la tarjeta.
-                    elementos.append(Paragraph(sanear_texto_para_pdf(f"Esfuerzo: {item['esfuerzo_maximo']}"), estilos["Normal"]))
-
-                    # Inserta separador visual inferior.
-                    elementos.append(Paragraph("-----------------------------------", estilos["Normal"]))
-
-            # Salta a siguiente sección.
-            continue
-
-        # Inserta resumen de rendimiento.
-        if titulo_seccion == "Rendimiento y experiencia de usuario":
-            # Agrupa resultados por URL para comparación mobile/desktop.
-            rendimiento_por_url: dict[str, dict[str, object]] = {}
-
-            # Recorre resultados disponibles.
-            for item in resultado.rendimiento:
-                # Inicializa diccionario de la URL.
-                rendimiento_por_url.setdefault(item.url, {})
-
-                # Guarda registro por estrategia.
-                rendimiento_por_url[item.url][item.estrategia] = item
-
-            # Inserta mensaje profesional cuando no hay datos válidos.
-            if not rendimiento_por_url:
-                # Redacta mensaje según tipo de fallo/ausencia.
-                mensaje = (
-                    "No se pudieron obtener métricas de PageSpeed en esta ejecución por timeout o error de la API."
-                    if "pagespeed" in resultado.fuentes_fallidas or resultado.pagespeed_estado
-                    else "No hay datos de rendimiento disponibles en esta ejecución."
-                )
-
-                # Añade mensaje saneado al PDF.
-                elementos.append(Paragraph(sanear_texto_para_pdf(mensaje), estilos["Normal"]))
-            else:
-                # Construye cabecera de tabla compacta por métrica.
-                tabla_datos = [["URL / Estrategia", "Métrica", "Valor", "Observación"]]
-
-                # Recorre muestra de URLs para tabla de rendimiento.
-                for url_actual, bloque in list(rendimiento_por_url.items())[:4]:
-                    # Recorre estrategias estándar mobile y desktop.
-                    for estrategia in ["mobile", "desktop"]:
-                        # Obtiene registro por estrategia.
-                        item = bloque.get(estrategia)
-
-                        # Construye métricas verticales para mejor lectura.
-                        metricas_item = [
-                            ("Performance", _valor_metrica(getattr(item, "performance_score", None))),
-                            ("SEO", _valor_metrica(getattr(item, "seo_score", None))),
-                            ("LCP", _valor_metrica(getattr(item, "lcp", None))),
-                            ("CLS", _valor_metrica(getattr(item, "cls", None))),
-                            ("INP", _valor_metrica(getattr(item, "inp", None))),
-                            ("FCP", _valor_metrica(getattr(item, "fcp", None))),
-                            ("Speed Index", _valor_metrica(getattr(item, "speed_index", None))),
-                        ]
-
-                        # Recorre métricas para añadir filas compactas.
-                        for indice_metrica, (nombre_metrica, valor_metrica) in enumerate(metricas_item):
-                            # Añade fila vertical de métrica.
-                            tabla_datos.append(
-                                [
-                                    sanear_texto_para_pdf(f"{url_actual} [{estrategia}]") if indice_metrica == 0 else "",
-                                    nombre_metrica,
-                                    valor_metrica,
-                                    _interpretacion_rendimiento(getattr(item, "performance_score", None), estrategia) if indice_metrica == 0 else "",
-                                ]
-                            )
-
-                # Crea tabla visual de rendimiento.
-                tabla_rend = Table(tabla_datos, repeatRows=1)
-
-                # Aplica estilo visual sobrio a la tabla.
-                tabla_rend.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1F4E78")), ("TEXTCOLOR", (0, 0), (-1, 0), colors.white), ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#D9D9D9"))]))
-
-                # Añade tabla al flujo PDF.
-                elementos.append(tabla_rend)
-
-                # Añade subtítulo de oportunidades.
-                elementos.append(Spacer(1, 6))
-                elementos.append(Paragraph("<b>Oportunidades PageSpeed priorizadas</b>", estilos["Heading3"]))
-
-                # Recorre oportunidades de forma estructurada.
-                for item in [item for item in resultado.rendimiento if item.oportunidades][:6]:
-                    # Añade línea de contexto URL+estrategia.
-                    elementos.append(Paragraph(sanear_texto_para_pdf(f"{item.url} [{item.estrategia}]"), estilos["Normal"]))
-
-                    # Recorre oportunidades acotadas.
-                    for oportunidad in item.oportunidades[:4]:
-                        # Añade oportunidad en formato legible.
-                        elementos.append(
-                            Paragraph(
-                                sanear_texto_para_pdf(
-                                    f"• {oportunidad.titulo} | severidad={oportunidad.severidad} | ahorro={_valor_metrica(oportunidad.ahorro_estimado)}"
-                                ),
-                                estilos["Normal"],
-                            )
-                        )
-
-            # Salta a siguiente sección.
-            continue
-
-        # Inserta líneas narrativas de sección.
-        for linea in bloques[titulo_seccion][:8]:
-            # Añade párrafo saneado.
-            elementos.append(Paragraph(sanear_texto_para_pdf(linea), estilos["Normal"]))
-
-        # Añade espacio vertical entre secciones.
+        if seccion["titulo"] == "Anexo técnico":
+            elementos.append(PageBreak())
+        elementos.append(Paragraph(f"<b>{sanear_texto_para_pdf(str(seccion['titulo']))}</b>", estilos["Heading2"]))
+        for tabla in seccion.get("tablas", []):
+            elementos.append(_renderizar_tabla_pdf(tabla, estilos))
+        for tarjeta in seccion.get("tarjetas", []):
+            elementos.append(Paragraph(sanear_texto_para_pdf(str(tarjeta.get("titulo", ""))), estilos["Normal"]))
+            elementos.append(Paragraph(sanear_texto_para_pdf(str(tarjeta.get("subtitulo", ""))), estilos["Normal"]))
+            for lista in tarjeta.get("listas", []):
+                elementos.append(Paragraph(sanear_texto_para_pdf(str(lista.get("titulo", ""))), estilos["Normal"]))
+                for item in lista.get("items", []):
+                    elementos.append(Paragraph(sanear_texto_para_pdf(f"- {item}"), estilos["Normal"]))
+        for linea in seccion.get("parrafos", []):
+            elementos.append(Paragraph(sanear_texto_para_pdf(str(linea)), estilos["Normal"]))
+        for nota in seccion.get("notas", []):
+            elementos.append(Paragraph(sanear_texto_para_pdf(str(nota)), estilos["Normal"]))
         elementos.append(Spacer(1, 6))
-
-    # Inserta anexo técnico al final.
-    elementos.append(PageBreak())
-
-    # Inserta título de anexo.
-    elementos.append(Paragraph("<b>Anexo técnico</b>", estilos["Heading2"]))
-
-    # Recorre muestra de URLs para el anexo.
-    for item in resultado.resultados[:20]:
-        # Inserta encabezado por URL.
-        elementos.append(Paragraph(sanear_texto_para_pdf(item.url), estilos["Heading3"]))
-
-        # Inserta estado base de la URL.
-        elementos.append(Paragraph(sanear_texto_para_pdf(f"HTTP={item.estado_http} · redirección={'Sí' if item.redirecciona else 'No'} · noindex={'Sí' if item.noindex else 'No'}"), estilos["Normal"]))
 
     # Construye PDF final.
     pdf.build(elementos)
@@ -3339,45 +3415,43 @@ def exportar_html(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     # Define la ruta del archivo HTML.
     destino = path_salida / f"{construir_prefijo_archivo(resultado)}.html"
 
-    # Calcula métricas globales para la cabecera del informe.
+    # Calcula métricas globales para cabecera.
     metricas = calcular_metricas(resultado)
 
-    # Obtiene filas de incidencias para la tabla técnica.
-    filas = construir_filas(resultado)
+    # Construye modelo semántico único para render web.
+    modelo = construir_modelo_semantico_informe(resultado)
 
-    # Ordena incidencias por severidad (alta arriba, informativa abajo).
-    filas_ordenadas = sorted(
-        filas,
-        key=lambda fila: (_peso_severidad(str(fila.get("severidad", "informativa"))), str(fila.get("url", ""))),
-    )
+    # Obtiene filas de incidencias para el detalle técnico final.
+    filas_ordenadas = sorted(construir_filas(resultado), key=lambda fila: (_peso_severidad(str(fila.get("severidad", "informativa"))), str(fila.get("url", ""))))
 
-    # Construye quick wins deduplicados para bloque visual.
-    quick_wins = _construir_quick_wins(construir_filas_quick_wins(resultado), limite=10)
+    # Inicializa render de secciones semánticas.
+    secciones_html: list[str] = []
 
-    # Construye bloques narrativos para secciones ejecutivas adicionales.
-    bloques = _construir_bloques_narrativos(resultado)
-
-    # Construye datasets complementarios para versión premium HTML.
-    filas_gsc_paginas = construir_filas_search_console_paginas(resultado)
-    filas_gsc_queries = construir_filas_search_console_queries(resultado)
-    filas_analytics_paginas = construir_filas_analytics_paginas(resultado)
-    filas_indexacion = construir_filas_gestion_indexacion(resultado)
-    filas_cruce = construir_cruces_gsc_analytics(resultado)
-    paginas_prioritarias = construir_paginas_prioritarias(resultado, limite=8)
-
-    # Construye incidencias agrupadas para capa ejecutiva.
-    incidencias_agrupadas = data if isinstance(data := metricas.get("incidencias_agrupadas"), dict) else {}
-
-    # Agrupa resultados de rendimiento por URL/estrategia.
-    rendimiento_por_url: dict[str, dict[str, object]] = {}
-
-    # Recorre resultados de rendimiento para agrupación.
-    for item in resultado.rendimiento:
-        # Inicializa diccionario por URL.
-        rendimiento_por_url.setdefault(item.url, {})
-
-        # Guarda item por estrategia.
-        rendimiento_por_url[item.url][item.estrategia] = item
+    # Recorre secciones y las convierte a HTML uniforme.
+    for seccion in modelo["secciones"]:
+        if seccion["tipo_bloque"] == "portada":
+            continue
+        bloques_html: list[str] = []
+        for tabla in seccion.get("tablas", []):
+            columnas = "".join(f"<th>{escape(str(columna))}</th>" for columna in tabla.get("columnas", []))
+            filas = "".join(f"<tr>{''.join(f'<td>{escape(sanitizar_texto_editorial(str(valor)))}</td>' for valor in fila)}</tr>" for fila in tabla.get("filas", []))
+            colspan = max(1, len(tabla.get("columnas", [])))
+            bloques_html.append(
+                f"<h3>{escape(str(tabla.get('titulo', 'Tabla')))}</h3>"
+                f"<table><thead><tr>{columnas}</tr></thead>"
+                f"<tbody>{filas or f'<tr><td colspan=\"{colspan}\">No disponible</td></tr>'}</tbody></table>"
+            )
+        for tarjeta in seccion.get("tarjetas", []):
+            listas = "".join(
+                f"<p><b>{escape(str(lista.get('titulo', '')))}</b></p><ul>{''.join(f'<li>{escape(sanitizar_texto_editorial(str(item)))}</li>' for item in lista.get('items', []))}</ul>"
+                for lista in tarjeta.get("listas", [])
+            )
+            bloques_html.append(f"<div class='tarjeta'><h3>{escape(sanitizar_texto_editorial(str(tarjeta.get('titulo', ''))))}</h3><p>{escape(sanitizar_texto_editorial(str(tarjeta.get('subtitulo', ''))))}</p>{listas}</div>")
+        if seccion.get("parrafos"):
+            bloques_html.append("<ul>" + "".join(f"<li>{escape(sanitizar_texto_editorial(str(linea)))}</li>" for linea in seccion.get("parrafos", [])) + "</ul>")
+        if seccion.get("notas"):
+            bloques_html.append("".join(f"<p>{escape(sanitizar_texto_editorial(str(nota)))}</p>" for nota in seccion.get("notas", [])))
+        secciones_html.append(f"<div class='bloque'><h2>{escape(str(seccion['titulo']))}</h2>{''.join(bloques_html)}</div>")
 
     # Construye contenido HTML básico y portable.
     contenido = f"""<!doctype html>
@@ -3411,118 +3485,7 @@ def exportar_html(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     <div class="kpi"><b>URLs sanas</b><br>{metricas["urls_sanas"]}</div>
     <div class="kpi"><b>Score SEO</b><br>{metricas["score"]}</div>
   </div>
-  <div class="bloque">
-    <h2>Quick wins</h2>
-    <div class="tarjetas">
-      {''.join(
-        f"<div class='tarjeta' style='background:{_color_por_impacto(str(item.get('impacto_maximo','')))}'>"
-        f"<h3>URL: {item['url']}</h3>"
-        f"<b>Problemas:</b><ul>{''.join(f'<li>{problema}</li>' for problema in item['problemas'])}</ul>"
-        f"<b>Acción recomendada:</b><ul>{''.join(f'<li>{recomendacion}</li>' for recomendacion in item['recomendaciones'])}</ul>"
-        f"<p><b>Impacto:</b> {item['impacto_maximo']}<br><b>Esfuerzo:</b> {item['esfuerzo_maximo']}</p>"
-        f"</div>"
-        for item in quick_wins
-      ) or '<p>No se identificaron quick wins claros.</p>'}
-    </div>
-  </div>
-  <div class="bloque">
-    <h2>Incidencias agrupadas ejecutivas</h2>
-    <table>
-      <thead><tr><th>Familia</th><th>Total</th></tr></thead>
-      <tbody>
-        {''.join(f"<tr><td>{familia}</td><td>{total}</td></tr>" for familia, total in incidencias_agrupadas.items()) or '<tr><td colspan=\"2\">No disponible</td></tr>'}
-      </tbody>
-    </table>
-  </div>
-  <div class="bloque">
-    <h2>Comportamiento y conversión</h2>
-    <table>
-      <thead><tr><th>URL</th><th>Sesiones</th><th>Usuarios</th><th>Rebote</th><th>Duración</th><th>Conversiones</th></tr></thead>
-      <tbody>
-        {''.join(f"<tr><td>{fila.get('url','')}</td><td>{fila.get('sesiones',0)}</td><td>{fila.get('usuarios',0)}</td><td>{fila.get('rebote',0)}</td><td>{fila.get('duracion',0)}</td><td>{fila.get('conversiones',0)}</td></tr>" for fila in sorted(filas_analytics_paginas, key=lambda item: float(item.get('sesiones',0.0)), reverse=True)[:10]) or '<tr><td colspan=\"6\">No disponible</td></tr>'}
-      </tbody>
-    </table>
-  </div>
-  <div class="bloque">
-    <h2>Gestión de indexación</h2>
-    <table>
-      <thead><tr><th>URL</th><th>Clasificación</th><th>Motivo</th><th>Acción recomendada</th></tr></thead>
-      <tbody>
-        {''.join(f"<tr><td>{fila.get('url','')}</td><td>{fila.get('clasificacion','')}</td><td>{fila.get('motivo','')}</td><td>{fila.get('accion_recomendada','')}</td></tr>" for fila in filas_indexacion[:12]) or '<tr><td colspan=\"4\">No disponible</td></tr>'}
-      </tbody>
-    </table>
-  </div>
-  <div class="bloque">
-    <h2>Páginas prioritarias</h2>
-    <table>
-      <thead><tr><th>URL</th><th>Score prioridad</th><th>Impresiones</th><th>CTR</th><th>Sesiones</th><th>Conversiones</th><th>Motivo</th></tr></thead>
-      <tbody>
-        {''.join(f"<tr><td>{fila.get('url','')}</td><td>{fila.get('prioridad_score',0)}</td><td>{fila.get('impresiones',0)}</td><td>{fila.get('ctr',0)}</td><td>{fila.get('sesiones',0)}</td><td>{fila.get('conversiones',0)}</td><td>{'; '.join(fila.get('motivos',[]))}</td></tr>" for fila in paginas_prioritarias) or '<tr><td colspan=\"7\">No disponible</td></tr>'}
-      </tbody>
-    </table>
-  </div>
-  <div class="bloque">
-    <h2>Cruce GSC + GA4 inteligente</h2>
-    <table>
-      <thead><tr><th>URL</th><th>Impresiones</th><th>CTR</th><th>Sesiones</th><th>Rebote</th><th>Conversiones</th><th>Insights</th></tr></thead>
-      <tbody>
-        {''.join(f"<tr><td>{fila.get('url','')}</td><td>{fila.get('impresiones',0)}</td><td>{fila.get('ctr',0)}</td><td>{fila.get('sesiones',0)}</td><td>{fila.get('rebote',0)}</td><td>{fila.get('conversiones',0)}</td><td>{' | '.join(fila.get('insights',[]))}</td></tr>" for fila in filas_cruce[:10]) or '<tr><td colspan=\"7\">No disponible</td></tr>'}
-      </tbody>
-    </table>
-  </div>
-  <div class="bloque">
-    <h2>Top oportunidades (GSC)</h2>
-    <table>
-      <thead><tr><th>URL</th><th>Impresiones</th><th>CTR</th><th>Posición</th><th>Oportunidad</th></tr></thead>
-      <tbody>
-        {''.join(f"<tr><td>{fila.get('url','')}</td><td>{fila.get('impresiones',0)}</td><td>{fila.get('ctr',0)}</td><td>{fila.get('posicion_media',0)}</td><td>{fila.get('oportunidad','')}</td></tr>" for fila in construir_oportunidades_gsc(resultado)[:10]) or '<tr><td colspan=\"5\">No disponible</td></tr>'}
-      </tbody>
-    </table>
-  </div>
-  <div class="bloque">
-    <h2>Top queries</h2>
-    <table>
-      <thead><tr><th>Query</th><th>Clics</th><th>Impresiones</th><th>CTR</th><th>Posición</th></tr></thead>
-      <tbody>
-        {''.join(f"<tr><td>{fila.get('query','')}</td><td>{fila.get('clics',0)}</td><td>{fila.get('impresiones',0)}</td><td>{fila.get('ctr',0)}</td><td>{fila.get('posicion_media',0)}</td></tr>" for fila in filas_gsc_queries[:10]) or '<tr><td colspan=\"5\">No disponible</td></tr>'}
-      </tbody>
-    </table>
-  </div>
-  {(
-    "<div class='bloque'><h2>Visibilidad orgánica real</h2><ul>"
-    + "".join(f"<li>{linea}</li>" for linea in bloques.get("Visibilidad orgánica real", [])[:10])
-    + "</ul></div>"
-    + "<div class='bloque'><h2>Oportunidades SEO prioritarias</h2><ul>"
-    + "".join(f"<li>{linea}</li>" for linea in bloques.get("Oportunidades SEO prioritarias", [])[:10])
-    + "</ul></div>"
-    + "<div class='bloque'><h2>Cruce auditoría técnica + Search Console</h2><ul>"
-    + "".join(f"<li>{linea}</li>" for linea in bloques.get("Cruce auditoría técnica + Search Console", [])[:10])
-    + "</ul></div>"
-    + "<div class='bloque'><h2>Keyword / query mapping inicial</h2><ul>"
-    + "".join(f"<li>{linea}</li>" for linea in bloques.get("Keyword / query mapping inicial", [])[:10])
-    + "</ul></div>"
-  ) if resultado.search_console.activo else ""}
-  <div class="bloque">
-    <h2>Rendimiento (PageSpeed)</h2>
-    <div class="tarjetas">
-      {''.join(
-        ''.join(
-          f"<div class=\"tarjeta\"><b>{url} [{estrategia}]</b><table><tbody>"
-          f"<tr><th>Métrica</th><th>Valor</th></tr>"
-          f"<tr><td>Performance</td><td>{_valor_metrica(getattr(item, 'performance_score', None))}</td></tr>"
-          f"<tr><td>SEO</td><td>{_valor_metrica(getattr(item, 'seo_score', None))}</td></tr>"
-          f"<tr><td>LCP</td><td>{_valor_metrica(getattr(item, 'lcp', None))}</td></tr>"
-          f"<tr><td>CLS</td><td>{_valor_metrica(getattr(item, 'cls', None))}</td></tr>"
-          f"<tr><td>INP</td><td>{_valor_metrica(getattr(item, 'inp', None))}</td></tr>"
-          f"<tr><td>FCP</td><td>{_valor_metrica(getattr(item, 'fcp', None))}</td></tr>"
-          f"<tr><td>Speed Index</td><td>{_valor_metrica(getattr(item, 'speed_index', None))}</td></tr>"
-          f"</tbody></table></div>"
-          for estrategia, item in bloque.items()
-        )
-        for url, bloque in list(rendimiento_por_url.items())[:6]
-      ) or '<p>No disponible</p>'}
-    </div>
-  </div>
+  {''.join(secciones_html)}
   <h2>Incidencias técnicas (detalle)</h2>
   <table>
     <thead><tr><th>URL</th><th>Severidad</th><th>Área</th><th>Problema</th><th>Recomendación</th></tr></thead>

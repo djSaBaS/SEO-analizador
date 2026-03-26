@@ -19,8 +19,9 @@ Código fuente principal del proyecto.
 - `seo_auditor/gemini_client.py`: integración IA para narrativa y validación de conectividad.
 - `seo_auditor/cache.py`: caché local con TTL e invalidación.
 - `seo_auditor/utils.py`: utilidades generales (fechas, URLs, slug, progreso).
-- `seo_auditor/reporters.py`: exportación a JSON, Excel, Word, PDF, HTML y Markdown.
+- `seo_auditor/reporters.py`: exportación a JSON, Excel, Word, PDF, HTML y Markdown, incluyendo capa semántica intermedia única para alinear DOCX/PDF/HTML, sanitización editorial y política de compatibilidad de emojis para documentos.
 
 ## Notas de mantenimiento
 - El flujo admite degradación elegante: si una fuente externa falla, el proceso general continúa.
 - La salida separa capa ejecutiva y capa técnica para facilitar lectura por perfiles no técnicos y técnicos.
+- La priorización de páginas dispone de una función explicable (`calcular_score_prioridad_pagina`) preparada para evolucionar a un motor SEO multi-componente.

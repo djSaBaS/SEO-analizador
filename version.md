@@ -1,3 +1,17 @@
+## 0.10.1 - 2026-03-26
+- Se corrige una regresión funcional en la capa semántica: la sección `Rendimiento y experiencia de usuario` vuelve a incluir tabla detallada de métricas PageSpeed y tabla de oportunidades priorizadas en DOCX/PDF/HTML.
+- Se corrige el `colspan` de tablas vacías en HTML para que sea dinámico según el número real de columnas de cada tabla.
+- Se amplían tests de regresión para validar el detalle de rendimiento en el modelo semántico y el `colspan` dinámico en exportación HTML.
+
+## 0.10.0 - 2026-03-26
+- Se implementa una capa semántica intermedia única del informe (`construir_modelo_semantico_informe`) para alinear DOCX, PDF y HTML desde una misma estructura de bloques.
+- Se desacopla la maquetación final del markdown IA: el markdown se conserva como exportación adicional, pero la generación documental principal usa el modelo semántico neutral.
+- Se incorpora sanitización editorial común (limpieza de markdown residual, normalización de saltos/formatos y compatibilidad de contenido narrativo).
+- Se aplica política de compatibilidad de emojis para documentos, sustituyendo glifos conflictivos por etiquetas seguras y evitando cuadrados negros en PDF/DOCX.
+- Se homogeneiza el uso de tablas en secciones clave (`KPIs`, `Comportamiento y conversión`, `Gestión de indexación`, `Páginas prioritarias`) para mejorar alineación visual y estructural entre formatos.
+- Se extrae y documenta la lógica de priorización de páginas en `calcular_score_prioridad_pagina`, añadiendo explicación estructurada por componentes para preparar la siguiente fase del motor de priorización SEO.
+- Se amplían tests de reporters para cubrir la capa semántica, la política de emojis y la trazabilidad del score de prioridad.
+
 ## 0.9.3 - 2026-03-26
 - Se corrige la documentación de modelos Gemini para usar `gemini-2.5-flash` en ejemplos CLI y en la referencia de `GEMINI_MODEL` del README.
 - Se alinea el valor por defecto de `GEMINI_MODEL` en configuración a `gemini-2.5-flash` para mantener consistencia entre código y documentación.
