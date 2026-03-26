@@ -34,6 +34,9 @@ from seo_auditor.gsc import cargar_datos_search_console
 # Importa integración opcional con Google Analytics 4.
 from seo_auditor.ga4 import cargar_datos_analytics
 
+# Importa generador premium de informe dedicado de GA4.
+from seo_auditor.ga4_premium import generar_informe_ga4_premium
+
 # Importa modelo de resultado de rendimiento.
 from seo_auditor.models import ResultadoRendimiento
 
@@ -277,6 +280,39 @@ def _ejecutar_pagespeed(
     return resultados
 
 
+# Resuelve nombre de cliente para informe premium desde argumento o sitemap.
+def _resolver_cliente_informe_ga4(cliente_cli: str | None, sitemap: str | None) -> str:
+    """
+    Prioriza nombre explícito de cliente y aplica inferencia robusta desde sitemap.
+    """
+
+    # Usa nombre explícito cuando se reciba por CLI.
+    if (cliente_cli or "").strip():
+        # Devuelve nombre saneado para portada del informe.
+        return (cliente_cli or "").strip()
+
+    # Intenta inferir cliente desde sitemap HTTP/HTTPS válido.
+    sitemap_normalizado = (sitemap or "").strip()
+
+    # Intenta inferir cliente desde sitemap HTTP/HTTPS válido.
+    if sitemap_normalizado and es_url_http_valida(sitemap_normalizado):
+        # Deriva cliente desde el slug del dominio.
+        return inferir_cliente_desde_slug(slug_dominio_desde_url(sitemap_normalizado))
+
+    # Intenta inferir cliente desde ruta local cuando no sea URL.
+    if sitemap_normalizado:
+        # Calcula nombre base del archivo o carpeta como fallback.
+        nombre = Path(sitemap_normalizado).stem.strip()
+
+        # Devuelve nombre inferido cuando exista valor útil.
+        if nombre:
+            # Capitaliza para presentación ejecutiva.
+            return nombre.replace("_", " ").replace("-", " ").title()
+
+    # Aplica cliente genérico como último recurso.
+    return "Cliente GA4"
+
+
 # Construye el parser de argumentos del programa.
 def crear_parser() -> argparse.ArgumentParser:
     """
@@ -310,9 +346,9 @@ def crear_parser() -> argparse.ArgumentParser:
     # Añade selector de modo de prompt para el sistema IA modular.
     parser.add_argument(
         "--modo",
-        choices=["completo", "resumen", "quickwins", "gsc", "roadmap"],
+        choices=["completo", "resumen", "quickwins", "gsc", "roadmap", "informe-ga4"],
         default="completo",
-        help="Selecciona el prompt IA a usar: completo, resumen, quickwins, gsc o roadmap.",
+        help="Selecciona el modo de ejecución/prompt: completo, resumen, quickwins, gsc, roadmap o informe-ga4.",
     )
 
     # Añade parámetro para analizar una URL concreta con PageSpeed.
@@ -333,6 +369,9 @@ def crear_parser() -> argparse.ArgumentParser:
     # Añade parámetro para definir gestor de la auditoría.
     parser.add_argument("--gestor", default=GESTOR_POR_DEFECTO, help="Nombre del gestor responsable del informe.")
 
+    # Añade parámetro opcional de cliente para portada del informe premium.
+    parser.add_argument("--cliente", default="", help="Nombre de cliente para portada de informe premium (opcional).")
+
     # Añade parámetro para controlar muestras enviadas a IA.
     parser.add_argument("--max-muestras-ia", type=int, default=15, help="Número máximo de muestras agregadas para la IA.")
 
@@ -347,6 +386,17 @@ def crear_parser() -> argparse.ArgumentParser:
 
     # Añade flag para omitir explícitamente Search Console en esta ejecución.
     parser.add_argument("--noGSC", action="store_true", help="Desactiva Google Search Console para esta ejecución, aunque esté configurado.")
+
+    # Añade selector de comparación temporal para el informe premium GA4.
+    parser.add_argument(
+        "--comparar",
+        choices=["periodo-anterior", "anio-anterior"],
+        default="periodo-anterior",
+        help="Comparación temporal para informe GA4: periodo-anterior o anio-anterior.",
+    )
+
+    # Añade filtro opcional de provincia para detalle local en informe GA4.
+    parser.add_argument("--provincia", default="", help="Provincia objetivo para detalle de ciudades en informe GA4 premium.")
 
     # Añade fecha inicial global para fuentes temporales.
     parser.add_argument("--date-from", default="", help="Fecha inicial del análisis (YYYY-MM-DD).")
@@ -495,6 +545,53 @@ def main() -> int:
                 f"filas_paginas={len(datos.paginas)}"
             ),
         )
+
+    # Ejecuta modo dedicado de informe GA4 premium cuando se solicite por CLI.
+    if argumentos.modo == "informe-ga4":
+        # Aplica carpeta de salida por defecto para compatibilidad CLI histórica.
+        if not argumentos.output:
+            # Informa fallback aplicado para trazabilidad.
+            print("Aviso: no se indicó --output, se usará ./salidas por compatibilidad.")
+
+            # Asigna ruta por defecto de salida.
+            argumentos.output = "./salidas"
+
+        # Resuelve cliente con prioridad explícita y fallback robusto.
+        cliente = _resolver_cliente_informe_ga4(argumentos.cliente, argumentos.sitemap)
+
+        # Construye carpeta de salida específica del informe premium.
+        carpeta_salida = Path(argumentos.output) / "ga4_premium" / fecha_ejecucion_iso()
+
+        # Informa inicio de construcción del informe dedicado.
+        print("[GA4 Premium] Generando informe premium en HTML/PDF/Excel...")
+
+        # Ejecuta generador dedicado con degradación elegante.
+        salida_premium = generar_informe_ga4_premium(
+            configuracion,
+            carpeta_salida,
+            cliente,
+            argumentos.gestor,
+            periodo_desde,
+            periodo_hasta,
+            argumentos.comparar,
+            argumentos.provincia,
+        )
+
+        # Verifica si la integración estuvo activa antes de continuar.
+        if not salida_premium.get("activo", False):
+            # Informa error controlado sin stacktrace.
+            print(f"[GA4 Premium] Aviso: {salida_premium.get('error', 'No se pudo generar el informe.')}")
+
+            # Devuelve éxito suave para no romper automatizaciones globales.
+            return 0
+
+        # Informa rutas de salida del informe premium.
+        print(f"[GA4 Premium] HTML: {salida_premium.get('html')}")
+        print(f"[GA4 Premium] PDF: {salida_premium.get('pdf')}")
+        print(f"[GA4 Premium] Excel: {salida_premium.get('excel')}")
+
+        # Finaliza modo dedicado correctamente.
+        return 0
 
     # Exige sitemap en modo auditoría normal.
     if not argumentos.sitemap:
@@ -806,7 +903,7 @@ def main() -> int:
                 configuracion.gemini_api_key,
                 modelo_ia,
                 argumentos.max_muestras_ia,
-                argumentos.modo,
+                argumentos.modo if argumentos.modo in {"completo", "resumen", "quickwins", "gsc", "roadmap"} else "completo",
                 carpeta_cache / "ia",
                 cache_ttl,
             )
