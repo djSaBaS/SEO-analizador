@@ -10,6 +10,26 @@ Herramienta de auditoría SEO técnica y ejecutiva con exportación a JSON, Exce
 - Incorporar datos autenticados de GSC y GA4 cuando estén disponibles.
 - Generar entregables ejecutivos y técnicos en múltiples formatos.
 
+## Arquitectura de informes (capa semántica unificada)
+- La generación documental usa una capa intermedia única (`construir_modelo_semantico_informe`) que transforma datos técnicos + narrativa IA en una estructura neutral de secciones y bloques.
+- DOCX, PDF y HTML consumen esa misma capa semántica para mantener el mismo contenido base (tablas, párrafos, tarjetas y notas) con diferencias visuales razonables por formato.
+- El Markdown IA se mantiene como exportación adicional (`*_ia.md`) para revisión editorial, pero ya no es la fuente directa de maquetación final.
+- La sanitización editorial normaliza narrativa antes de renderizar:
+  - limpieza de residuos markdown,
+  - normalización de listas y saltos,
+  - normalización de formatos numéricos comunes.
+- Política de compatibilidad de emojis:
+  - en DOCX/PDF se reemplazan automáticamente emojis problemáticos por etiquetas seguras (`[OK]`, `[ALERTA]`, `[ERROR]`, etc.),
+  - se evita así la aparición de cuadrados negros por glifos no soportados.
+
+## Priorización SEO de páginas (base preparada para evolución)
+- La puntuación de páginas prioritarias se calcula ahora con una función explícita y trazable (`calcular_score_prioridad_pagina`).
+- El resultado incluye:
+  - `score_prioridad`,
+  - `motivos` legibles,
+  - `explicacion_prioridad` por componentes (`potencial_seo`, `oportunidad_ctr`, `oportunidad_conversion`, `friccion_tecnica_onpage`, `esfuerzo_estimado`).
+- Esta estructura deja lista la evolución hacia un motor de priorización más robusto y explicable sin romper la CLI actual.
+
 ## Requisitos
 - Python 3.11 o superior.
 - Acceso a internet para rastreo web y APIs externas.

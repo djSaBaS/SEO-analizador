@@ -9,12 +9,15 @@ from seo_auditor.reporters import (
     _renderizar_bloque_dashboard,
     _construir_bloques_narrativos,
     _construir_quick_wins,
+    calcular_score_prioridad_pagina,
     calcular_metricas,
+    construir_modelo_semantico_informe,
     construir_cruces_gsc_analytics,
     construir_jerarquia_visible,
     construir_secciones_desde_ia,
     exportar_excel,
     exportar_word,
+    reemplazar_emojis_problematicos,
     sanear_texto_para_pdf,
 )
 
@@ -282,6 +285,78 @@ def test_construir_quick_wins_deduplica_y_filtra() -> None:
 
     # Verifica que se agrupen recomendaciones en lista.
     assert isinstance(quick_wins[0]["recomendaciones"], list)
+
+
+# Verifica sustitución de emojis por etiquetas seguras para documentos.
+def test_reemplazar_emojis_problematicos_sustituye_glifos() -> None:
+    """Comprueba que los emojis se sustituyan por etiquetas textuales legibles."""
+
+    # Define línea con emojis de estado frecuentes.
+    texto = "✅ OK de indexación ⚠️ revisar canonical ❌ fallo crítico"
+
+    # Ejecuta sustitución de compatibilidad documental.
+    salida = reemplazar_emojis_problematicos(texto)
+
+    # Verifica etiquetas de reemplazo esperadas.
+    assert "[OK]" in salida and "[ALERTA]" in salida and "[ERROR]" in salida
+
+
+# Verifica trazabilidad de score de páginas prioritarias por componentes.
+def test_calcular_score_prioridad_pagina_devuelve_componentes() -> None:
+    """Comprueba que el cálculo de prioridad exponga desglose explicable."""
+
+    # Construye estructuras mínimas de prueba para señales.
+    class Obj:
+        pass
+
+    # Crea bloque mínimo GSC con oportunidad de CTR y posición.
+    gsc = Obj()
+    gsc.impresiones = 900.0
+    gsc.ctr = 0.01
+    gsc.posicion_media = 7.5
+
+    # Crea bloque mínimo GA con sesiones sin conversión.
+    ga = Obj()
+    ga.sesiones = 150.0
+    ga.conversiones = 0.0
+    ga.rebote = 0.7
+
+    # Crea bloque técnico con varios hallazgos.
+    tecnico = Obj()
+    tecnico.hallazgos = [1, 2, 3]
+
+    # Ejecuta cálculo explicable de prioridad.
+    evaluacion = calcular_score_prioridad_pagina(gsc=gsc, ga=ga, tecnico=tecnico)
+
+    # Verifica score positivo y motivos presentes.
+    assert float(evaluacion["score_prioridad"]) > 0
+    assert len(evaluacion["motivos"]) >= 2
+    assert "oportunidad_ctr" in evaluacion["componentes"]
+
+
+# Verifica que el modelo semántico contenga tablas clave para alineación.
+def test_construir_modelo_semantico_informe_incluye_tablas_clave() -> None:
+    """Comprueba presencia de secciones tabulares en modelo neutral."""
+
+    # Construye auditoría mínima para modelo semántico.
+    auditoria = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=1,
+        resultados=[],
+        cliente="Ejemplo",
+        fecha_ejecucion="2026-03-25",
+        gestor="Gestor",
+    )
+
+    # Construye modelo semántico reusable.
+    modelo = construir_modelo_semantico_informe(auditoria)
+
+    # Resuelve títulos de secciones del modelo.
+    titulos = {seccion["titulo"] for seccion in modelo["secciones"]}
+
+    # Verifica secciones estructurales mínimas.
+    assert "KPIs principales" in titulos
+    assert "Anexo técnico" in titulos
 
 
 # Verifica que la media de score de dashboard use ejecuciones únicas.
