@@ -1,3 +1,8 @@
+## 0.10.1 - 2026-03-26
+- Se corrige una regresión funcional en la capa semántica: la sección `Rendimiento y experiencia de usuario` vuelve a incluir tabla detallada de métricas PageSpeed y tabla de oportunidades priorizadas en DOCX/PDF/HTML.
+- Se corrige el `colspan` de tablas vacías en HTML para que sea dinámico según el número real de columnas de cada tabla.
+- Se amplían tests de regresión para validar el detalle de rendimiento en el modelo semántico y el `colspan` dinámico en exportación HTML.
+
 ## 0.10.0 - 2026-03-26
 - Se implementa una capa semántica intermedia única del informe (`construir_modelo_semantico_informe`) para alinear DOCX, PDF y HTML desde una misma estructura de bloques.
 - Se desacopla la maquetación final del markdown IA: el markdown se conserva como exportación adicional, pero la generación documental principal usa el modelo semántico neutral.

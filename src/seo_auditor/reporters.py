@@ -2962,6 +2962,17 @@ def construir_modelo_semantico_informe(resultado: ResultadoAuditoria) -> dict[st
     filas_prioritarias = construir_paginas_prioritarias(resultado, limite=10)
     quick_wins = _construir_quick_wins(construir_filas_quick_wins(resultado), limite=10)
 
+    # Agrupa datos de rendimiento por URL y estrategia para tablas comparables.
+    rendimiento_por_url: dict[str, dict[str, object]] = {}
+
+    # Recorre resultados de rendimiento para agregarlos por URL.
+    for item in resultado.rendimiento:
+        # Inicializa contenedor por URL cuando no exista.
+        rendimiento_por_url.setdefault(item.url, {})
+
+        # Guarda registro por estrategia de ejecución.
+        rendimiento_por_url[item.url][item.estrategia] = item
+
     # Define colección de secciones semánticas.
     secciones: list[dict[str, Any]] = []
 
@@ -3072,6 +3083,77 @@ def construir_modelo_semantico_informe(resultado: ResultadoAuditoria) -> dict[st
                     ],
                 }
             )
+
+        # Inserta tabla detallada de rendimiento y oportunidades.
+        elif titulo_seccion == "Rendimiento y experiencia de usuario":
+            # Inicializa filas de métricas para formato vertical.
+            filas_rendimiento: list[list[str]] = []
+
+            # Recorre muestra de URLs para mantener legibilidad.
+            for url_actual, bloque_rend in list(rendimiento_por_url.items())[:4]:
+                # Recorre ambas estrategias en orden estándar.
+                for estrategia in ["mobile", "desktop"]:
+                    # Obtiene registro por estrategia cuando exista.
+                    item = bloque_rend.get(estrategia)
+
+                    # Construye métricas verticales por bloque.
+                    metricas_item = [
+                        ("Performance", _valor_metrica(getattr(item, "performance_score", None))),
+                        ("SEO", _valor_metrica(getattr(item, "seo_score", None))),
+                        ("LCP", _valor_metrica(getattr(item, "lcp", None))),
+                        ("CLS", _valor_metrica(getattr(item, "cls", None))),
+                        ("INP", _valor_metrica(getattr(item, "inp", None))),
+                        ("FCP", _valor_metrica(getattr(item, "fcp", None))),
+                        ("Speed Index", _valor_metrica(getattr(item, "speed_index", None))),
+                    ]
+
+                    # Recorre cada métrica para añadir filas.
+                    for indice_metrica, (nombre_metrica, valor_metrica) in enumerate(metricas_item):
+                        # Añade fila con observación en primera línea del bloque.
+                        filas_rendimiento.append(
+                            [
+                                f"{url_actual} [{estrategia}]" if indice_metrica == 0 else "",
+                                nombre_metrica,
+                                str(valor_metrica),
+                                _interpretacion_rendimiento(getattr(item, "performance_score", None), estrategia) if indice_metrica == 0 else "",
+                            ]
+                        )
+
+            # Inserta tabla de métricas de rendimiento.
+            bloque["tablas"].append(
+                {
+                    "titulo": "Rendimiento por métrica",
+                    "columnas": ["URL / Estrategia", "Métrica", "Valor", "Observación"],
+                    "filas": filas_rendimiento,
+                }
+            )
+
+            # Inicializa filas de oportunidades priorizadas.
+            filas_oportunidades: list[list[str]] = []
+
+            # Recorre resultados con oportunidades reales.
+            for item in [fila for fila in resultado.rendimiento if fila.oportunidades][:6]:
+                # Recorre oportunidades acotadas por bloque.
+                for oportunidad in item.oportunidades[:4]:
+                    # Añade oportunidad priorizada en formato tabular.
+                    filas_oportunidades.append(
+                        [
+                            f"{item.url} [{item.estrategia}]",
+                            str(oportunidad.titulo),
+                            str(oportunidad.severidad),
+                            _valor_metrica(oportunidad.ahorro_estimado),
+                        ]
+                    )
+
+            # Inserta tabla de oportunidades si existen datos.
+            if filas_oportunidades:
+                bloque["tablas"].append(
+                    {
+                        "titulo": "Oportunidades PageSpeed priorizadas",
+                        "columnas": ["URL / Estrategia", "Oportunidad", "Severidad", "Ahorro estimado"],
+                        "filas": filas_oportunidades,
+                    }
+                )
 
         # Inserta contenido narrativo sanitizado como fallback estándar.
         else:
@@ -3353,7 +3435,12 @@ def exportar_html(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
         for tabla in seccion.get("tablas", []):
             columnas = "".join(f"<th>{escape(str(columna))}</th>" for columna in tabla.get("columnas", []))
             filas = "".join(f"<tr>{''.join(f'<td>{escape(sanitizar_texto_editorial(str(valor)))}</td>' for valor in fila)}</tr>" for fila in tabla.get("filas", []))
-            bloques_html.append(f"<h3>{escape(str(tabla.get('titulo', 'Tabla')))}</h3><table><thead><tr>{columnas}</tr></thead><tbody>{filas or '<tr><td colspan=\"7\">No disponible</td></tr>'}</tbody></table>")
+            colspan = max(1, len(tabla.get("columnas", [])))
+            bloques_html.append(
+                f"<h3>{escape(str(tabla.get('titulo', 'Tabla')))}</h3>"
+                f"<table><thead><tr>{columnas}</tr></thead>"
+                f"<tbody>{filas or f'<tr><td colspan=\"{colspan}\">No disponible</td></tr>'}</tbody></table>"
+            )
         for tarjeta in seccion.get("tarjetas", []):
             listas = "".join(
                 f"<p><b>{escape(str(lista.get('titulo', '')))}</b></p><ul>{''.join(f'<li>{escape(sanitizar_texto_editorial(str(item)))}</li>' for item in lista.get('items', []))}</ul>"

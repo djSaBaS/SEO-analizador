@@ -359,6 +359,62 @@ def test_construir_modelo_semantico_informe_incluye_tablas_clave() -> None:
     assert "Anexo técnico" in titulos
 
 
+# Verifica que rendimiento conserve tabla detallada y oportunidades.
+def test_modelo_semantico_rendimiento_incluye_metricas_y_oportunidades() -> None:
+    """Comprueba que no se pierda el detalle de PageSpeed en la capa semántica."""
+
+    # Construye oportunidad de rendimiento de ejemplo.
+    oportunidad = OportunidadRendimiento(
+        id_oportunidad="op_1",
+        titulo="Optimizar imágenes",
+        descripcion="Reducir peso de recursos",
+        ahorro_estimado="300 ms",
+        severidad="alta",
+    )
+
+    # Construye resultado de rendimiento con métricas y oportunidad.
+    rendimiento = ResultadoRendimiento(
+        url="https://ejemplo.com",
+        estrategia="mobile",
+        performance_score=55.0,
+        accessibility_score=90.0,
+        best_practices_score=92.0,
+        seo_score=88.0,
+        lcp="2.5 s",
+        cls="0.11",
+        inp="180 ms",
+        fcp="1.4 s",
+        tbt="120 ms",
+        speed_index="2.2 s",
+        campo_lcp=None,
+        campo_cls=None,
+        campo_inp=None,
+        oportunidades=[oportunidad],
+    )
+
+    # Construye auditoría mínima con bloque de rendimiento activo.
+    auditoria = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=1,
+        resultados=[],
+        rendimiento=[rendimiento],
+        cliente="Ejemplo",
+        fecha_ejecucion="2026-03-26",
+        gestor="Gestor",
+    )
+
+    # Genera modelo semántico del informe.
+    modelo = construir_modelo_semantico_informe(auditoria)
+
+    # Obtiene sección de rendimiento del modelo.
+    seccion_rendimiento = next((seccion for seccion in modelo["secciones"] if seccion["titulo"] == "Rendimiento y experiencia de usuario"), None)
+
+    # Verifica existencia de sección y tablas esperadas.
+    assert seccion_rendimiento is not None
+    assert any(tabla.get("titulo") == "Rendimiento por métrica" for tabla in seccion_rendimiento.get("tablas", []))
+    assert any(tabla.get("titulo") == "Oportunidades PageSpeed priorizadas" for tabla in seccion_rendimiento.get("tablas", []))
+
+
 # Verifica que la media de score de dashboard use ejecuciones únicas.
 def test_exportar_excel_score_medio_desde_ejecuciones_unicas(tmp_path: Path) -> None:
     """Comprueba que KPI de score medio no se sesgue por número de oportunidades."""
