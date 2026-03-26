@@ -59,7 +59,7 @@ def test_construir_jerarquia_visible_oculta_analytics_si_esta_inactivo() -> None
     jerarquia = construir_jerarquia_visible(auditoria)
 
     # Verifica que la sección de Analytics no esté visible.
-    assert "Comportamiento de usuario (Analytics)" not in jerarquia
+    assert "Comportamiento y conversión" not in jerarquia
 
 
 # Verifica cruce GSC+Analytics normalizando URL completa vs pagePath.
@@ -374,20 +374,20 @@ def test_exportar_excel_score_medio_desde_ejecuciones_unicas(tmp_path: Path) -> 
     # Abre libro generado para validación de KPI.
     libro = load_workbook(ruta_excel)
 
-    # Obtiene hoja Dashboard.
-    hoja_dashboard = libro["Dashboard"]
+    # Obtiene hoja KPIs para validar el bloque ejecutivo mínimo.
+    hoja_kpis = libro["KPIs"]
 
     # Verifica que exista hoja específica de indexación.
     assert "Indexacion" in libro.sheetnames
 
-    # Busca fila del KPI de score medio móvil para evitar acoplamiento por posición.
-    fila_score_mobile = next((fila for fila in range(3, 60) if hoja_dashboard[f"A{fila}"].value == "Score medio móvil"), None)
+    # Busca fila del KPI de score rendimiento para evitar acoplamiento por posición.
+    fila_score_rend = next((fila for fila in range(5, 60) if hoja_kpis[f"A{fila}"].value == "Score rendimiento"), None)
 
-    # Verifica que la fila del KPI exista en el dashboard.
-    assert fila_score_mobile is not None
+    # Verifica que la fila del KPI exista en la hoja de KPIs.
+    assert fila_score_rend is not None
 
-    # Verifica score medio móvil basado en ejecuciones únicas: (50 + 100) / 2 = 75.
-    assert hoja_dashboard[f"B{fila_score_mobile}"].value == 75.0
+    # Verifica score rendimiento basado en ejecuciones únicas: (50 + 100) / 2 = 75.
+    assert hoja_kpis[f"B{fila_score_rend}"].value == 75.0
 
 
 # Verifica que el dashboard conserve los gráficos esperados.
@@ -466,6 +466,8 @@ def test_exportar_excel_incluye_hojas_gsc(tmp_path: Path) -> None:
     libro = load_workbook(ruta_excel)
 
     # Verifica que existan hojas nuevas de Search Console.
+    assert libro.sheetnames[0] == "KPIs"
+    assert libro.sheetnames[1] == "Dashboard"
     assert "Search_Console_Paginas" in libro.sheetnames
     assert "Search_Console_Queries" in libro.sheetnames
     assert "Oportunidades_GSC" in libro.sheetnames
