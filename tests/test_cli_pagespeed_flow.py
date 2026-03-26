@@ -107,7 +107,7 @@ def test_main_persiste_rendimiento_y_fuente_pagespeed(monkeypatch, tmp_path) -> 
         "cargar_configuracion",
         lambda: Configuracion(
             gemini_api_key="",
-            gemini_model="gemini-2.0-flash",
+            gemini_model="gemini-2.5-flash",
             pagespeed_api_key="clave-pagespeed",
             http_timeout=10,
             max_urls=10,
@@ -261,7 +261,7 @@ def test_main_no_marca_pagespeed_como_activa_si_falla(monkeypatch, tmp_path) -> 
         "cargar_configuracion",
         lambda: Configuracion(
             gemini_api_key="",
-            gemini_model="gemini-2.0-flash",
+            gemini_model="gemini-2.5-flash",
             pagespeed_api_key="clave-pagespeed",
             http_timeout=10,
             max_urls=10,
@@ -392,7 +392,7 @@ def test_main_omite_gsc_si_se_usa_bandera_no_gsc(monkeypatch, tmp_path) -> None:
         "cargar_configuracion",
         lambda: Configuracion(
             gemini_api_key="",
-            gemini_model="gemini-2.0-flash",
+            gemini_model="gemini-2.5-flash",
             pagespeed_api_key="",
             http_timeout=10,
             max_urls=10,

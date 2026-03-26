@@ -18,7 +18,7 @@ def _configuracion_base() -> Configuracion:
     # Devuelve objeto de configuración consistente para el CLI.
     return Configuracion(
         gemini_api_key="",
-        gemini_model="gemini-2.0-flash",
+        gemini_model="gemini-2.5-flash",
         pagespeed_api_key="",
         http_timeout=10,
         max_urls=10,

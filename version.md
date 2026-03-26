@@ -1,3 +1,14 @@
+## 0.9.3 - 2026-03-26
+- Se corrige la documentación de modelos Gemini para usar `gemini-2.5-flash` en ejemplos CLI y en la referencia de `GEMINI_MODEL` del README.
+- Se alinea el valor por defecto de `GEMINI_MODEL` en configuración a `gemini-2.5-flash` para mantener consistencia entre código y documentación.
+- Se actualizan tests que instanciaban configuración con `gemini-2.0-flash` para reflejar el modelo estándar actual del proyecto.
+
+## 0.9.2 - 2026-03-26
+- Se revisa y consolida la documentación general del proyecto para eliminar duplicidades e incoherencias entre archivos Markdown.
+- Se actualiza `README.md` con inventario completo de parámetros CLI y configuración de entorno vigente.
+- Se crea `CLI.md` con ejemplos de uso exhaustivos para todos los modos y banderas del CLI (auditoría, IA, PageSpeed, GSC, GA4 y caché).
+- Se armonizan `docs/info.md`, `docs/arquitectura.md`, `docs/modo-pro-preparacion.md`, `src/info.md` y `tests/info.md` con el comportamiento real actual del sistema.
+
 ## 0.9.1 - 2026-03-26
 - Se refuerza el modo `informe-ga4` con resolución robusta de cliente: prioridad a `--cliente`, inferencia desde sitemap HTTP y fallback desde ruta local (nombre de archivo).
 - Se corrige la comparación `anio-anterior` para manejar años bisiestos (29 de febrero -> 28 de febrero del año previo).
@@ -34,8 +45,6 @@
 - Se amplía la inyección de contexto previo al prompt con JSON de control (`gsc_activo`, `analytics_activo`, `pagespeed_activo`, `fuentes_activas`, `modo`) sin romper el flujo IA existente.
 - Se actualizan tests de `gemini_client` y flujo CLI para cubrir el nuevo modo de prompt y el contexto extendido.
 - Se actualiza README con el listado completo de uso de `--modo` y ejemplos de ejecución por modo.
-
-# version.md
 
 ## 0.8.3 - 2026-03-25
 - Se refuerza la consistencia Prompt→IA añadiendo `contexto_control` al JSON inyectado y endureciendo la validación post-IA para evitar contradicciones cuando `search_console` esté activa.

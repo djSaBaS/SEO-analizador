@@ -1,22 +1,22 @@
 # tests/info.md
 
-Contiene pruebas unitarias y de regresión.
+Suite de pruebas unitarias y de regresión.
 
 ## Objetivo
-- Validar utilidades críticas de URLs y slug de dominio.
-- Verificar clasificación automática de incidencias.
-- Comprobar estructura tabular de seguimiento para reporting.
-- Validar sanitización de texto para exportación PDF segura.
-- Validar transformación IA→secciones sin markdown crudo.
-- Validar detección de home para comportamiento por defecto de PageSpeed.
-- Validar persistencia de rendimiento y fuentes activas en el flujo CLI.
-- Verificar existencia de gráficos y formato visual de severidad en el Excel final.
-- Verificar consistencia del texto IA con fuentes activas (evitando negaciones de GSC cuando hay datos).
-- Validar resolución de prompts modulares por modo (`--modo`) con fallback a `informe_general` y conservación de inyección `{datos_json}`.
-- Validar mejoras de legibilidad del dashboard (bloques ejecutivos y panel congelado).
-- Validar la nueva separación Excel `KPIs` + `Dashboard` y jerarquía editorial actualizada para Analytics.
-- Validar regresión de exportación Word en la sección `Comportamiento y conversión` con Analytics activo.
+Validar estabilidad funcional del CLI, integraciones y exportadores sin romper compatibilidad operativa.
 
-- `test_indexacion.py`: valida filtrado de directivas Disallow por User-agent para evitar falsos positivos en robots.
-- `test_indexacion.py`: valida filtrado de directivas Disallow por User-agent y clasificación inteligente de indexación (INDEXABLE/REVISAR/NO_INDEXAR) con señales de URL/contenido/SEO/GSC.
-- `test_html_export.py`: valida orden por severidad en exportación HTML (alta arriba, informativa abajo).
+## Cobertura principal
+- Utilidades y validación de URLs/fechas (`test_utils.py`).
+- Auditoría SEO y clasificación de hallazgos (`test_analyzer.py`).
+- Integración y tolerancia de PageSpeed (`test_pagespeed.py`, `test_cli_pagespeed_flow.py`).
+- Caché local e invalidación (`test_cache.py`).
+- Integraciones opcionales de GSC y GA4 (`test_gsc.py`, `test_ga4.py`).
+- Modo dedicado GA4 premium y conectividad CLI (`test_ga4_premium.py`, `test_cli_ga4_premium_mode.py`, `test_cli_connectivity_modes.py`).
+- Generación y consistencia de narrativa IA (`test_gemini_client.py`).
+- Exportadores y jerarquía documental (`test_reporters.py`, `test_html_export.py`).
+- Reglas de indexación y rastreo (`test_indexacion.py`).
+
+## Ejecución
+```bash
+pytest -q
+```
