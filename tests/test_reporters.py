@@ -6,9 +6,13 @@ from seo_auditor.models import DatosAnalytics, DatosSearchConsole, DecisionIndex
 
 # Importa funciones de reporters bajo prueba.
 from seo_auditor.reporters import (
+    _calcular_col_widths_pdf,
     _renderizar_bloque_dashboard,
+    _renderizar_tabla_pdf,
+    _resolver_subtablas_pdf,
     _construir_bloques_narrativos,
     _construir_quick_wins,
+    PDF_HORIZONTAL_MARGIN_POINTS,
     calcular_score_prioridad_pagina,
     calcular_metricas,
     construir_modelo_semantico_informe,
@@ -25,6 +29,9 @@ from seo_auditor.reporters import (
 # Importa lector de libros Excel para validar KPIs.
 from openpyxl import load_workbook
 from openpyxl import Workbook
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.platypus import Table
 
 
 # Verifica que el saneamiento escape etiquetas potencialmente problemáticas.
@@ -880,3 +887,64 @@ def test_exportar_word_comportamiento_conversion_sin_error(tmp_path: Path) -> No
 
     # Verifica que el archivo DOCX exista en disco.
     assert ruta_word.exists()
+
+
+# Verifica que el cálculo de anchos PDF respete siempre el ancho útil disponible.
+def test_calcular_col_widths_pdf_respeta_ancho_util_a4() -> None:
+    """Comprueba que la suma de anchos coincida con A4 menos márgenes."""
+
+    # Define ancho útil estándar de exportación PDF.
+    ancho_util = float(A4[0] - PDF_HORIZONTAL_MARGIN_POINTS)
+
+    # Construye tabla con columna narrativa extensa.
+    columnas = ["URL", "Score", "Motivos", "Recomendación"]
+    filas = [["https://ejemplo.com/a", "88", "Motivo extenso " * 4, "Recomendación extensa " * 5]]
+
+    # Calcula anchos para tabla de prueba.
+    anchos = _calcular_col_widths_pdf(columnas, filas, ancho_util=ancho_util)
+
+    # Verifica cardinalidad y ajuste exacto al ancho utilizable.
+    assert len(anchos) == len(columnas)
+    assert round(sum(anchos), 3) == round(ancho_util, 3)
+
+
+# Verifica que tablas anchas se dividan por semántica en bloques verticales.
+def test_resolver_subtablas_pdf_divide_tablas_anchas() -> None:
+    """Comprueba que se reduzca el ancho horizontal extremo por subtablas."""
+
+    # Define tabla semántica ancha de páginas prioritarias.
+    tabla = {
+        "titulo": "Páginas prioritarias",
+        "columnas": ["URL", "Score", "Impresiones", "CTR", "Sesiones", "Conversiones", "Motivos"],
+        "filas": [["https://ejemplo.com/a", "80", "1000", "0.02", "120", "1", "Detalle narrativo muy largo"]],
+    }
+
+    # Resuelve subtablas para render PDF.
+    subtables = _resolver_subtablas_pdf(tabla)
+
+    # Verifica partición en dos bloques con menos columnas por bloque.
+    assert len(subtables) == 2
+    assert all(len(subtabla["columnas"]) <= 4 for subtabla in subtables)
+
+
+# Verifica que el render PDF use ancho explícito y preserve wrap en celdas narrativas.
+def test_renderizar_tabla_pdf_configura_col_widths_en_tablas_criticas() -> None:
+    """Comprueba configuración explícita de ancho en tablas críticas."""
+
+    # Construye tabla de rendimiento ancha para forzar subtablas.
+    tabla = {
+        "titulo": "Rendimiento por métrica",
+        "columnas": ["URL / Estrategia", "Métrica", "Valor", "Observación"],
+        "filas": [["https://ejemplo.com [mobile]", "LCP", "2.1 s", "Observación extensa " * 10]],
+    }
+
+    # Renderiza elementos PDF de la tabla.
+    elementos = _renderizar_tabla_pdf(tabla, getSampleStyleSheet())
+
+    # Filtra tablas reales del bloque renderizado.
+    tablas = [elemento for elemento in elementos if isinstance(elemento, Table)]
+
+    # Verifica que existan subtablas y todas usen colWidths explícito.
+    assert len(tablas) == 2
+    assert all(tabla_render._colWidths for tabla_render in tablas)
+    assert max(len(tabla_render._colWidths) for tabla_render in tablas) <= 3
