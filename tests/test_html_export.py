@@ -1,5 +1,6 @@
 # Importa Path para manejar archivos temporales.
 from pathlib import Path
+import re
 
 # Importa modelos de dominio para construir auditoría sintética.
 from seo_auditor.models import DatosAnalytics, HallazgoSeo, ResultadoAuditoria, ResultadoUrl
@@ -120,3 +121,51 @@ def test_exportar_html_colspan_dinamico_en_tablas_vacias(tmp_path: Path) -> None
 
     # Verifica que exista colspan esperado de 6 columnas para comportamiento.
     assert 'colspan="6">No disponible' in contenido
+
+
+# Verifica que el HTML final no exponga placeholders técnicos entre corchetes.
+def test_exportar_html_no_expone_tokens_placeholder_mayusculas(tmp_path: Path) -> None:
+    """Comprueba ausencia de patrones [A-Z_] en el HTML exportable final."""
+
+    # Crea hallazgo con placeholders para validar sanitización final.
+    hallazgo = HallazgoSeo(
+        tipo="contenido",
+        severidad="alta",
+        descripcion="Corregir [ALTA_PRIORIDAD] en snippets.",
+        recomendacion="Aplicar [OBJETIVO_Q2] y revisar titles.",
+        area="Contenido",
+        impacto="Alto",
+        esfuerzo="Bajo",
+        prioridad="P1",
+    )
+
+    # Construye URL de prueba con el hallazgo placeholder.
+    url = ResultadoUrl(
+        url="https://ejemplo.com/test",
+        tipo="page",
+        estado_http=200,
+        redirecciona=False,
+        url_final="https://ejemplo.com/test",
+        title="Landing [OBJETIVO]",
+        h1="H1 [ALTA_PRIORIDAD]",
+        meta_description="Meta de prueba",
+        canonical="https://ejemplo.com/test",
+        noindex=False,
+        hallazgos=[hallazgo],
+    )
+
+    # Construye auditoría mínima para exportar HTML.
+    auditoria = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=1,
+        resultados=[url],
+        cliente="Cliente [OBJETIVO]",
+        fecha_ejecucion="2026-03-29",
+        gestor="Gestor [ALTA_PRIORIDAD]",
+    )
+
+    # Exporta HTML y lee contenido final para validación.
+    contenido = exportar_html(auditoria, tmp_path).read_text(encoding="utf-8")
+
+    # Verifica que no queden placeholders en mayúsculas entre corchetes.
+    assert re.search(r"\[[A-Z_]+\]", contenido) is None

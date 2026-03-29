@@ -1,3 +1,9 @@
+## 0.10.6 - 2026-03-29
+- Se sustituye la política única de `EMOJIS_COMPATIBLES_TEXTO` por una política editorial por formato en `reporters.py`: DOCX/PDF con texto seguro sin emoji, HTML homogéneo seguro y Excel con etiquetas cortas seguras.
+- Se añade capa de sanitización final (`sanitizar_texto_final_exportable`) para bloquear placeholders residuales tipo `[TOKEN_MAYUSCULA]` antes de exportar DOCX/PDF/HTML.
+- Se ajusta la exportación Word/HTML para aplicar la sanitización final en metadatos, títulos y contenido narrativo/tabular.
+- Se amplían tests en `tests/test_reporters.py` y `tests/test_html_export.py` para validar la nueva política por formato y la ausencia de tokens `[A-Z_]` en contenido exportable final.
+
 ## 0.10.5 - 2026-03-29
 - Se refactoriza la resolución del periodo analizado en `reporters.py` mediante helper común `_resolver_periodo_analizado`.
 - Se elimina duplicación de lógica de periodo en `_construir_bloques_narrativos`, `exportar_excel`, `construir_modelo_semantico_informe` y `exportar_markdown_ia` para mejorar mantenibilidad (DRY) sin romper compatibilidad de la CLI.

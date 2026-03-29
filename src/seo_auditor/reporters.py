@@ -163,18 +163,44 @@ ANALYTICS_PEORES_REBOTE_LIMITE = 3
 ANALYTICS_MEJORES_ENGAGEMENT_LIMITE = 3
 ANALYTICS_CRUCES_LIMITE = 5
 
-# Define mapa de compatibilidad de emojis para salidas documentales.
-EMOJIS_COMPATIBLES_TEXTO = {
-    "✅": "Correcto",
-    "⚠️": "Alerta",
-    "⚠": "Alerta",
-    "❌": "Error",
-    "🚨": "Crítico",
-    "📈": "Tendencia al alza",
-    "📉": "Tendencia a la baja",
-    "🎯": "Objetivo",
-    "🔥": "Alto impacto",
-    "💡": "Idea",
+# Define política editorial por formato para marcadores visuales.
+POLITICA_MARCADORES_POR_FORMATO = {
+    "doc": {
+        "✅": "Validado",
+        "⚠️": "Revisión recomendada",
+        "⚠": "Revisión recomendada",
+        "❌": "Incidencia detectada",
+        "🚨": "Alta prioridad",
+        "📈": "Tendencia al alza",
+        "📉": "Tendencia a la baja",
+        "🎯": "Objetivo",
+        "🔥": "Alta prioridad",
+        "💡": "Recomendación",
+    },
+    "html": {
+        "✅": "Validado",
+        "⚠️": "Revisión recomendada",
+        "⚠": "Revisión recomendada",
+        "❌": "Incidencia detectada",
+        "🚨": "Alta prioridad",
+        "📈": "Tendencia al alza",
+        "📉": "Tendencia a la baja",
+        "🎯": "Objetivo",
+        "🔥": "Alta prioridad",
+        "💡": "Recomendación",
+    },
+    "excel": {
+        "✅": "OK",
+        "⚠️": "Alerta",
+        "⚠": "Alerta",
+        "❌": "Error",
+        "🚨": "Crítico",
+        "📈": "Alza",
+        "📉": "Baja",
+        "🎯": "Meta",
+        "🔥": "Prioridad",
+        "💡": "Idea",
+    },
 }
 
 
@@ -660,7 +686,7 @@ def sanear_texto_para_pdf(texto: str) -> str:
     """Limpia y escapa texto dinámico para render seguro en PDF."""
 
     # Normaliza capa editorial y evita emojis conflictivos.
-    texto_normalizado = sanitizar_texto_editorial(texto).replace("\r\n", "\n").replace("\r", "\n")
+    texto_normalizado = sanitizar_texto_final_exportable(texto, formato="doc").replace("\r\n", "\n").replace("\r", "\n")
 
     # Escapa caracteres especiales para evitar errores del parser XML interno.
     texto_escapado = escape(texto_normalizado)
@@ -689,34 +715,54 @@ def limpiar_markdown_crudo(texto: str) -> str:
     return "\n".join(linea.strip() for linea in texto_limpio.splitlines())
 
 
-# Sustituye emojis no seguros por etiquetas textuales compatibles.
-def reemplazar_emojis_problematicos(texto: str) -> str:
-    """Evita glifos no soportados por fuentes PDF/DOCX conservando semántica."""
+# Sustituye marcadores visuales por texto editorial según formato de salida.
+def reemplazar_emojis_problematicos(texto: str, formato: str = "doc") -> str:
+    """Evita glifos conflictivos y aplica una política editorial coherente por formato."""
+
+    # Normaliza nombre de formato con fallback documental.
+    formato_normalizado = formato.strip().lower() if formato else "doc"
+
+    # Resuelve mapa de sustitución por formato o fallback a documento.
+    mapa_formato = POLITICA_MARCADORES_POR_FORMATO.get(formato_normalizado, POLITICA_MARCADORES_POR_FORMATO["doc"])
 
     # Inicializa salida con el texto original.
     salida = texto
 
-    # Reemplaza cada emoji conocido por su etiqueta segura.
-    for emoji, etiqueta in EMOJIS_COMPATIBLES_TEXTO.items():
+    # Reemplaza cada marcador por su etiqueta editorial definida.
+    for emoji, etiqueta in mapa_formato.items():
         # Sustituye ocurrencias para mejorar compatibilidad tipográfica.
         salida = salida.replace(emoji, etiqueta)
 
     # Elimina variaciones de selector para evitar símbolos residuales.
     salida = salida.replace("\ufe0f", "")
 
-    # Devuelve texto sin emojis conflictivos para documentos.
+    # Devuelve texto sin glifos conflictivos para el formato solicitado.
     return salida
 
 
+# Bloquea placeholders residuales para evitar fugas tipo [TOKEN_MAYUSCULA].
+def bloquear_placeholders_residuales(texto: str) -> str:
+    """Neutraliza tokens residuales entre corchetes con texto legible sin corchetes."""
+
+    # Convierte placeholders mayúsculos a texto editorial legible.
+    texto_limpio = re.sub(r"\[([A-ZÁÉÍÓÚÜÑ_]+)\]", lambda coincidencia: coincidencia.group(1).replace("_", " ").title(), texto)
+
+    # Elimina corchetes residuales de cualquier marcador no previsto.
+    texto_limpio = re.sub(r"\[([^\]]+)\]", r"\1", texto_limpio)
+
+    # Devuelve contenido sin placeholders técnicos en corchetes.
+    return texto_limpio
+
+
 # Normaliza contenido narrativo para una capa semántica estable.
-def sanitizar_texto_editorial(texto: str) -> str:
+def sanitizar_texto_editorial(texto: str, formato: str = "doc") -> str:
     """Limpia residuos markdown y homogeniza estilo narrativo del informe."""
 
     # Limpia markdown crudo de entrada.
     texto_limpio = limpiar_markdown_crudo(texto)
 
     # Sustituye emojis no seguros por etiquetas legibles.
-    texto_limpio = reemplazar_emojis_problematicos(texto_limpio)
+    texto_limpio = reemplazar_emojis_problematicos(texto_limpio, formato=formato)
 
     # Colapsa espacios múltiples preservando saltos.
     texto_limpio = re.sub(r"[ \t]+", " ", texto_limpio)
@@ -725,11 +771,38 @@ def sanitizar_texto_editorial(texto: str) -> str:
     texto_limpio = re.sub(r"(\d)\s*%", r"\1%", texto_limpio)
     texto_limpio = re.sub(r"(\d)\s*s\b", r"\1 s", texto_limpio)
     texto_limpio = re.sub(r"(\d)\s*ms\b", r"\1 ms", texto_limpio)
-    # Sustituye placeholders en mayúsculas por texto editorial legible.
-    texto_limpio = re.sub(r"\[([A-ZÁÉÍÓÚÜÑ_]+)\]", lambda coincidencia: coincidencia.group(1).replace("_", " ").title(), texto_limpio)
+    # Bloquea placeholders residuales para no exportar tokens técnicos.
+    texto_limpio = bloquear_placeholders_residuales(texto_limpio)
 
     # Devuelve texto editorial consistente.
     return texto_limpio.strip()
+
+
+# Ejecuta sanitización final obligatoria para salidas documentales exportables.
+def sanitizar_texto_final_exportable(texto: str, formato: str) -> str:
+    """Aplica política final por formato y bloquea placeholders antes de exportar."""
+
+    # Normaliza y sanea texto con la política del formato objetivo.
+    texto_limpio = sanitizar_texto_editorial(texto, formato=formato)
+
+    # Refuerza bloqueo final de placeholders residuales.
+    return bloquear_placeholders_residuales(texto_limpio)
+
+
+# Convierte un valor genérico en texto/celda seguro para exportación a Excel.
+def sanitizar_valor_excel(valor: Any, limite: int = 96) -> Any:
+    """Normaliza strings para Excel con versión corta y compatible."""
+
+    # Devuelve valores no textuales sin transformación.
+    if not isinstance(valor, str):
+        # Mantiene tipos numéricos y booleanos para cálculos.
+        return valor
+
+    # Sanea contenido textual siguiendo política específica de Excel.
+    valor_limpio = sanitizar_texto_final_exportable(valor, formato="excel")
+
+    # Recorta longitud máxima para mejorar legibilidad de celdas.
+    return valor_limpio[:limite]
 
 
 # Construye un bloque semántico base reutilizable por todos los exportadores.
@@ -2151,7 +2224,7 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
         # Recorre columnas de la fila.
         for columna, encabezado in enumerate(encabezados, start=1):
             # Escribe valor de celda.
-            hoja_errores.cell(row=fila_indice, column=columna, value=fila.get(encabezado, ""))
+            hoja_errores.cell(row=fila_indice, column=columna, value=sanitizar_valor_excel(fila.get(encabezado, "")))
 
     # Aplica formato básico de encabezado en errores.
     for celda in hoja_errores[1]:
@@ -2231,7 +2304,7 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
         # Escribe columnas de contenido en cada fila.
         for columna, encabezado in enumerate(columnas_contenido, start=1):
             # Inserta valor correspondiente con fallback vacío.
-            hoja_contenido.cell(row=fila_indice, column=columna, value=fila.get(encabezado, ""))
+            hoja_contenido.cell(row=fila_indice, column=columna, value=sanitizar_valor_excel(fila.get(encabezado, "")))
 
     # Estiliza encabezado de contenido.
     for celda in hoja_contenido[1]:
@@ -2272,7 +2345,7 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
         # Recorre columnas obligatorias.
         for columna, encabezado in enumerate(columnas_rendimiento, start=1):
             # Escribe valor de columna o vacío por defecto.
-            hoja_rendimiento.cell(row=fila_indice, column=columna, value=fila.get(encabezado, ""))
+            hoja_rendimiento.cell(row=fila_indice, column=columna, value=sanitizar_valor_excel(fila.get(encabezado, "")))
 
     # Estiliza encabezado de rendimiento.
     for celda in hoja_rendimiento[1]:
@@ -2320,7 +2393,7 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
         # Recorre columnas para poblar la hoja.
         for columna, encabezado in enumerate(columnas_gsc_paginas, start=1):
             # Inserta valor con fallback vacío.
-            hoja_gsc_paginas.cell(row=fila_indice, column=columna, value=fila.get(encabezado, ""))
+            hoja_gsc_paginas.cell(row=fila_indice, column=columna, value=sanitizar_valor_excel(fila.get(encabezado, "")))
 
     # Estiliza encabezado de Search Console páginas.
     for celda in hoja_gsc_paginas[1]:
@@ -2347,7 +2420,7 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
         # Recorre columnas para poblar la hoja.
         for columna, encabezado in enumerate(columnas_gsc_queries, start=1):
             # Inserta valor con fallback vacío.
-            hoja_gsc_queries.cell(row=fila_indice, column=columna, value=fila.get(encabezado, ""))
+            hoja_gsc_queries.cell(row=fila_indice, column=columna, value=sanitizar_valor_excel(fila.get(encabezado, "")))
 
     # Estiliza encabezado de Search Console queries.
     for celda in hoja_gsc_queries[1]:
@@ -2374,7 +2447,7 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
         # Recorre columnas para poblar la hoja.
         for columna, encabezado in enumerate(columnas_analytics, start=1):
             # Inserta valor con fallback vacío.
-            hoja_analytics.cell(row=fila_indice, column=columna, value=fila.get(encabezado, ""))
+            hoja_analytics.cell(row=fila_indice, column=columna, value=sanitizar_valor_excel(fila.get(encabezado, "")))
 
     # Estiliza encabezado de Analytics.
     for celda in hoja_analytics[1]:
@@ -2426,7 +2499,7 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
         # Recorre columnas para poblar la hoja.
         for columna, encabezado in enumerate(columnas_oportunidades_gsc, start=1):
             # Inserta valor con fallback vacío.
-            hoja_oportunidades_gsc.cell(row=fila_indice, column=columna, value=fila.get(encabezado, ""))
+            hoja_oportunidades_gsc.cell(row=fila_indice, column=columna, value=sanitizar_valor_excel(fila.get(encabezado, "")))
 
     # Estiliza encabezado de oportunidades GSC.
     for celda in hoja_oportunidades_gsc[1]:
@@ -2453,7 +2526,7 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
         # Recorre columnas de indexación.
         for columna, encabezado in enumerate(columnas_indexacion, start=1):
             # Inserta el valor correspondiente.
-            hoja_indexacion.cell(row=fila_indice, column=columna, value=fila.get(encabezado, ""))
+            hoja_indexacion.cell(row=fila_indice, column=columna, value=sanitizar_valor_excel(fila.get(encabezado, "")))
 
     # Estiliza encabezado de indexación.
     for celda in hoja_indexacion[1]:
@@ -3279,7 +3352,7 @@ def construir_modelo_semantico_informe(resultado: ResultadoAuditoria) -> dict[st
 
         # Inserta contenido narrativo sanitizado como fallback estándar.
         else:
-            bloque["parrafos"] = [sanitizar_texto_editorial(str(linea)) for linea in bloques_narrativos.get(titulo_seccion, [])[:10]]
+            bloque["parrafos"] = [sanitizar_texto_final_exportable(str(linea), formato="doc") for linea in bloques_narrativos.get(titulo_seccion, [])[:10]]
 
         # Añade nota estándar cuando no haya contenido explícito.
         if not bloque["parrafos"] and not bloque["tablas"] and not bloque["tarjetas"]:
@@ -3491,19 +3564,19 @@ def exportar_word(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     titulo.runs[0].font.size = Pt(26)
 
     # Añade metadatos de portada.
-    documento.add_paragraph(f"Cliente: {resultado.cliente}")
+    documento.add_paragraph(f"Cliente: {sanitizar_texto_final_exportable(resultado.cliente, formato='doc')}")
 
     # Añade metadatos de gestor.
-    documento.add_paragraph(f"Gestor: {resultado.gestor}")
+    documento.add_paragraph(f"Gestor: {sanitizar_texto_final_exportable(resultado.gestor, formato='doc')}")
 
     # Añade metadatos de sitemap.
-    documento.add_paragraph(f"Sitemap: {resultado.sitemap}")
+    documento.add_paragraph(f"Sitemap: {sanitizar_texto_final_exportable(resultado.sitemap, formato='doc')}")
 
     # Añade metadatos de fecha.
-    documento.add_paragraph(f"Fecha: {resultado.fecha_ejecucion}")
+    documento.add_paragraph(f"Fecha: {sanitizar_texto_final_exportable(resultado.fecha_ejecucion, formato='doc')}")
 
     # Añade metadatos de periodo para visibilidad editorial clara.
-    documento.add_paragraph(f"Periodo analizado: {modelo['meta'].get('periodo_texto', 'No disponible')}")
+    documento.add_paragraph(f"Periodo analizado: {sanitizar_texto_final_exportable(str(modelo['meta'].get('periodo_texto', 'No disponible')), formato='doc')}")
 
     # Inserta salto de página tras portada.
     documento.add_page_break()
@@ -3514,20 +3587,20 @@ def exportar_word(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
             continue
         if seccion["titulo"] == "Anexo técnico":
             documento.add_page_break()
-        documento.add_heading(str(seccion["titulo"]), level=1)
+        documento.add_heading(sanitizar_texto_final_exportable(str(seccion["titulo"]), formato="doc"), level=1)
         for tabla in seccion.get("tablas", []):
             _renderizar_tabla_word(documento, tabla)
         for tarjeta in seccion.get("tarjetas", []):
-            documento.add_paragraph(sanitizar_texto_editorial(str(tarjeta.get("titulo", ""))))
-            documento.add_paragraph(sanitizar_texto_editorial(str(tarjeta.get("subtitulo", ""))))
+            documento.add_paragraph(sanitizar_texto_final_exportable(str(tarjeta.get("titulo", "")), formato="doc"))
+            documento.add_paragraph(sanitizar_texto_final_exportable(str(tarjeta.get("subtitulo", "")), formato="doc"))
             for lista in tarjeta.get("listas", []):
-                documento.add_paragraph(sanitizar_texto_editorial(str(lista.get("titulo", ""))))
+                documento.add_paragraph(sanitizar_texto_final_exportable(str(lista.get("titulo", "")), formato="doc"))
                 for item in lista.get("items", []):
-                    documento.add_paragraph(sanitizar_texto_editorial(str(item)), style="List Bullet")
+                    documento.add_paragraph(sanitizar_texto_final_exportable(str(item), formato="doc"), style="List Bullet")
         for linea in seccion.get("parrafos", []):
-            documento.add_paragraph(sanitizar_texto_editorial(str(linea)))
+            documento.add_paragraph(sanitizar_texto_final_exportable(str(linea), formato="doc"))
         for nota in seccion.get("notas", []):
-            documento.add_paragraph(sanitizar_texto_editorial(str(nota)))
+            documento.add_paragraph(sanitizar_texto_final_exportable(str(nota), formato="doc"))
 
     # Guarda documento final.
     documento.save(destino)
@@ -3675,32 +3748,32 @@ def exportar_html(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
             continue
         bloques_html: list[str] = []
         for tabla in seccion.get("tablas", []):
-            columnas = "".join(f"<th>{escape(str(columna))}</th>" for columna in tabla.get("columnas", []))
-            filas = "".join(f"<tr>{''.join(f'<td>{escape(sanitizar_texto_editorial(str(valor)))}</td>' for valor in fila)}</tr>" for fila in tabla.get("filas", []))
+            columnas = "".join(f"<th>{escape(sanitizar_texto_final_exportable(str(columna), formato='html'))}</th>" for columna in tabla.get("columnas", []))
+            filas = "".join(f"<tr>{''.join(f'<td>{escape(sanitizar_texto_final_exportable(str(valor), formato='html'))}</td>' for valor in fila)}</tr>" for fila in tabla.get("filas", []))
             colspan = max(1, len(tabla.get("columnas", [])))
             bloques_html.append(
-                f"<h3>{escape(str(tabla.get('titulo', 'Tabla')))}</h3>"
+                f"<h3>{escape(sanitizar_texto_final_exportable(str(tabla.get('titulo', 'Tabla')), formato='html'))}</h3>"
                 f"<table><thead><tr>{columnas}</tr></thead>"
                 f"<tbody>{filas or f'<tr><td colspan=\"{colspan}\">No disponible</td></tr>'}</tbody></table>"
             )
         for tarjeta in seccion.get("tarjetas", []):
             listas = "".join(
-                f"<p><b>{escape(str(lista.get('titulo', '')))}</b></p><ul>{''.join(f'<li>{escape(sanitizar_texto_editorial(str(item)))}</li>' for item in lista.get('items', []))}</ul>"
+                f"<p><b>{escape(sanitizar_texto_final_exportable(str(lista.get('titulo', '')), formato='html'))}</b></p><ul>{''.join(f'<li>{escape(sanitizar_texto_final_exportable(str(item), formato='html'))}</li>' for item in lista.get('items', []))}</ul>"
                 for lista in tarjeta.get("listas", [])
             )
-            bloques_html.append(f"<div class='tarjeta'><h3>{escape(sanitizar_texto_editorial(str(tarjeta.get('titulo', ''))))}</h3><p>{escape(sanitizar_texto_editorial(str(tarjeta.get('subtitulo', ''))))}</p>{listas}</div>")
+            bloques_html.append(f"<div class='tarjeta'><h3>{escape(sanitizar_texto_final_exportable(str(tarjeta.get('titulo', '')), formato='html'))}</h3><p>{escape(sanitizar_texto_final_exportable(str(tarjeta.get('subtitulo', '')), formato='html'))}</p>{listas}</div>")
         if seccion.get("parrafos"):
-            bloques_html.append("<ul>" + "".join(f"<li>{escape(sanitizar_texto_editorial(str(linea)))}</li>" for linea in seccion.get("parrafos", [])) + "</ul>")
+            bloques_html.append("<ul>" + "".join(f"<li>{escape(sanitizar_texto_final_exportable(str(linea), formato='html'))}</li>" for linea in seccion.get("parrafos", [])) + "</ul>")
         if seccion.get("notas"):
-            bloques_html.append("".join(f"<p>{escape(sanitizar_texto_editorial(str(nota)))}</p>" for nota in seccion.get("notas", [])))
-        secciones_html.append(f"<div class='bloque'><h2>{escape(str(seccion['titulo']))}</h2>{''.join(bloques_html)}</div>")
+            bloques_html.append("".join(f"<p>{escape(sanitizar_texto_final_exportable(str(nota), formato='html'))}</p>" for nota in seccion.get("notas", [])))
+        secciones_html.append(f"<div class='bloque'><h2>{escape(sanitizar_texto_final_exportable(str(seccion['titulo']), formato='html'))}</h2>{''.join(bloques_html)}</div>")
 
     # Construye contenido HTML básico y portable.
     contenido = f"""<!doctype html>
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <title>Informe SEO - {resultado.cliente}</title>
+  <title>Informe SEO - {sanitizar_texto_final_exportable(resultado.cliente, formato='html')}</title>
   <style>
     body {{ font-family: Inter, Segoe UI, Arial, sans-serif; margin: 0; color: #1f2937; background: #f4f7fb; }}
     .contenedor {{ max-width: 1280px; margin: 0 auto; padding: 24px; }}
@@ -3725,11 +3798,11 @@ def exportar_html(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
   <section class="cabecera">
     <h1>Informe de Auditoría SEO</h1>
     <div class="metadatos">
-      <div><b>Cliente:</b> {escape(str(meta_modelo.get("cliente", resultado.cliente)))}</div>
-      <div><b>Gestor:</b> {escape(str(meta_modelo.get("gestor", resultado.gestor)))}</div>
-      <div><b>Fecha de ejecución:</b> {escape(str(meta_modelo.get("fecha", resultado.fecha_ejecucion)))}</div>
-      <div><b>Periodo analizado:</b> {escape(str(meta_modelo.get("periodo_texto", "No disponible")))}</div>
-      <div><b>Sitemap:</b> {escape(str(meta_modelo.get("sitemap", resultado.sitemap)))}</div>
+      <div><b>Cliente:</b> {escape(sanitizar_texto_final_exportable(str(meta_modelo.get("cliente", resultado.cliente)), formato="html"))}</div>
+      <div><b>Gestor:</b> {escape(sanitizar_texto_final_exportable(str(meta_modelo.get("gestor", resultado.gestor)), formato="html"))}</div>
+      <div><b>Fecha de ejecución:</b> {escape(sanitizar_texto_final_exportable(str(meta_modelo.get("fecha", resultado.fecha_ejecucion)), formato="html"))}</div>
+      <div><b>Periodo analizado:</b> {escape(sanitizar_texto_final_exportable(str(meta_modelo.get("periodo_texto", "No disponible")), formato="html"))}</div>
+      <div><b>Sitemap:</b> {escape(sanitizar_texto_final_exportable(str(meta_modelo.get("sitemap", resultado.sitemap)), formato="html"))}</div>
     </div>
   </section>
   <h2>KPIs ejecutivos</h2>
@@ -3747,11 +3820,11 @@ def exportar_html(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     <tbody>
       {''.join(
         f"<tr style='background:{_color_pastel_severidad(str(fila.get('severidad','informativa')))}'>"
-        f"<td>{escape(sanitizar_texto_editorial(str(fila.get('url',''))))}</td>"
-        f"<td>{escape(sanitizar_texto_editorial(str(fila.get('severidad',''))))}</td>"
-        f"<td>{escape(sanitizar_texto_editorial(str(fila.get('area',''))))}</td>"
-        f"<td>{escape(sanitizar_texto_editorial(str(fila.get('problema',''))))}</td>"
-        f"<td>{escape(sanitizar_texto_editorial(str(fila.get('recomendacion',''))))}</td>"
+        f"<td>{escape(sanitizar_texto_final_exportable(str(fila.get('url','')), formato="html"))}</td>"
+        f"<td>{escape(sanitizar_texto_final_exportable(str(fila.get('severidad','')), formato="html"))}</td>"
+        f"<td>{escape(sanitizar_texto_final_exportable(str(fila.get('area','')), formato="html"))}</td>"
+        f"<td>{escape(sanitizar_texto_final_exportable(str(fila.get('problema','')), formato="html"))}</td>"
+        f"<td>{escape(sanitizar_texto_final_exportable(str(fila.get('recomendacion','')), formato="html"))}</td>"
         f"</tr>"
         for fila in filas_ordenadas[:120]
       )}
