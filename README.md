@@ -19,8 +19,21 @@ Herramienta de auditoría SEO técnica y ejecutiva con exportación a JSON, Exce
   - normalización de listas y saltos,
   - normalización de formatos numéricos comunes.
 - Política de compatibilidad de emojis:
-  - en DOCX/PDF se reemplazan automáticamente emojis problemáticos por etiquetas seguras (`[OK]`, `[ALERTA]`, `[ERROR]`, etc.),
-  - se evita así la aparición de cuadrados negros por glifos no soportados.
+  - en DOCX/PDF/HTML/Excel se reemplazan emojis por texto editorial seguro (sin tokens entre corchetes),
+  - se evita así la aparición de cuadrados negros y placeholders visuales no resueltos.
+- Política de placeholders:
+  - cualquier token residual tipo `[TOKEN_MAYUSCULA]` se normaliza a texto legible en la capa de sanitización editorial.
+- Periodo analizado:
+  - se expone como metadato editorial principal en Word, PDF, HTML y Excel (cabeceras/portada),
+  - deja de quedar oculto como una línea secundaria del resumen narrativo.
+- Excel:
+  - la hoja `Contenido` se construye ahora por URL consolidada para evitar duplicados por incidencia,
+  - el detalle por incidencia sigue en la hoja `Errores`.
+
+## Papel del archivo Markdown IA
+- El archivo `*_ia.md` se mantiene como salida auxiliar interna para revisión editorial.
+- No es el artefacto principal de cliente.
+- La maquetación premium final (Word/PDF/HTML) se construye desde la capa semántica intermedia, no desde markdown directo.
 
 ## Priorización SEO de páginas (base preparada para evolución)
 - La puntuación de páginas prioritarias se calcula ahora con una función explícita y trazable (`calcular_score_prioridad_pagina`).

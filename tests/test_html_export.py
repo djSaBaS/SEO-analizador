@@ -74,6 +74,8 @@ def test_exportar_html_orden_severidad(tmp_path: Path) -> None:
         cliente="Ejemplo",
         fecha_ejecucion="2026-03-23",
         gestor="Gestor",
+        periodo_date_from="2026-02-23",
+        periodo_date_to="2026-03-22",
     )
 
     # Exporta HTML a carpeta temporal.
@@ -90,6 +92,9 @@ def test_exportar_html_orden_severidad(tmp_path: Path) -> None:
 
     # Verifica que la URL alta aparezca antes que la informativa.
     assert indice_alta != -1 and indice_info != -1 and indice_alta < indice_info
+
+    # Verifica que la cabecera incluya periodo analizado visible.
+    assert "Periodo analizado" in contenido and "2026-02-23 - 2026-03-22" in contenido
 
 
 # Verifica que el colspan vacío sea dinámico según columnas de la tabla.

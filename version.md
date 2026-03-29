@@ -1,3 +1,15 @@
+## 0.10.5 - 2026-03-29
+- Se refactoriza la resolución del periodo analizado en `reporters.py` mediante helper común `_resolver_periodo_analizado`.
+- Se elimina duplicación de lógica de periodo en `_construir_bloques_narrativos`, `exportar_excel`, `construir_modelo_semantico_informe` y `exportar_markdown_ia` para mejorar mantenibilidad (DRY) sin romper compatibilidad de la CLI.
+
+## 0.10.4 - 2026-03-29
+- Se mejora la calidad documental transversal de entregables SEO: se refuerza la cabecera editorial y metadatos en Word/PDF/HTML/Excel con presencia explícita del periodo analizado.
+- Se actualiza la política de emojis para usar texto seguro corporativo (sin placeholders entre corchetes) y se añade limpieza de tokens residuales tipo `[TOKEN_MAYUSCULA]`.
+- Se mejora el render de tablas PDF con wrapping real de celdas, anchos controlados y padding/valign para reducir desbordes y mejorar legibilidad.
+- Se rediseña la cabecera HTML con formato más premium (portada, bloque de metadatos y tarjetas KPI mejor jerarquizadas), manteniendo salida portable.
+- Se corrige la hoja `Contenido` de Excel para consolidar por URL y evitar duplicados por incidencia; el detalle por hallazgo se mantiene en `Errores`.
+- Se amplían tests de reporters/HTML para cubrir nueva política editorial (emojis/placeholders), periodo visible y consolidación de contenido por URL.
+
 ## 0.10.3 - 2026-03-29
 - Se ajusta la documentación de ejemplos CLI para usar comillas simples en `--cliente` y mejorar portabilidad de shell.
 - Se elimina el perfil no utilizado `entrega-cliente` del mapa central de perfiles de generación en CLI para simplificar mantenimiento.
