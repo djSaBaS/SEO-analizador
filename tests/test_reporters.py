@@ -9,6 +9,7 @@ from seo_auditor.reporters import (
     _calcular_col_widths_pdf,
     _renderizar_bloque_dashboard,
     _renderizar_tabla_pdf,
+    _renderizar_tabla_word,
     _resolver_subtablas_pdf,
     _construir_bloques_narrativos,
     _construir_quick_wins,
@@ -380,6 +381,32 @@ def test_exportar_word_no_exporta_tokens_placeholder_residuales(tmp_path: Path) 
 
     # Verifica ausencia de placeholders técnicos en el documento final.
     assert re.search(r"\[[A-Z_]+\]", contenido) is None
+
+
+# Verifica que la tabla Word aplique sanitización final en cabeceras y celdas.
+def test_renderizar_tabla_word_aplica_sanitizacion_final_doc() -> None:
+    """Comprueba que tablas DOCX no conserven placeholders ni emojis crudos."""
+
+    # Crea documento Word en memoria para renderizar una tabla puntual.
+    documento = Document()
+
+    # Define tabla semántica con placeholders y emojis en cabecera y filas.
+    tabla = {
+        "columnas": ["Estado [ALTA_PRIORIDAD]", "Acción ✅"],
+        "filas": [["Corregir [OBJETIVO_Q2]", "Aplicar 🔥 hoy"]],
+    }
+
+    # Renderiza tabla usando el helper de Word bajo prueba.
+    _renderizar_tabla_word(documento, tabla)
+
+    # Concatena texto de celdas para validaciones de contenido.
+    contenido = " ".join(celda.text for fila in documento.tables[0].rows for celda in fila.cells)
+
+    # Verifica ausencia de placeholders técnicos.
+    assert re.search(r"\[[A-Z_]+\]", contenido) is None
+
+    # Verifica equivalencias editoriales de emojis en modo doc.
+    assert "Validado" in contenido and "Alta prioridad" in contenido
 
 
 # Verifica consolidación por URL en hoja de contenido.

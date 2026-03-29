@@ -785,8 +785,8 @@ def sanitizar_texto_final_exportable(texto: str, formato: str) -> str:
     # Normaliza y sanea texto con la política del formato objetivo.
     texto_limpio = sanitizar_texto_editorial(texto, formato=formato)
 
-    # Refuerza bloqueo final de placeholders residuales.
-    return bloquear_placeholders_residuales(texto_limpio)
+    # Devuelve texto ya saneado por la política del formato objetivo.
+    return texto_limpio
 
 
 # Convierte un valor genérico en texto/celda seguro para exportación a Excel.
@@ -3413,14 +3413,14 @@ def _renderizar_tabla_word(documento: Document, tabla_semantica: dict[str, Any])
 
     # Inserta encabezados de columna.
     for indice, columna in enumerate(columnas):
-        tabla.rows[0].cells[indice].text = sanitizar_texto_editorial(str(columna))
+        tabla.rows[0].cells[indice].text = sanitizar_texto_final_exportable(str(columna), formato="doc")
 
     # Inserta filas de datos.
     for fila in filas:
         celdas = tabla.add_row().cells
         for indice, valor in enumerate(fila):
             if indice < len(celdas):
-                celdas[indice].text = sanitizar_texto_editorial(str(valor))
+                celdas[indice].text = sanitizar_texto_final_exportable(str(valor), formato="doc")
 
 
 # Obtiene subtables PDF según el tipo de tabla para priorizar legibilidad.
