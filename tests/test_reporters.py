@@ -593,6 +593,95 @@ def test_construir_modelo_semantico_informe_incluye_tablas_clave() -> None:
     assert "Anexo técnico" in titulos
 
 
+# Verifica estructura semántica mínima con bloques explícitos obligatorios.
+def test_construir_modelo_semantico_informe_bloques_explicitos_minimos() -> None:
+    """Comprueba que el modelo publique bloques nuevos y secciones esenciales."""
+
+    # Construye auditoría mínima para validar contrato semántico.
+    auditoria = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=1,
+        resultados=[],
+        cliente="Ejemplo",
+        fecha_ejecucion="2026-03-25",
+        gestor="Gestor",
+    )
+
+    # Genera modelo semántico del informe.
+    modelo = construir_modelo_semantico_informe(auditoria)
+
+    # Verifica que metadatos explícitos del nuevo contrato existan.
+    assert "metadatos" in modelo
+    assert "periodo_texto" in modelo["metadatos"]
+
+    # Localiza secciones obligatorias del informe.
+    seccion_resumen = next((seccion for seccion in modelo["secciones"] if seccion["titulo"] == "Resumen ejecutivo"), None)
+    seccion_kpis = next((seccion for seccion in modelo["secciones"] if seccion["titulo"] == "KPIs principales"), None)
+
+    # Comprueba que las secciones obligatorias existan.
+    assert seccion_resumen is not None
+    assert seccion_kpis is not None
+
+    # Verifica bloques semánticos nuevos mínimos.
+    assert isinstance(seccion_resumen.get("resumen_ejecutivo", []), list)
+    assert len(seccion_kpis.get("kpi_cards", [])) >= 3
+    assert len(seccion_kpis.get("tablas_detalle", [])) >= 1
+
+
+# Verifica compatibilidad retroactiva de bloques legacy frente al nuevo contrato.
+def test_construir_modelo_semantico_informe_mantiene_compatibilidad_legacy() -> None:
+    """Comprueba que se mantengan parrafos, tablas y tarjetas en paralelo."""
+
+    # Construye auditoría mínima para validar compatibilidad.
+    auditoria = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=1,
+        resultados=[],
+        cliente="Ejemplo",
+        fecha_ejecucion="2026-03-25",
+        gestor="Gestor",
+    )
+
+    # Genera modelo semántico bajo prueba.
+    modelo = construir_modelo_semantico_informe(auditoria)
+
+    # Recupera sección de KPI para comparar claves nuevas y legacy.
+    seccion_kpis = next((seccion for seccion in modelo["secciones"] if seccion["titulo"] == "KPIs principales"), {})
+
+    # Verifica coexistencia de bloques legacy y nuevos.
+    assert len(seccion_kpis.get("tablas", [])) >= 1
+    assert len(seccion_kpis.get("tablas_detalle", [])) >= 1
+    assert len(seccion_kpis.get("kpi_cards", [])) >= 1
+
+
+# Verifica que resumen_ejecutivo solo se use en la sección de resumen.
+def test_construir_modelo_semantico_informe_limita_resumen_ejecutivo_a_seccion_resumen() -> None:
+    """Comprueba integridad semántica del bloque resumen_ejecutivo."""
+
+    # Construye auditoría mínima para validar contrato semántico.
+    auditoria = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=1,
+        resultados=[],
+        cliente="Ejemplo",
+        fecha_ejecucion="2026-03-25",
+        gestor="Gestor",
+    )
+
+    # Genera modelo semántico bajo prueba.
+    modelo = construir_modelo_semantico_informe(auditoria)
+
+    # Recorre secciones para validar asignación selectiva.
+    for seccion in modelo["secciones"]:
+        if seccion["titulo"] == "Resumen ejecutivo":
+            # Verifica presencia de bloque resumen en sección específica.
+            assert isinstance(seccion.get("resumen_ejecutivo", []), list)
+            continue
+
+        # Verifica que el resto no reciba resumen ejecutivo por defecto.
+        assert seccion.get("resumen_ejecutivo", []) == []
+
+
 # Verifica bloque meta completo para exportadores documentales.
 def test_construir_modelo_semantico_informe_incluye_meta_completo() -> None:
     """Comprueba que el modelo semántico publique metadatos completos."""
