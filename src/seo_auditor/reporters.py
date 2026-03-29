@@ -122,6 +122,9 @@ COLOR_BLOQUE_INCIDENCIAS = "B91C1C"
 COLOR_BLOQUE_OPORTUNIDADES = "7C3AED"
 COLOR_BLOQUE_SCORE = "0B7285"
 
+# Define total de márgenes horizontales del PDF en puntos (36+36).
+PDF_HORIZONTAL_MARGIN_POINTS = 72.0
+
 # Define umbrales de cruce GSC+Analytics para insights accionables.
 CRUCE_GA_MIN_SESIONES_REBOTE = 80.0
 CRUCE_GA_MIN_REBOTE_ALTO = 0.65
@@ -241,6 +244,53 @@ def _valor_metrica(valor: object) -> str:
 
     # Devuelve el valor convertido a texto.
     return str(valor)
+
+
+# Calcula anchos de columnas para PDF respetando el ancho útil del documento.
+def _calcular_col_widths_pdf(columnas: list[str], filas: list[list[Any]], ancho_util: float) -> list[float]:
+    """Distribuye anchos en puntos para evitar desbordes horizontales en A4."""
+
+    # Devuelve lista vacía cuando no existan columnas.
+    if not columnas:
+        return []
+
+    # Define mínimos de legibilidad por columna en puntos.
+    min_por_columna = 54.0
+
+    # Evalúa límites textuales para cada columna.
+    limites = []
+    for indice, columna in enumerate(columnas):
+        # Obtiene celdas no nulas de la columna.
+        celdas = [str(fila[indice]) for fila in filas if indice < len(fila)]
+
+        # Calcula longitud estimada combinando cabecera y muestra.
+        longitud = max([len(str(columna))] + [len(celda) for celda in celdas[:40]])
+
+        # Identifica columnas narrativas para expandir ancho relativo.
+        nombre_columna = str(columna).lower()
+        factor_narrativo = 1.8 if any(token in nombre_columna for token in ["motivo", "recomend", "observ", "descripcion", "acción"]) else 1.0
+
+        # Acota longitud para evitar sesgo por outliers.
+        limites.append(max(6.0, min(float(longitud), 60.0)) * factor_narrativo)
+
+    # Normaliza pesos al ancho disponible.
+    suma_pesos = sum(limites) or 1.0
+    anchos = [(peso / suma_pesos) * ancho_util for peso in limites]
+
+    # Aplica mínimo de legibilidad y reescala al ancho útil.
+    anchos = [max(min_por_columna, ancho) for ancho in anchos]
+    suma_anchos = sum(anchos)
+    if suma_anchos > 0:
+        escala = ancho_util / suma_anchos
+        anchos = [ancho * escala for ancho in anchos]
+
+    # Corrige desviación de redondeo sobre la última columna.
+    if anchos:
+        delta = ancho_util - sum(anchos)
+        anchos[-1] += delta
+
+    # Devuelve anchos finales en puntos.
+    return anchos
 
 
 # Genera una observación breve por score de rendimiento.
@@ -3217,28 +3267,113 @@ def _renderizar_tabla_word(documento: Document, tabla_semantica: dict[str, Any])
                 celdas[indice].text = sanitizar_texto_editorial(str(valor))
 
 
+# Obtiene subtables PDF según el tipo de tabla para priorizar legibilidad.
+def _resolver_subtablas_pdf(tabla_semantica: dict[str, Any]) -> list[dict[str, Any]]:
+    """Divide tablas muy anchas en bloques verticales semánticos."""
+
+    # Obtiene título de la tabla semántica actual.
+    titulo = str(tabla_semantica.get("titulo", "")).strip()
+
+    # Divide páginas prioritarias en dos bloques para evitar horizontal extrema.
+    if titulo == "Páginas prioritarias":
+        columnas = list(tabla_semantica.get("columnas", []))
+        filas = [list(fila) for fila in tabla_semantica.get("filas", [])]
+        indice = {str(col): pos for pos, col in enumerate(columnas)}
+
+        # Define agrupaciones de columnas por bloque.
+        grupo_1 = ["URL", "Score", "Impresiones", "CTR"]
+        grupo_2 = ["URL", "Sesiones", "Conversiones", "Motivos"]
+
+        # Construye subtablas manteniendo orden semántico.
+        subtables = []
+        for sufijo, grupo in [(" (impacto)", grupo_1), (" (acciones)", grupo_2)]:
+            columnas_grupo = [col for col in grupo if col in indice]
+            filas_grupo = [[fila[indice[col]] if indice[col] < len(fila) else "" for col in columnas_grupo] for fila in filas]
+            subtables.append({"titulo": f"{titulo}{sufijo}", "columnas": columnas_grupo, "filas": filas_grupo})
+        return subtables
+
+    # Divide rendimiento por métrica para priorizar observación con wrap.
+    if titulo == "Rendimiento por métrica":
+        columnas = list(tabla_semantica.get("columnas", []))
+        filas = [list(fila) for fila in tabla_semantica.get("filas", [])]
+        indice = {str(col): pos for pos, col in enumerate(columnas)}
+        grupo_1 = ["URL / Estrategia", "Métrica", "Valor"]
+        grupo_2 = ["URL / Estrategia", "Observación"]
+        subtables = []
+        for sufijo, grupo in [(" (métricas)", grupo_1), (" (insights)", grupo_2)]:
+            columnas_grupo = [col for col in grupo if col in indice]
+            filas_grupo = [[fila[indice[col]] if indice[col] < len(fila) else "" for col in columnas_grupo] for fila in filas]
+            subtables.append({"titulo": f"{titulo}{sufijo}", "columnas": columnas_grupo, "filas": filas_grupo})
+        return subtables
+
+    # Mantiene estructura original para el resto de tablas.
+    return [tabla_semantica]
+
+
 # Inserta una tabla semántica en PDF de forma homogénea.
-def _renderizar_tabla_pdf(tabla_semantica: dict[str, Any], estilos: dict[str, Any]) -> Table:
+def _renderizar_tabla_pdf(tabla_semantica: dict[str, Any], estilos: dict[str, Any]) -> list[Any]:
     """Renderiza tabla semántica para ReportLab usando estilo corporativo."""
 
-    # Construye matriz con encabezado y filas.
-    datos = [list(tabla_semantica.get("columnas", []))] + [list(fila) for fila in tabla_semantica.get("filas", [])]
+    # Define ancho útil A4 descontando márgenes horizontales.
+    ancho_util = float(A4[0] - PDF_HORIZONTAL_MARGIN_POINTS)
 
-    # Garantiza matriz mínima para evitar errores de ReportLab.
-    if not datos:
-        datos = [["Dato"], ["No disponible"]]
+    # Define estilo de celdas para wrapping real en contenido.
+    estilo_celda = ParagraphStyle(name="TablaCelda", parent=estilos["BodyText"], fontSize=8.5, leading=11)
 
-    # Sanea cada celda para evitar markup inválido.
-    datos_limpios = [[sanear_texto_para_pdf(str(valor)) for valor in fila] for fila in datos]
+    # Define estilo de cabecera centrado.
+    estilo_cabecera = ParagraphStyle(name="TablaCabecera", parent=estilos["BodyText"], fontSize=8.5, leading=10, textColor=colors.white)
 
-    # Crea tabla con repetición de encabezado.
-    tabla = Table(datos_limpios, repeatRows=1)
+    # Inicializa lista de elementos tabulares.
+    elementos_tabla: list[Any] = []
 
-    # Aplica estilo corporativo unificado.
-    tabla.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1F4E78")), ("TEXTCOLOR", (0, 0), (-1, 0), colors.white), ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#D9D9D9"))]))
+    # Recorre subtables resueltas por semántica.
+    for bloque in _resolver_subtablas_pdf(tabla_semantica):
+        # Construye matriz con encabezado y filas.
+        columnas = list(bloque.get("columnas", []))
+        filas = [list(fila) for fila in bloque.get("filas", [])]
+        datos = [columnas] + filas
 
-    # Devuelve tabla maquetada.
-    return tabla
+        # Garantiza matriz mínima para evitar errores de ReportLab.
+        if not datos:
+            datos = [["Dato"], ["No disponible"]]
+            columnas = ["Dato"]
+            filas = [["No disponible"]]
+
+        # Crea anchos explícitos para evitar auto-layout extremo.
+        col_widths = _calcular_col_widths_pdf(columnas, filas, ancho_util=ancho_util)
+
+        # Construye encabezado con Paragraph para wrapping real.
+        cabecera = [Paragraph(f"<b>{sanear_texto_para_pdf(str(valor))}</b>", estilo_cabecera) for valor in datos[0]]
+
+        # Construye filas de contenido con wrapping real por celda.
+        cuerpo = [[Paragraph(sanear_texto_para_pdf(str(valor)), estilo_celda) for valor in fila] for fila in datos[1:]]
+        datos_render = [cabecera] + cuerpo
+
+        # Crea tabla con repetición de encabezado.
+        tabla = Table(datos_render, repeatRows=1, colWidths=col_widths)
+
+        # Aplica estilo corporativo unificado.
+        tabla.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1F4E78")),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                    ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#D9D9D9")),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                    ("TOPPADDING", (0, 0), (-1, -1), 4),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ]
+            )
+        )
+
+        # Acumula tabla y espaciado para evitar bloque plano.
+        elementos_tabla.append(tabla)
+        elementos_tabla.append(Spacer(1, 10))
+
+    # Devuelve elementos tabulares maquetados.
+    return elementos_tabla
 
 
 def exportar_word(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
@@ -3359,7 +3494,7 @@ def exportar_pdf(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
             elementos.append(PageBreak())
         elementos.append(Paragraph(f"<b>{sanear_texto_para_pdf(str(seccion['titulo']))}</b>", estilos["Heading2"]))
         for tabla in seccion.get("tablas", []):
-            elementos.append(_renderizar_tabla_pdf(tabla, estilos))
+            elementos.extend(_renderizar_tabla_pdf(tabla, estilos))
         for tarjeta in seccion.get("tarjetas", []):
             elementos.append(Paragraph(sanear_texto_para_pdf(str(tarjeta.get("titulo", ""))), estilos["Normal"]))
             elementos.append(Paragraph(sanear_texto_para_pdf(str(tarjeta.get("subtitulo", ""))), estilos["Normal"]))
