@@ -1,3 +1,9 @@
+## 0.10.9 - 2026-03-29
+- Se refactoriza la plantilla de `exportar_html` con estructura editorial premium portable: portada/cabecera, bloque semántico `.meta`, tarjetas KPI `.kpi-card`, bloque de prioridades y quick wins (`.prioridad`) y secciones secundarias para detalle narrativo/técnico.
+- Se incorpora escala tipográfica consistente en CSS mediante variables (`:root`) y jerarquía homogénea para títulos y cuerpo.
+- Se añaden reglas de tabla ejecutiva premium (`.tabla-ejecutiva`): zebra rows, cabecera sticky opcional (`.tabla-sticky-opcional`), control de ancho mínimo con scroll horizontal y wrap robusto de columnas largas.
+- Se amplían tests HTML para validar contenedores clave y secciones obligatorias del layout exportado.
+
 ## 0.10.8 - 2026-03-29
 - Se amplía `construir_modelo_semantico_informe` con tipos de bloque explícitos (`metadatos`, `kpi_cards`, `resumen_ejecutivo`, `prioridades`, `tablas_detalle`) manteniendo compatibilidad retroactiva con `parrafos`, `tablas` y `tarjetas`.
 - Se ajusta la política de síntesis del modelo semántico para limitar longitud narrativa/listas y favorecer lectura ejecutiva arriba con detalle tabular debajo.
