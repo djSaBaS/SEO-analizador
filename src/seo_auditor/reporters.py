@@ -3393,7 +3393,6 @@ def construir_modelo_semantico_informe(resultado: ResultadoAuditoria) -> dict[st
         # Inserta contenido narrativo sanitizado como fallback estándar.
         else:
             bloque["parrafos"] = [sanitizar_texto_final_exportable(str(linea), formato="doc") for linea in bloques_narrativos.get(titulo_seccion, [])[:LIMITE_PARRAFOS_NARRATIVOS]]
-            bloque["resumen_ejecutivo"] = list(bloque["parrafos"])
 
         # Propaga tipos de bloque explícitos para compatibilidad cruzada de render.
         if titulo_seccion == "KPIs principales" and bloque["tablas"]:

@@ -654,6 +654,34 @@ def test_construir_modelo_semantico_informe_mantiene_compatibilidad_legacy() -> 
     assert len(seccion_kpis.get("kpi_cards", [])) >= 1
 
 
+# Verifica que resumen_ejecutivo solo se use en la sección de resumen.
+def test_construir_modelo_semantico_informe_limita_resumen_ejecutivo_a_seccion_resumen() -> None:
+    """Comprueba integridad semántica del bloque resumen_ejecutivo."""
+
+    # Construye auditoría mínima para validar contrato semántico.
+    auditoria = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=1,
+        resultados=[],
+        cliente="Ejemplo",
+        fecha_ejecucion="2026-03-25",
+        gestor="Gestor",
+    )
+
+    # Genera modelo semántico bajo prueba.
+    modelo = construir_modelo_semantico_informe(auditoria)
+
+    # Recorre secciones para validar asignación selectiva.
+    for seccion in modelo["secciones"]:
+        if seccion["titulo"] == "Resumen ejecutivo":
+            # Verifica presencia de bloque resumen en sección específica.
+            assert isinstance(seccion.get("resumen_ejecutivo", []), list)
+            continue
+
+        # Verifica que el resto no reciba resumen ejecutivo por defecto.
+        assert seccion.get("resumen_ejecutivo", []) == []
+
+
 # Verifica bloque meta completo para exportadores documentales.
 def test_construir_modelo_semantico_informe_incluye_meta_completo() -> None:
     """Comprueba que el modelo semántico publique metadatos completos."""
