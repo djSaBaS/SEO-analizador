@@ -3568,7 +3568,7 @@ def exportar_word(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     titulo.runs[0].font.size = Pt(26)
 
     # Extrae metadatos semánticos para portada consistente.
-    meta_modelo = modelo.get("meta", {}) if isinstance(modelo.get("meta", {}), dict) else {}
+    meta_modelo = modelo.get("meta", {})
 
     # Renderiza metadatos en tabla fija para conservar jerarquía visual.
     tabla_meta = documento.add_table(rows=6, cols=2)
@@ -3651,7 +3651,7 @@ def exportar_pdf(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     elementos.append(Paragraph("INFORME DE AUDITORÍA SEO", estilo_portada))
 
     # Extrae metadatos semánticos para portada consistente.
-    meta_modelo = modelo.get("meta", {}) if isinstance(modelo.get("meta", {}), dict) else {}
+    meta_modelo = modelo.get("meta", {})
 
     # Inserta datos generales de portada.
     elementos.append(Spacer(1, 16))
@@ -3671,7 +3671,7 @@ def exportar_pdf(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
             ]
             for etiqueta, valor in datos_meta_portada
         ],
-        colWidths=[130, float(A4[0] - 36 - 36 - 130)],
+        colWidths=[130, float(A4[0] - PDF_HORIZONTAL_MARGIN_POINTS - 130)],
     )
     tabla_meta_portada.setStyle(
         TableStyle(
@@ -3775,7 +3775,7 @@ def exportar_html(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     modelo = construir_modelo_semantico_informe(resultado)
 
     # Extrae metadatos editoriales para cabecera premium.
-    meta_modelo = modelo.get("meta", {}) if isinstance(modelo.get("meta", {}), dict) else {}
+    meta_modelo = modelo.get("meta", {})
 
     # Obtiene filas de incidencias para el detalle técnico final.
     filas_ordenadas = sorted(construir_filas(resultado), key=lambda fila: (_peso_severidad(str(fila.get("severidad", "informativa"))), str(fila.get("url", ""))))
