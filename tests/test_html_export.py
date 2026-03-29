@@ -216,3 +216,62 @@ def test_exportar_html_periodo_fallback_sin_fechas(tmp_path: Path) -> None:
 
     # Verifica fallback visible en cabecera ejecutiva.
     assert "Periodo analizado: No disponible" in contenido
+
+
+# Valida estructura premium de contenedores HTML y secciones obligatorias.
+def test_exportar_html_estructura_contenedores_clave(tmp_path: Path) -> None:
+    """Comprueba que el HTML exportado incluya bloques semánticos obligatorios."""
+
+    # Construye auditoría mínima con un hallazgo para poblar tabla técnica.
+    hallazgo = HallazgoSeo(
+        tipo="rendimiento",
+        severidad="media",
+        descripcion="LCP por encima de objetivo.",
+        recomendacion="Optimizar recursos críticos.",
+        area="Rendimiento",
+        impacto="Medio",
+        esfuerzo="Medio",
+        prioridad="P2",
+    )
+
+    # Crea resultado de URL mínimo para activar detalle técnico.
+    resultado_url = ResultadoUrl(
+        url="https://ejemplo.com/",
+        tipo="page",
+        estado_http=200,
+        redirecciona=False,
+        url_final="https://ejemplo.com/",
+        title="Inicio",
+        h1="Inicio",
+        meta_description="Descripción",
+        canonical="https://ejemplo.com/",
+        noindex=False,
+        hallazgos=[hallazgo],
+    )
+
+    # Crea auditoría con metadatos editoriales completos.
+    auditoria = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=1,
+        resultados=[resultado_url],
+        cliente="Cliente Estructura",
+        fecha_ejecucion="2026-03-29",
+        gestor="Gestor Estructura",
+        periodo_date_from="2026-03-01",
+        periodo_date_to="2026-03-28",
+    )
+
+    # Exporta y carga contenido HTML resultante.
+    contenido = exportar_html(auditoria, tmp_path).read_text(encoding="utf-8")
+
+    # Comprueba contenedores semánticos principales del layout premium.
+    assert 'class="cabecera"' in contenido
+    assert 'class="meta"' in contenido
+    assert "kpi-card" in contenido
+    assert "prioridad" in contenido
+    assert "tabla-ejecutiva" in contenido
+
+    # Verifica secciones editoriales obligatorias.
+    assert "KPIs ejecutivos" in contenido
+    assert "Prioridades y quick wins" in contenido
+    assert "Incidencias técnicas (detalle)" in contenido

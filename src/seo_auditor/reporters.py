@@ -3871,6 +3871,9 @@ def exportar_html(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     # Inicializa render de secciones semánticas.
     secciones_html: list[str] = []
 
+    # Inicializa bloques prioritarios para quick wins.
+    bloques_prioritarios_html: list[str] = []
+
     # Recorre secciones y las convierte a HTML uniforme.
     for seccion in modelo["secciones"]:
         if seccion["tipo_bloque"] == "portada":
@@ -3890,19 +3893,32 @@ def exportar_html(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
                     for item in prioridad.get("items", [])[:LIMITE_ITEMS_LISTA_NARRATIVA]
                 )
                 lista_items = f"<ul>{items_simples}</ul>" if items_simples else ""
-                bloques_html.append(f"<div class='tarjeta'><h3>{escape(sanitizar_texto_final_exportable(str(prioridad.get('titulo', '')), formato='html'))}</h3><p>{escape(sanitizar_texto_final_exportable(str(prioridad.get('subtitulo', '')), formato='html'))}</p>{listas}{lista_items}</div>")
+                tarjeta_prioridad = (
+                    f"<article class='prioridad'>"
+                    f"<h3>{escape(sanitizar_texto_final_exportable(str(prioridad.get('titulo', '')), formato='html'))}</h3>"
+                    f"<p>{escape(sanitizar_texto_final_exportable(str(prioridad.get('subtitulo', '')), formato='html'))}</p>"
+                    f"{listas}{lista_items}"
+                    f"</article>"
+                )
+                bloques_html.append(tarjeta_prioridad)
+                bloques_prioritarios_html.append(tarjeta_prioridad)
         for tabla in _resolver_bloque_render(seccion, "tablas_detalle", "tablas"):
             columnas = "".join(f"<th>{escape(sanitizar_texto_final_exportable(str(columna), formato='html'))}</th>" for columna in tabla.get("columnas", []))
             filas = "".join(f"<tr>{''.join(f'<td>{escape(sanitizar_texto_final_exportable(str(valor), formato='html'))}</td>' for valor in fila)}</tr>" for fila in tabla.get("filas", []))
             colspan = max(1, len(tabla.get("columnas", [])))
             bloques_html.append(
                 f"<h3>{escape(sanitizar_texto_final_exportable(str(tabla.get('titulo', 'Tabla')), formato='html'))}</h3>"
+                f"<div class='tabla-ejecutiva tabla-sticky-opcional'>"
                 f"<table><thead><tr>{columnas}</tr></thead>"
                 f"<tbody>{filas or f'<tr><td colspan=\"{colspan}\">No disponible</td></tr>'}</tbody></table>"
+                f"</div>"
             )
         if seccion.get("notas"):
             bloques_html.append("".join(f"<p>{escape(sanitizar_texto_final_exportable(str(nota), formato='html'))}</p>" for nota in seccion.get("notas", [])))
-        secciones_html.append(f"<div class='bloque'><h2>{escape(sanitizar_texto_final_exportable(str(seccion['titulo']), formato='html'))}</h2>{''.join(bloques_html)}</div>")
+        secciones_html.append(f"<section class='bloque seccion-secundaria'><h2>{escape(sanitizar_texto_final_exportable(str(seccion['titulo']), formato='html'))}</h2>{''.join(bloques_html)}</section>")
+
+    # Construye rejilla de prioridades y quick wins.
+    prioridades_html = "".join(bloques_prioritarios_html) or "<article class='prioridad'><h3>No disponible</h3><p>No hay quick wins detectados en esta ejecución.</p></article>"
 
     # Construye contenido HTML básico y portable.
     contenido = f"""<!doctype html>
@@ -3911,30 +3927,47 @@ def exportar_html(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
   <meta charset="utf-8">
   <title>Informe SEO - {sanitizar_texto_final_exportable(resultado.cliente, formato='html')}</title>
   <style>
-    body {{ font-family: Inter, Segoe UI, Arial, sans-serif; margin: 0; color: #1f2937; background: #f4f7fb; }}
+    :root {{
+      --font-base: 16px;
+      --font-sm: 14px;
+      --font-xs: 12px;
+      --font-h1: 32px;
+      --font-h2: 24px;
+      --font-h3: 18px;
+    }}
+    body {{ font-family: Inter, Segoe UI, Arial, sans-serif; margin: 0; color: #1f2937; background: #f4f7fb; font-size: var(--font-base); line-height: 1.5; }}
     .contenedor {{ max-width: 1280px; margin: 0 auto; padding: 24px; }}
     .cabecera {{ background: linear-gradient(135deg, #1F4E78 0%, #0f2f4f 100%); color: #fff; border-radius: 14px; padding: 24px; box-shadow: 0 8px 20px rgba(15, 47, 79, 0.2); }}
-    .cabecera h1 {{ margin: 0 0 10px 0; color: #fff; }}
-    .metadatos {{ display: grid; grid-template-columns: repeat(2, minmax(220px, 1fr)); gap: 8px 16px; font-size: 14px; margin-top: 8px; }}
+    .cabecera h1 {{ margin: 0 0 10px 0; color: #fff; font-size: var(--font-h1); }}
+    .cabecera p {{ margin: 0; font-size: var(--font-sm); }}
+    .meta {{ margin-top: 12px; }}
+    .metadatos {{ display: grid; grid-template-columns: repeat(2, minmax(220px, 1fr)); gap: 8px 16px; font-size: var(--font-sm); margin-top: 8px; }}
     .meta-ejecutiva {{ margin-top: 12px; background: rgba(255, 255, 255, 0.12); border: 1px solid rgba(255,255,255,0.22); border-radius: 12px; padding: 12px; }}
     .periodo-destacado {{ margin-top: 10px; display: inline-block; background: #FBBF24; color: #1F2937; padding: 6px 12px; border-radius: 999px; font-weight: 700; }}
-    h2 {{ color: #1F4E78; margin-top: 24px; }}
+    h2 {{ color: #1F4E78; margin-top: 24px; font-size: var(--font-h2); }}
+    h3 {{ font-size: var(--font-h3); }}
     .kpis {{ display: grid; grid-template-columns: repeat(5, minmax(180px, 1fr)); gap: 12px; }}
-    .kpi {{ background: #ffffff; padding: 12px; border-radius: 10px; border: 1px solid #dbe5f0; box-shadow: 0 3px 10px rgba(17, 24, 39, 0.06); }}
+    .kpi-card {{ background: #ffffff; padding: 12px; border-radius: 10px; border: 1px solid #dbe5f0; box-shadow: 0 3px 10px rgba(17, 24, 39, 0.06); }}
+    .kpi-card strong {{ font-size: var(--font-h3); }}
     .bloque {{ margin-top: 18px; padding: 16px; border: 1px solid #dce6f2; border-radius: 12px; background: #fff; box-shadow: 0 2px 8px rgba(17, 24, 39, 0.04); }}
-    .tarjetas {{ display: grid; grid-template-columns: repeat(2, minmax(260px, 1fr)); gap: 12px; }}
-    .tarjeta {{ background: #f8fbff; border: 1px solid #d7e4f4; border-radius: 10px; padding: 12px; }}
-    .tarjeta h3 {{ margin: 0 0 8px 0; color: #1F4E78; font-size: 14px; }}
-    .tarjeta ul {{ margin: 4px 0 8px 18px; padding: 0; }}
-    table {{ border-collapse: collapse; width: 100%; margin-top: 12px; table-layout: fixed; }}
-    th, td {{ border: 1px solid #d1d5db; padding: 8px; font-size: 12px; text-align: left; vertical-align: top; word-break: break-word; }}
-    th {{ background: #1F4E78; color: white; }}
+    .prioridades-grid {{ display: grid; grid-template-columns: repeat(2, minmax(260px, 1fr)); gap: 12px; }}
+    .prioridad {{ background: #f8fbff; border: 1px solid #d7e4f4; border-radius: 10px; padding: 12px; }}
+    .prioridad h3 {{ margin: 0 0 8px 0; color: #1F4E78; font-size: var(--font-sm); }}
+    .prioridad ul {{ margin: 4px 0 8px 18px; padding: 0; }}
+    .tabla-ejecutiva {{ width: 100%; margin-top: 12px; overflow-x: auto; border: 1px solid #d1d5db; border-radius: 10px; }}
+    .tabla-ejecutiva table {{ border-collapse: collapse; width: 100%; min-width: 780px; table-layout: fixed; }}
+    .tabla-ejecutiva th, .tabla-ejecutiva td {{ border: 1px solid #d1d5db; padding: 8px; font-size: var(--font-xs); text-align: left; vertical-align: top; overflow-wrap: anywhere; }}
+    .tabla-ejecutiva th {{ background: #1F4E78; color: white; }}
+    .tabla-ejecutiva tbody tr:nth-child(even) {{ background: #f9fbff; }}
+    .tabla-sticky-opcional thead th {{ position: sticky; top: 0; z-index: 1; }}
   </style>
 </head>
 <body>
   <div class="contenedor">
   <section class="cabecera">
     <h1>Informe de Auditoría SEO</h1>
+    <p>Resumen editorial con foco en decisiones de negocio y ejecución táctica.</p>
+    <div class="meta">
     <div class="meta-ejecutiva">
       <div class="metadatos">
         <div><b>Cliente:</b> {escape(sanitizar_texto_final_exportable(str(meta_modelo.get("cliente", resultado.cliente)), formato="html"))}</div>
@@ -3946,17 +3979,23 @@ def exportar_html(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
       </div>
       <div class="periodo-destacado">Periodo analizado: {escape(sanitizar_texto_final_exportable(str(meta_modelo.get("periodo_texto", "No disponible")), formato="html"))}</div>
     </div>
+    </div>
   </section>
   <h2>KPIs ejecutivos</h2>
   <div class="kpis">
-    <div class="kpi"><b>Total URLs</b><br>{metricas["total_urls"]}</div>
-    <div class="kpi"><b>Total incidencias</b><br>{metricas["total_incidencias"]}</div>
-    <div class="kpi"><b>Incidencias agrupadas</b><br>{metricas.get("total_incidencias_agrupadas", 0)}</div>
-    <div class="kpi"><b>URLs sanas</b><br>{metricas["urls_sanas"]}</div>
-    <div class="kpi"><b>Score SEO</b><br>{metricas["score"]}</div>
+    <div class="kpi-card"><b>Total URLs</b><br><strong>{metricas["total_urls"]}</strong></div>
+    <div class="kpi-card"><b>Total incidencias</b><br><strong>{metricas["total_incidencias"]}</strong></div>
+    <div class="kpi-card"><b>Incidencias agrupadas</b><br><strong>{metricas.get("total_incidencias_agrupadas", 0)}</strong></div>
+    <div class="kpi-card"><b>URLs sanas</b><br><strong>{metricas["urls_sanas"]}</strong></div>
+    <div class="kpi-card"><b>Score SEO</b><br><strong>{metricas["score"]}</strong></div>
   </div>
+  <section class="bloque">
+    <h2>Prioridades y quick wins</h2>
+    <div class="prioridades-grid">{prioridades_html}</div>
+  </section>
   {''.join(secciones_html)}
   <h2>Incidencias técnicas (detalle)</h2>
+  <div class="tabla-ejecutiva tabla-sticky-opcional">
   <table>
     <thead><tr><th>URL</th><th>Severidad</th><th>Área</th><th>Problema</th><th>Recomendación</th></tr></thead>
     <tbody>
@@ -3972,6 +4011,7 @@ def exportar_html(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
       )}
     </tbody>
   </table>
+  </div>
   </div>
 </body>
 </html>"""
