@@ -1,3 +1,7 @@
+## 0.10.3 - 2026-03-29
+- Se ajusta la documentación de ejemplos CLI para usar comillas simples en `--cliente` y mejorar portabilidad de shell.
+- Se elimina el perfil no utilizado `entrega-cliente` del mapa central de perfiles de generación en CLI para simplificar mantenimiento.
+
 ## 0.10.2 - 2026-03-26
 - Se añade orquestación de generación compuesta en CLI con perfil centralizado de entregables y atajo `--generar-todo` (equivalente a `--modo entrega-completa`) sin romper compatibilidad de modos existentes.
 - Se centraliza la definición de perfiles/entregables en `cli.py` para evitar condicionales dispersos y dejar base extensible (`auditoria-seo-completa`, `todo`, `solo-ga4-premium`).

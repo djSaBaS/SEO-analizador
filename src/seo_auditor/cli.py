@@ -87,7 +87,6 @@ ENTREGABLES_BASE_AUDITORIA = [
 # Centraliza perfiles de generación para composición de salidas.
 PERFILES_GENERACION: dict[str, list[str]] = {
     "auditoria-seo-completa": ENTREGABLES_BASE_AUDITORIA,
-    "entrega-cliente": ENTREGABLES_BASE_AUDITORIA,
     "todo": ENTREGABLES_BASE_AUDITORIA + [ENTREGABLE_GA4_PREMIUM],
     "solo-ga4-premium": [ENTREGABLE_GA4_PREMIUM],
 }

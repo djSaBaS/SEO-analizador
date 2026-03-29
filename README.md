@@ -164,7 +164,7 @@ Comportamiento del orquestador:
 ```bash
 python src/main.py --sitemap https://www.colegiolegamar.com/sitemap_index.xml --output ./salidas --usar-ia --date-from 2026-02-01 --date-to 2026-02-28 --generar-todo
 python src/main.py --sitemap https://www.colegiolegamar.com/sitemap_index.xml --output ./salidas --usar-ia --date-from 2026-02-01 --date-to 2026-02-28 --modo entrega-completa
-python src/main.py --modo entrega-completa --sitemap https://www.colegiolegamar.com/sitemap_index.xml --comparar periodo-anterior --cliente \"Colegio Legamar\"
+python src/main.py --modo entrega-completa --sitemap https://www.colegiolegamar.com/sitemap_index.xml --comparar periodo-anterior --cliente 'Colegio Legamar'
 ```
 
 ## Archivo de referencia de CLI
