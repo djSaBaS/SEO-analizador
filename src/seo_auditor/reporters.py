@@ -243,6 +243,20 @@ def _valor_metrica(valor: object) -> str:
     return str(valor)
 
 
+# Resuelve el periodo analizado efectivo con fallback entre fuentes temporales.
+def _resolver_periodo_analizado(resultado: ResultadoAuditoria) -> tuple[str, str]:
+    """Devuelve fecha inicial y final efectivas del periodo analizado."""
+
+    # Prioriza periodo global persistido en resultado final.
+    periodo_desde = resultado.periodo_date_from or resultado.search_console.date_from or resultado.analytics.date_from
+
+    # Prioriza fin global persistido en resultado final.
+    periodo_hasta = resultado.periodo_date_to or resultado.search_console.date_to or resultado.analytics.date_to
+
+    # Devuelve tupla ordenada de fechas efectivas.
+    return periodo_desde, periodo_hasta
+
+
 # Genera una observación breve por score de rendimiento.
 def _interpretacion_rendimiento(score: float | None, estrategia: str) -> str:
     """Interpreta visualmente el estado de rendimiento por estrategia."""
@@ -1585,19 +1599,8 @@ def _construir_bloques_narrativos(resultado: ResultadoAuditoria) -> dict[str, li
     # Construye cruces GSC + Analytics cuando ambas fuentes estén activas.
     filas_cruce_gsc_analytics = construir_cruces_gsc_analytics(resultado)
 
-    # Resuelve periodo analizado global con fallback a fuentes temporales activas.
-    periodo_desde = (
-        resultado.periodo_date_from
-        or resultado.search_console.date_from
-        or resultado.analytics.date_from
-    )
-
-    # Resuelve fin del periodo analizado con fallback a fuentes temporales activas.
-    periodo_hasta = (
-        resultado.periodo_date_to
-        or resultado.search_console.date_to
-        or resultado.analytics.date_to
-    )
+    # Resuelve periodo efectivo con helper común para evitar duplicación.
+    periodo_desde, periodo_hasta = _resolver_periodo_analizado(resultado)
 
     # Conserva estado previo para no anular fallback de resumen.
     resumen_tenia_contenido = bool(bloques["Resumen ejecutivo"])
@@ -2414,11 +2417,8 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     # Obtiene media desktop segura.
     score_medio_desktop = round(sum(scores_desktop) / len(scores_desktop), 1) if scores_desktop else 0.0
 
-    # Resuelve periodo analizado para metadatos visibles en Excel.
-    periodo_desde = resultado.periodo_date_from or resultado.search_console.date_from or resultado.analytics.date_from
-
-    # Resuelve fecha final del periodo para metadatos visibles en Excel.
-    periodo_hasta = resultado.periodo_date_to or resultado.search_console.date_to or resultado.analytics.date_to
+    # Resuelve periodo efectivo con helper común para evitar duplicación.
+    periodo_desde, periodo_hasta = _resolver_periodo_analizado(resultado)
 
     # Construye etiqueta editorial del periodo en formato único.
     periodo_texto = f"{periodo_desde} - {periodo_hasta}" if periodo_desde and periodo_hasta else "No disponible"
@@ -2995,11 +2995,8 @@ def construir_modelo_semantico_informe(resultado: ResultadoAuditoria) -> dict[st
     # Calcula métricas globales reutilizables.
     metricas = calcular_metricas(resultado)
 
-    # Resuelve fecha inicial efectiva del periodo analizado.
-    periodo_desde = resultado.periodo_date_from or resultado.search_console.date_from or resultado.analytics.date_from
-
-    # Resuelve fecha final efectiva del periodo analizado.
-    periodo_hasta = resultado.periodo_date_to or resultado.search_console.date_to or resultado.analytics.date_to
+    # Resuelve periodo efectivo con helper común para evitar duplicación.
+    periodo_desde, periodo_hasta = _resolver_periodo_analizado(resultado)
 
     # Construye narrativa base consolidada.
     bloques_narrativos = _construir_bloques_narrativos(resultado)
@@ -3506,11 +3503,8 @@ def exportar_markdown_ia(resultado: ResultadoAuditoria, path_salida: Path) -> Pa
     # Define la ruta del archivo Markdown.
     destino = path_salida / f"{construir_prefijo_archivo(resultado)}_ia.md"
 
-    # Resuelve fecha inicial efectiva del periodo para contexto editorial.
-    periodo_desde = resultado.periodo_date_from or resultado.search_console.date_from or resultado.analytics.date_from
-
-    # Resuelve fecha final efectiva del periodo para contexto editorial.
-    periodo_hasta = resultado.periodo_date_to or resultado.search_console.date_to or resultado.analytics.date_to
+    # Resuelve periodo efectivo con helper común para evitar duplicación.
+    periodo_desde, periodo_hasta = _resolver_periodo_analizado(resultado)
 
     # Construye etiqueta unificada de periodo.
     periodo_texto = f"{periodo_desde} - {periodo_hasta}" if periodo_desde and periodo_hasta else "No disponible"

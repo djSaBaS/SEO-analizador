@@ -1,3 +1,7 @@
+## 0.10.5 - 2026-03-29
+- Se refactoriza la resolución del periodo analizado en `reporters.py` mediante helper común `_resolver_periodo_analizado`.
+- Se elimina duplicación de lógica de periodo en `_construir_bloques_narrativos`, `exportar_excel`, `construir_modelo_semantico_informe` y `exportar_markdown_ia` para mejorar mantenibilidad (DRY) sin romper compatibilidad de la CLI.
+
 ## 0.10.4 - 2026-03-29
 - Se mejora la calidad documental transversal de entregables SEO: se refuerza la cabecera editorial y metadatos en Word/PDF/HTML/Excel con presencia explícita del periodo analizado.
 - Se actualiza la política de emojis para usar texto seguro corporativo (sin placeholders entre corchetes) y se añade limpieza de tokens residuales tipo `[TOKEN_MAYUSCULA]`.
