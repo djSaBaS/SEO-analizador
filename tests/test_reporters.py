@@ -9,6 +9,7 @@ from seo_auditor.reporters import (
     _calcular_col_widths_pdf,
     _renderizar_bloque_dashboard,
     _renderizar_tabla_pdf,
+    _renderizar_tabla_word,
     _resolver_subtablas_pdf,
     _construir_bloques_narrativos,
     _construir_quick_wins,
@@ -23,15 +24,18 @@ from seo_auditor.reporters import (
     exportar_excel,
     exportar_word,
     reemplazar_emojis_problematicos,
+    sanitizar_texto_final_exportable,
     sanear_texto_para_pdf,
 )
 
 # Importa lector de libros Excel para validar KPIs.
 from openpyxl import load_workbook
 from openpyxl import Workbook
+from docx import Document
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import Table
+import re
 
 
 # Verifica que el saneamiento escape etiquetas potencialmente problemáticas.
@@ -306,7 +310,7 @@ def test_reemplazar_emojis_problematicos_sustituye_glifos() -> None:
     salida = reemplazar_emojis_problematicos(texto)
 
     # Verifica etiquetas de reemplazo esperadas.
-    assert "Correcto" in salida and "Alerta" in salida and "Error" in salida
+    assert "Validado" in salida and "Revisión recomendada" in salida and "Incidencia detectada" in salida
 
 
 # Verifica eliminación de placeholders editoriales sin resolver.
@@ -321,6 +325,88 @@ def test_sanitizar_texto_editorial_limpia_placeholders_mayusculas() -> None:
 
     # Verifica que no permanezcan corchetes ni tokens técnicos crudos.
     assert "[ALTO_IMPACTO]" not in salida and "[OBJETIVO]" not in salida
+
+
+# Verifica política diferenciada de marcadores según formato de salida.
+def test_reemplazar_emojis_problematicos_aplica_politica_por_formato() -> None:
+    """Comprueba equivalencias editoriales distintas entre DOC y Excel."""
+
+    # Define texto de entrada con iconografía común de estado.
+    texto = "🔥 Resolver hoy ✅ Validado"
+
+    # Ejecuta reemplazo para formato documental largo.
+    salida_doc = reemplazar_emojis_problematicos(texto, formato="doc")
+
+    # Ejecuta reemplazo para formato Excel corto.
+    salida_excel = reemplazar_emojis_problematicos(texto, formato="excel")
+
+    # Verifica equivalencias editoriales esperadas por formato.
+    assert "Alta prioridad" in salida_doc and "Prioridad" in salida_excel and "OK" in salida_excel
+
+
+# Verifica que la capa final bloquee placeholders residuales entre corchetes.
+def test_sanitizar_texto_final_exportable_bloquea_placeholders_residuales() -> None:
+    """Comprueba bloqueo final de tokens residuales tipo [TOKEN]."""
+
+    # Define entrada con token técnico residual de plantilla.
+    texto = "Plan [ALTA_PRIORIDAD] para [OBJETIVO_Q2]."
+
+    # Aplica sanitización final para HTML.
+    salida = sanitizar_texto_final_exportable(texto, formato="html")
+
+    # Verifica ausencia de patrones técnicos en mayúsculas.
+    assert re.search(r"\[[A-Z_]+\]", salida) is None
+
+
+# Verifica que Word exportado no incluya tokens técnicos residuales.
+def test_exportar_word_no_exporta_tokens_placeholder_residuales(tmp_path: Path) -> None:
+    """Comprueba ausencia de patrones [A-Z_] en contenido DOCX final."""
+
+    # Crea auditoría mínima con narrativa IA que incluye placeholders.
+    auditoria = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=1,
+        resultados=[],
+        cliente="Cliente [OBJETIVO]",
+        fecha_ejecucion="2026-03-29",
+        gestor="Gestor [ALTA_PRIORIDAD]",
+        resumen_ia="## Resumen ejecutivo\n- Activar [ALTA_PRIORIDAD] y [OBJETIVO_Q2].",
+    )
+
+    # Exporta documento Word a carpeta temporal.
+    ruta_docx = exportar_word(auditoria, tmp_path)
+
+    # Abre el DOCX generado para leer su contenido textual.
+    contenido = "\n".join(parrafo.text for parrafo in Document(ruta_docx).paragraphs)
+
+    # Verifica ausencia de placeholders técnicos en el documento final.
+    assert re.search(r"\[[A-Z_]+\]", contenido) is None
+
+
+# Verifica que la tabla Word aplique sanitización final en cabeceras y celdas.
+def test_renderizar_tabla_word_aplica_sanitizacion_final_doc() -> None:
+    """Comprueba que tablas DOCX no conserven placeholders ni emojis crudos."""
+
+    # Crea documento Word en memoria para renderizar una tabla puntual.
+    documento = Document()
+
+    # Define tabla semántica con placeholders y emojis en cabecera y filas.
+    tabla = {
+        "columnas": ["Estado [ALTA_PRIORIDAD]", "Acción ✅"],
+        "filas": [["Corregir [OBJETIVO_Q2]", "Aplicar 🔥 hoy"]],
+    }
+
+    # Renderiza tabla usando el helper de Word bajo prueba.
+    _renderizar_tabla_word(documento, tabla)
+
+    # Concatena texto de celdas para validaciones de contenido.
+    contenido = " ".join(celda.text for fila in documento.tables[0].rows for celda in fila.cells)
+
+    # Verifica ausencia de placeholders técnicos.
+    assert re.search(r"\[[A-Z_]+\]", contenido) is None
+
+    # Verifica equivalencias editoriales de emojis en modo doc.
+    assert "Validado" in contenido and "Alta prioridad" in contenido
 
 
 # Verifica consolidación por URL en hoja de contenido.
