@@ -267,9 +267,9 @@ def test_exportar_html_estructura_contenedores_clave(tmp_path: Path) -> None:
     # Comprueba contenedores semánticos principales del layout premium.
     assert 'class="cabecera"' in contenido
     assert 'class="meta"' in contenido
-    assert "kpi-card" in contenido
-    assert "prioridad" in contenido
-    assert "tabla-ejecutiva" in contenido
+    assert 'class="kpi-card"' in contenido
+    assert 'class="prioridad"' in contenido
+    assert 'class="tabla-ejecutiva' in contenido
 
     # Verifica secciones editoriales obligatorias.
     assert "KPIs ejecutivos" in contenido

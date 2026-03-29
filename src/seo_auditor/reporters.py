@@ -3894,7 +3894,7 @@ def exportar_html(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
                 )
                 lista_items = f"<ul>{items_simples}</ul>" if items_simples else ""
                 tarjeta_prioridad = (
-                    f"<article class='prioridad'>"
+                    f"<article class=\"prioridad\">"
                     f"<h3>{escape(sanitizar_texto_final_exportable(str(prioridad.get('titulo', '')), formato='html'))}</h3>"
                     f"<p>{escape(sanitizar_texto_final_exportable(str(prioridad.get('subtitulo', '')), formato='html'))}</p>"
                     f"{listas}{lista_items}"
@@ -3908,17 +3908,17 @@ def exportar_html(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
             colspan = max(1, len(tabla.get("columnas", [])))
             bloques_html.append(
                 f"<h3>{escape(sanitizar_texto_final_exportable(str(tabla.get('titulo', 'Tabla')), formato='html'))}</h3>"
-                f"<div class='tabla-ejecutiva tabla-sticky-opcional'>"
+                f"<div class=\"tabla-ejecutiva tabla-sticky-opcional\">"
                 f"<table><thead><tr>{columnas}</tr></thead>"
                 f"<tbody>{filas or f'<tr><td colspan=\"{colspan}\">No disponible</td></tr>'}</tbody></table>"
                 f"</div>"
             )
         if seccion.get("notas"):
             bloques_html.append("".join(f"<p>{escape(sanitizar_texto_final_exportable(str(nota), formato='html'))}</p>" for nota in seccion.get("notas", [])))
-        secciones_html.append(f"<section class='bloque seccion-secundaria'><h2>{escape(sanitizar_texto_final_exportable(str(seccion['titulo']), formato='html'))}</h2>{''.join(bloques_html)}</section>")
+        secciones_html.append(f"<section class=\"bloque seccion-secundaria\"><h2>{escape(sanitizar_texto_final_exportable(str(seccion['titulo']), formato='html'))}</h2>{''.join(bloques_html)}</section>")
 
     # Construye rejilla de prioridades y quick wins.
-    prioridades_html = "".join(bloques_prioritarios_html) or "<article class='prioridad'><h3>No disponible</h3><p>No hay quick wins detectados en esta ejecución.</p></article>"
+    prioridades_html = "".join(bloques_prioritarios_html) or "<article class=\"prioridad\"><h3>No disponible</h3><p>No hay quick wins detectados en esta ejecución.</p></article>"
 
     # Construye contenido HTML básico y portable.
     contenido = f"""<!doctype html>
