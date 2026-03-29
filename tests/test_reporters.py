@@ -13,6 +13,7 @@ from seo_auditor.reporters import (
     calcular_metricas,
     construir_modelo_semantico_informe,
     construir_cruces_gsc_analytics,
+    construir_filas_contenido_consolidado,
     construir_jerarquia_visible,
     construir_secciones_desde_ia,
     exportar_excel,
@@ -298,7 +299,70 @@ def test_reemplazar_emojis_problematicos_sustituye_glifos() -> None:
     salida = reemplazar_emojis_problematicos(texto)
 
     # Verifica etiquetas de reemplazo esperadas.
-    assert "[OK]" in salida and "[ALERTA]" in salida and "[ERROR]" in salida
+    assert "Correcto" in salida and "Alerta" in salida and "Error" in salida
+
+
+# Verifica eliminación de placeholders editoriales sin resolver.
+def test_sanitizar_texto_editorial_limpia_placeholders_mayusculas() -> None:
+    """Comprueba que los placeholders con corchetes se conviertan a texto legible."""
+
+    # Define texto con placeholder técnico sin resolver.
+    texto = "Prioridad [ALTO_IMPACTO] y foco en [OBJETIVO]."
+
+    # Ejecuta saneamiento editorial final.
+    salida = sanear_texto_para_pdf(texto)
+
+    # Verifica que no permanezcan corchetes ni tokens técnicos crudos.
+    assert "[ALTO_IMPACTO]" not in salida and "[OBJETIVO]" not in salida
+
+
+# Verifica consolidación por URL en hoja de contenido.
+def test_construir_filas_contenido_consolidado_no_duplica_urls() -> None:
+    """Comprueba que la vista de contenido tenga una fila única por URL."""
+
+    # Crea hallazgo de muestra para forzar varias filas técnicas.
+    hallazgo = HallazgoSeo(
+        tipo="contenido",
+        severidad="alta",
+        descripcion="Falta title.",
+        recomendacion="Definir title único.",
+        area="Contenido",
+        impacto="Alto",
+        esfuerzo="Bajo",
+        prioridad="P1",
+    )
+
+    # Construye URL con dos hallazgos para simular duplicado por incidencia.
+    resultado_url = ResultadoUrl(
+        url="https://ejemplo.com/a",
+        tipo="page",
+        estado_http=200,
+        redirecciona=False,
+        url_final="https://ejemplo.com/a",
+        title="",
+        h1="H1",
+        meta_description="Meta",
+        canonical="https://ejemplo.com/a",
+        noindex=False,
+        hallazgos=[hallazgo, hallazgo],
+    )
+
+    # Construye auditoría mínima de prueba.
+    auditoria = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=1,
+        resultados=[resultado_url],
+        cliente="Ejemplo",
+        fecha_ejecucion="2026-03-29",
+        gestor="Gestor",
+    )
+
+    # Calcula filas de contenido consolidadas.
+    filas_consolidadas = construir_filas_contenido_consolidado(auditoria)
+
+    # Verifica que exista una sola fila por URL.
+    assert len(filas_consolidadas) == 1
+    assert filas_consolidadas[0]["url"] == "https://ejemplo.com/a"
 
 
 # Verifica trazabilidad de score de páginas prioritarias por componentes.

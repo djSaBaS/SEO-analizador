@@ -162,16 +162,16 @@ ANALYTICS_CRUCES_LIMITE = 5
 
 # Define mapa de compatibilidad de emojis para salidas documentales.
 EMOJIS_COMPATIBLES_TEXTO = {
-    "✅": "[OK]",
-    "⚠️": "[ALERTA]",
-    "⚠": "[ALERTA]",
-    "❌": "[ERROR]",
-    "🚨": "[CRÍTICO]",
-    "📈": "[TENDENCIA_ALZA]",
-    "📉": "[TENDENCIA_BAJA]",
-    "🎯": "[OBJETIVO]",
-    "🔥": "[ALTO_IMPACTO]",
-    "💡": "[IDEA]",
+    "✅": "Correcto",
+    "⚠️": "Alerta",
+    "⚠": "Alerta",
+    "❌": "Error",
+    "🚨": "Crítico",
+    "📈": "Tendencia al alza",
+    "📉": "Tendencia a la baja",
+    "🎯": "Objetivo",
+    "🔥": "Alto impacto",
+    "💡": "Idea",
 }
 
 
@@ -636,6 +636,8 @@ def sanitizar_texto_editorial(texto: str) -> str:
     texto_limpio = re.sub(r"(\d)\s*%", r"\1%", texto_limpio)
     texto_limpio = re.sub(r"(\d)\s*s\b", r"\1 s", texto_limpio)
     texto_limpio = re.sub(r"(\d)\s*ms\b", r"\1 ms", texto_limpio)
+    # Sustituye placeholders en mayúsculas por texto editorial legible.
+    texto_limpio = re.sub(r"\[([A-ZÁÉÍÓÚÜÑ_]+)\]", lambda coincidencia: coincidencia.group(1).replace("_", " ").title(), texto_limpio)
 
     # Devuelve texto editorial consistente.
     return texto_limpio.strip()
@@ -809,6 +811,34 @@ def construir_filas(resultado: ResultadoAuditoria) -> list[dict]:
 
     # Devuelve las filas preparadas para cualquier exportador.
     return filas
+
+
+# Convierte resultados de PageSpeed a filas de seguimiento.
+def construir_filas_contenido_consolidado(resultado: ResultadoAuditoria) -> list[dict]:
+    """Devuelve filas de contenido sin duplicar URLs por incidencia."""
+
+    # Inicializa colección consolidada indexada por URL.
+    contenido_por_url: dict[str, dict[str, object]] = {}
+
+    # Recorre resultados técnicos por URL para crear base consolidada.
+    for item in resultado.resultados:
+        # Inserta registro único por URL con métricas on-page.
+        contenido_por_url[item.url] = {
+            "url": item.url,
+            "palabras": item.palabras,
+            "calidad_contenido": item.calidad_contenido,
+            "h1": item.h1,
+            "title": item.title,
+            "meta_description": item.meta_description,
+            "imagenes_sin_alt": item.imagenes_sin_alt,
+            "thin_content": "Sí" if item.thin_content else "No",
+            "densidad_texto": item.densidad_texto,
+            "ratio_texto_html": item.ratio_texto_html,
+            "incidencias_url": len(item.hallazgos),
+        }
+
+    # Devuelve colección consolidada ordenada por URL para estabilidad.
+    return [contenido_por_url[url] for url in sorted(contenido_por_url.keys())]
 
 
 # Convierte resultados de PageSpeed a filas de seguimiento.
@@ -2006,6 +2036,9 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     # Construye filas técnicas y de rendimiento.
     filas = construir_filas(resultado)
 
+    # Construye filas de contenido consolidadas por URL.
+    filas_contenido = construir_filas_contenido_consolidado(resultado)
+
     # Construye filas de rendimiento.
     filas_rendimiento = construir_filas_rendimiento(resultado)
 
@@ -2108,15 +2141,15 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     hoja_errores.freeze_panes = "A2"
 
     # Define columnas de hoja de contenido para seguimiento editorial.
-    columnas_contenido = ["url", "palabras", "calidad_contenido", "h1", "title", "meta_description", "imagenes_sin_alt", "thin_content", "densidad_texto", "ratio_texto_html"]
+    columnas_contenido = ["url", "palabras", "calidad_contenido", "h1", "title", "meta_description", "imagenes_sin_alt", "thin_content", "densidad_texto", "ratio_texto_html", "incidencias_url"]
 
     # Recorre encabezados de contenido.
     for columna, encabezado in enumerate(columnas_contenido, start=1):
         # Escribe encabezado en hoja de contenido.
         hoja_contenido.cell(row=1, column=columna, value=encabezado)
 
-    # Recorre filas técnicas para poblar hoja de contenido.
-    for fila_indice, fila in enumerate(filas, start=2):
+    # Recorre filas consolidadas para poblar hoja de contenido sin duplicados.
+    for fila_indice, fila in enumerate(filas_contenido, start=2):
         # Escribe columnas de contenido en cada fila.
         for columna, encabezado in enumerate(columnas_contenido, start=1):
             # Inserta valor correspondiente con fallback vacío.
@@ -2136,13 +2169,13 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
         hoja_contenido.column_dimensions[chr(64 + indice)].width = 24
 
     # Activa filtros en la hoja de contenido.
-    hoja_contenido.auto_filter.ref = f"A1:J{max(2, len(filas) + 1)}"
+    hoja_contenido.auto_filter.ref = f"A1:K{max(2, len(filas_contenido) + 1)}"
 
     # Congela paneles de contenido para navegación.
     hoja_contenido.freeze_panes = "A2"
 
     # Activa ajuste de texto y alineación superior en contenido.
-    for fila in hoja_contenido.iter_rows(min_row=2, max_row=max(2, len(filas) + 1), min_col=1, max_col=len(columnas_contenido)):
+    for fila in hoja_contenido.iter_rows(min_row=2, max_row=max(2, len(filas_contenido) + 1), min_col=1, max_col=len(columnas_contenido)):
         # Recorre celdas de la fila actual.
         for celda in fila:
             # Aplica alineación legible y multilinea.
@@ -2381,12 +2414,21 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     # Obtiene media desktop segura.
     score_medio_desktop = round(sum(scores_desktop) / len(scores_desktop), 1) if scores_desktop else 0.0
 
+    # Resuelve periodo analizado para metadatos visibles en Excel.
+    periodo_desde = resultado.periodo_date_from or resultado.search_console.date_from or resultado.analytics.date_from
+
+    # Resuelve fecha final del periodo para metadatos visibles en Excel.
+    periodo_hasta = resultado.periodo_date_to or resultado.search_console.date_to or resultado.analytics.date_to
+
+    # Construye etiqueta editorial del periodo en formato único.
+    periodo_texto = f"{periodo_desde} - {periodo_hasta}" if periodo_desde and periodo_hasta else "No disponible"
+
     # Define KPIs del dashboard.
     hoja_dashboard["A1"] = "Dashboard SEO Ejecutivo"
 
     # Aplica estilo de título.
     hoja_dashboard["A1"].font = Font(size=20, bold=True, color=COLOR_DASHBOARD_TITULO)
-    hoja_dashboard["A2"] = f"Cliente: {resultado.cliente} | Fecha: {resultado.fecha_ejecucion}"
+    hoja_dashboard["A2"] = f"Cliente: {resultado.cliente} | Fecha: {resultado.fecha_ejecucion} | Periodo: {periodo_texto}"
     hoja_dashboard["A2"].font = Font(size=11, color="4B5563")
 
     # Calcula total de oportunidades de rendimiento.
@@ -2489,7 +2531,7 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     # Renderiza cabecera de la hoja KPI ejecutiva.
     hoja_kpis["A1"] = "KPIs SEO ejecutivos"
     hoja_kpis["A1"].font = Font(size=18, bold=True, color=COLOR_DASHBOARD_TITULO)
-    hoja_kpis["A2"] = f"Cliente: {resultado.cliente} | Fecha: {resultado.fecha_ejecucion}"
+    hoja_kpis["A2"] = f"Cliente: {resultado.cliente} | Fecha: {resultado.fecha_ejecucion} | Periodo: {periodo_texto}"
     hoja_kpis["A2"].font = Font(size=11, color="4B5563")
     hoja_kpis["A4"] = "KPI"
     hoja_kpis["B4"] = "Valor"
@@ -2953,6 +2995,12 @@ def construir_modelo_semantico_informe(resultado: ResultadoAuditoria) -> dict[st
     # Calcula métricas globales reutilizables.
     metricas = calcular_metricas(resultado)
 
+    # Resuelve fecha inicial efectiva del periodo analizado.
+    periodo_desde = resultado.periodo_date_from or resultado.search_console.date_from or resultado.analytics.date_from
+
+    # Resuelve fecha final efectiva del periodo analizado.
+    periodo_hasta = resultado.periodo_date_to or resultado.search_console.date_to or resultado.analytics.date_to
+
     # Construye narrativa base consolidada.
     bloques_narrativos = _construir_bloques_narrativos(resultado)
 
@@ -2984,8 +3032,10 @@ def construir_modelo_semantico_informe(resultado: ResultadoAuditoria) -> dict[st
             parrafos=[
                 "INFORME DE AUDITORÍA SEO",
                 f"Cliente: {resultado.cliente}",
+                f"Gestor: {resultado.gestor}",
                 f"Sitemap: {resultado.sitemap}",
                 f"Fecha: {resultado.fecha_ejecucion}",
+                f"Periodo analizado: {periodo_desde} - {periodo_hasta}" if periodo_desde and periodo_hasta else "Periodo analizado: No disponible",
             ],
         )
     )
@@ -3186,7 +3236,18 @@ def construir_modelo_semantico_informe(resultado: ResultadoAuditoria) -> dict[st
     )
 
     # Devuelve modelo semántico único para todos los renderizadores.
-    return {"meta": {"cliente": resultado.cliente, "fecha": resultado.fecha_ejecucion}, "secciones": secciones}
+    return {
+        "meta": {
+            "cliente": resultado.cliente,
+            "gestor": resultado.gestor,
+            "fecha": resultado.fecha_ejecucion,
+            "sitemap": resultado.sitemap,
+            "periodo_desde": periodo_desde,
+            "periodo_hasta": periodo_hasta,
+            "periodo_texto": f"{periodo_desde} - {periodo_hasta}" if periodo_desde and periodo_hasta else "No disponible",
+        },
+        "secciones": secciones,
+    }
 
 
 # Inserta una tabla semántica en Word de forma homogénea.
@@ -3228,14 +3289,55 @@ def _renderizar_tabla_pdf(tabla_semantica: dict[str, Any], estilos: dict[str, An
     if not datos:
         datos = [["Dato"], ["No disponible"]]
 
-    # Sanea cada celda para evitar markup inválido.
-    datos_limpios = [[sanear_texto_para_pdf(str(valor)) for valor in fila] for fila in datos]
+    # Inicializa colección de celdas con párrafos para habilitar wrapping real.
+    datos_limpios: list[list[Paragraph]] = []
 
-    # Crea tabla con repetición de encabezado.
-    tabla = Table(datos_limpios, repeatRows=1)
+    # Recorre filas de datos para envolver celdas en párrafos.
+    for fila in datos:
+        # Inicializa fila ya saneada y envuelta.
+        fila_limpia: list[Paragraph] = []
+
+        # Recorre cada valor de la fila actual.
+        for valor in fila:
+            # Sanea texto para parser interno de reportlab.
+            texto_saneado = sanear_texto_para_pdf(str(valor))
+
+            # Envuelve celda en párrafo para permitir salto de línea automático.
+            fila_limpia.append(Paragraph(texto_saneado, estilos["BodyText"]))
+
+        # Añade fila transformada a la matriz final.
+        datos_limpios.append(fila_limpia)
+
+    # Calcula número de columnas para reparto de ancho.
+    total_columnas = max(1, len(datos_limpios[0]))
+
+    # Define ancho útil aproximado en puntos para A4 con márgenes laterales estándar.
+    ancho_util = A4[0] - 72
+
+    # Calcula ancho base por columna para evitar desbordes horizontales.
+    ancho_columna = max(70, float(ancho_util / total_columnas))
+
+    # Construye vector de anchos homogéneos por columna.
+    anchos_columnas = [ancho_columna for _ in range(total_columnas)]
+
+    # Crea tabla con repetición de encabezado y anchos controlados.
+    tabla = Table(datos_limpios, repeatRows=1, colWidths=anchos_columnas)
 
     # Aplica estilo corporativo unificado.
-    tabla.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1F4E78")), ("TEXTCOLOR", (0, 0), (-1, 0), colors.white), ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#D9D9D9"))]))
+    tabla.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1F4E78")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#D9D9D9")),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ]
+        )
+    )
 
     # Devuelve tabla maquetada.
     return tabla
@@ -3252,6 +3354,9 @@ def exportar_word(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
 
     # Crea documento vacío.
     documento = Document()
+
+    # Construye modelo semántico único para reutilizar metadatos editoriales.
+    modelo = construir_modelo_semantico_informe(resultado)
 
     # Configura estilo base de documento.
     documento.styles["Normal"].font.name = "Calibri"
@@ -3274,17 +3379,20 @@ def exportar_word(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     # Añade metadatos de portada.
     documento.add_paragraph(f"Cliente: {resultado.cliente}")
 
+    # Añade metadatos de gestor.
+    documento.add_paragraph(f"Gestor: {resultado.gestor}")
+
     # Añade metadatos de sitemap.
     documento.add_paragraph(f"Sitemap: {resultado.sitemap}")
 
     # Añade metadatos de fecha.
     documento.add_paragraph(f"Fecha: {resultado.fecha_ejecucion}")
 
+    # Añade metadatos de periodo para visibilidad editorial clara.
+    documento.add_paragraph(f"Periodo analizado: {modelo['meta'].get('periodo_texto', 'No disponible')}")
+
     # Inserta salto de página tras portada.
     documento.add_page_break()
-
-    # Construye modelo semántico único para render documental.
-    modelo = construir_modelo_semantico_informe(resultado)
 
     # Recorre secciones semánticas excluyendo portada ya pintada.
     for seccion in modelo["secciones"]:
@@ -3330,6 +3438,9 @@ def exportar_pdf(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     # Inicializa lista de elementos del PDF.
     elementos = []
 
+    # Construye modelo semántico único para render documental.
+    modelo = construir_modelo_semantico_informe(resultado)
+
     # Obtiene estilos de referencia.
     estilos = getSampleStyleSheet()
 
@@ -3345,11 +3456,11 @@ def exportar_pdf(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     # Inserta datos generales de portada.
     elementos.append(Spacer(1, 16))
     elementos.append(Paragraph(f"Cliente: {sanear_texto_para_pdf(resultado.cliente)}", estilos["Normal"]))
+    elementos.append(Paragraph(f"Gestor: {sanear_texto_para_pdf(resultado.gestor)}", estilos["Normal"]))
     elementos.append(Paragraph(f"Sitemap: {sanear_texto_para_pdf(resultado.sitemap)}", estilos["Normal"]))
+    elementos.append(Paragraph(f"Fecha de ejecución: {sanear_texto_para_pdf(resultado.fecha_ejecucion)}", estilos["Normal"]))
+    elementos.append(Paragraph(f"Periodo analizado: {sanear_texto_para_pdf(str(modelo['meta'].get('periodo_texto', 'No disponible')))}", estilos["Normal"]))
     elementos.append(PageBreak())
-
-    # Construye modelo semántico único para render documental.
-    modelo = construir_modelo_semantico_informe(resultado)
 
     # Recorre secciones semánticas excluyendo portada ya renderizada.
     for seccion in modelo["secciones"]:
@@ -3395,8 +3506,25 @@ def exportar_markdown_ia(resultado: ResultadoAuditoria, path_salida: Path) -> Pa
     # Define la ruta del archivo Markdown.
     destino = path_salida / f"{construir_prefijo_archivo(resultado)}_ia.md"
 
-    # Construye encabezado contextual de informe.
-    contenido = f"# Informe SEO IA\n\n- Cliente: {resultado.cliente}\n- Gestor: {resultado.gestor}\n- Fecha de ejecución: {resultado.fecha_ejecucion}\n- Sitemap: {resultado.sitemap}\n\n{resultado.resumen_ia}\n"
+    # Resuelve fecha inicial efectiva del periodo para contexto editorial.
+    periodo_desde = resultado.periodo_date_from or resultado.search_console.date_from or resultado.analytics.date_from
+
+    # Resuelve fecha final efectiva del periodo para contexto editorial.
+    periodo_hasta = resultado.periodo_date_to or resultado.search_console.date_to or resultado.analytics.date_to
+
+    # Construye etiqueta unificada de periodo.
+    periodo_texto = f"{periodo_desde} - {periodo_hasta}" if periodo_desde and periodo_hasta else "No disponible"
+
+    # Construye encabezado contextual de informe auxiliar IA.
+    contenido = (
+        "# Informe SEO IA (auxiliar interno)\n\n"
+        f"- Cliente: {resultado.cliente}\n"
+        f"- Gestor: {resultado.gestor}\n"
+        f"- Fecha de ejecución: {resultado.fecha_ejecucion}\n"
+        f"- Periodo analizado: {periodo_texto}\n"
+        f"- Sitemap: {resultado.sitemap}\n\n"
+        f"{resultado.resumen_ia}\n"
+    )
 
     # Escribe el contenido del informe IA en UTF-8.
     destino.write_text(contenido, encoding="utf-8")
@@ -3420,6 +3548,9 @@ def exportar_html(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
 
     # Construye modelo semántico único para render web.
     modelo = construir_modelo_semantico_informe(resultado)
+
+    # Extrae metadatos editoriales para cabecera premium.
+    meta_modelo = modelo.get("meta", {}) if isinstance(modelo.get("meta", {}), dict) else {}
 
     # Obtiene filas de incidencias para el detalle técnico final.
     filas_ordenadas = sorted(construir_filas(resultado), key=lambda fila: (_peso_severidad(str(fila.get("severidad", "informativa"))), str(fila.get("url", ""))))
@@ -3460,24 +3591,37 @@ def exportar_html(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
   <meta charset="utf-8">
   <title>Informe SEO - {resultado.cliente}</title>
   <style>
-    body {{ font-family: Arial, sans-serif; margin: 24px; color: #1f2937; }}
-    h1, h2 {{ color: #1F4E78; }}
-    .kpis {{ display: grid; grid-template-columns: repeat(4, minmax(160px, 1fr)); gap: 12px; }}
-    .kpi {{ background: #eef4fb; padding: 10px; border-radius: 8px; border-left: 4px solid #1F4E78; }}
-    .bloque {{ margin-top: 18px; padding: 14px; border: 1px solid #e5e7eb; border-radius: 10px; }}
+    body {{ font-family: Inter, Segoe UI, Arial, sans-serif; margin: 0; color: #1f2937; background: #f4f7fb; }}
+    .contenedor {{ max-width: 1280px; margin: 0 auto; padding: 24px; }}
+    .cabecera {{ background: linear-gradient(135deg, #1F4E78 0%, #0f2f4f 100%); color: #fff; border-radius: 14px; padding: 24px; box-shadow: 0 8px 20px rgba(15, 47, 79, 0.2); }}
+    .cabecera h1 {{ margin: 0 0 10px 0; color: #fff; }}
+    .metadatos {{ display: grid; grid-template-columns: repeat(2, minmax(220px, 1fr)); gap: 8px 16px; font-size: 14px; }}
+    h2 {{ color: #1F4E78; margin-top: 24px; }}
+    .kpis {{ display: grid; grid-template-columns: repeat(5, minmax(180px, 1fr)); gap: 12px; }}
+    .kpi {{ background: #ffffff; padding: 12px; border-radius: 10px; border: 1px solid #dbe5f0; box-shadow: 0 3px 10px rgba(17, 24, 39, 0.06); }}
+    .bloque {{ margin-top: 18px; padding: 16px; border: 1px solid #dce6f2; border-radius: 12px; background: #fff; box-shadow: 0 2px 8px rgba(17, 24, 39, 0.04); }}
     .tarjetas {{ display: grid; grid-template-columns: repeat(2, minmax(260px, 1fr)); gap: 12px; }}
-    .tarjeta {{ background: #f8fafc; border: 1px solid #dbeafe; border-radius: 8px; padding: 12px; }}
+    .tarjeta {{ background: #f8fbff; border: 1px solid #d7e4f4; border-radius: 10px; padding: 12px; }}
     .tarjeta h3 {{ margin: 0 0 8px 0; color: #1F4E78; font-size: 14px; }}
     .tarjeta ul {{ margin: 4px 0 8px 18px; padding: 0; }}
-    table {{ border-collapse: collapse; width: 100%; margin-top: 12px; }}
-    th, td {{ border: 1px solid #d1d5db; padding: 8px; font-size: 12px; text-align: left; }}
+    table {{ border-collapse: collapse; width: 100%; margin-top: 12px; table-layout: fixed; }}
+    th, td {{ border: 1px solid #d1d5db; padding: 8px; font-size: 12px; text-align: left; vertical-align: top; word-break: break-word; }}
     th {{ background: #1F4E78; color: white; }}
   </style>
 </head>
 <body>
-  <h1>Informe de Auditoría SEO</h1>
-  <p><b>Cliente:</b> {resultado.cliente} | <b>Fecha:</b> {resultado.fecha_ejecucion} | <b>Gestor:</b> {resultado.gestor}</p>
-  <h2>KPIs</h2>
+  <div class="contenedor">
+  <section class="cabecera">
+    <h1>Informe de Auditoría SEO</h1>
+    <div class="metadatos">
+      <div><b>Cliente:</b> {escape(str(meta_modelo.get("cliente", resultado.cliente)))}</div>
+      <div><b>Gestor:</b> {escape(str(meta_modelo.get("gestor", resultado.gestor)))}</div>
+      <div><b>Fecha de ejecución:</b> {escape(str(meta_modelo.get("fecha", resultado.fecha_ejecucion)))}</div>
+      <div><b>Periodo analizado:</b> {escape(str(meta_modelo.get("periodo_texto", "No disponible")))}</div>
+      <div><b>Sitemap:</b> {escape(str(meta_modelo.get("sitemap", resultado.sitemap)))}</div>
+    </div>
+  </section>
+  <h2>KPIs ejecutivos</h2>
   <div class="kpis">
     <div class="kpi"><b>Total URLs</b><br>{metricas["total_urls"]}</div>
     <div class="kpi"><b>Total incidencias</b><br>{metricas["total_incidencias"]}</div>
@@ -3492,16 +3636,17 @@ def exportar_html(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     <tbody>
       {''.join(
         f"<tr style='background:{_color_pastel_severidad(str(fila.get('severidad','informativa')))}'>"
-        f"<td>{fila.get('url','')}</td>"
-        f"<td>{fila.get('severidad','')}</td>"
-        f"<td>{fila.get('area','')}</td>"
-        f"<td>{fila.get('problema','')}</td>"
-        f"<td>{fila.get('recomendacion','')}</td>"
+        f"<td>{escape(sanitizar_texto_editorial(str(fila.get('url',''))))}</td>"
+        f"<td>{escape(sanitizar_texto_editorial(str(fila.get('severidad',''))))}</td>"
+        f"<td>{escape(sanitizar_texto_editorial(str(fila.get('area',''))))}</td>"
+        f"<td>{escape(sanitizar_texto_editorial(str(fila.get('problema',''))))}</td>"
+        f"<td>{escape(sanitizar_texto_editorial(str(fila.get('recomendacion',''))))}</td>"
         f"</tr>"
         for fila in filas_ordenadas[:120]
       )}
     </tbody>
   </table>
+  </div>
 </body>
 </html>"""
 
