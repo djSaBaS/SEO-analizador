@@ -12,6 +12,7 @@ from seo_auditor.reporters import (
     _resolver_subtablas_pdf,
     _construir_bloques_narrativos,
     _construir_quick_wins,
+    PDF_HORIZONTAL_MARGIN_POINTS,
     calcular_score_prioridad_pagina,
     calcular_metricas,
     construir_modelo_semantico_informe,
@@ -829,7 +830,7 @@ def test_calcular_col_widths_pdf_respeta_ancho_util_a4() -> None:
     """Comprueba que la suma de anchos coincida con A4 menos márgenes."""
 
     # Define ancho útil estándar de exportación PDF.
-    ancho_util = float(A4[0] - 72.0)
+    ancho_util = float(A4[0] - PDF_HORIZONTAL_MARGIN_POINTS)
 
     # Construye tabla con columna narrativa extensa.
     columnas = ["URL", "Score", "Motivos", "Recomendación"]

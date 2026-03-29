@@ -122,6 +122,9 @@ COLOR_BLOQUE_INCIDENCIAS = "B91C1C"
 COLOR_BLOQUE_OPORTUNIDADES = "7C3AED"
 COLOR_BLOQUE_SCORE = "0B7285"
 
+# Define total de márgenes horizontales del PDF en puntos (36+36).
+PDF_HORIZONTAL_MARGIN_POINTS = 72.0
+
 # Define umbrales de cruce GSC+Analytics para insights accionables.
 CRUCE_GA_MIN_SESIONES_REBOTE = 80.0
 CRUCE_GA_MIN_REBOTE_ALTO = 0.65
@@ -3312,7 +3315,7 @@ def _renderizar_tabla_pdf(tabla_semantica: dict[str, Any], estilos: dict[str, An
     """Renderiza tabla semántica para ReportLab usando estilo corporativo."""
 
     # Define ancho útil A4 descontando márgenes horizontales.
-    ancho_util = float(A4[0] - 72.0)
+    ancho_util = float(A4[0] - PDF_HORIZONTAL_MARGIN_POINTS)
 
     # Define estilo de celdas para wrapping real en contenido.
     estilo_celda = ParagraphStyle(name="TablaCelda", parent=estilos["BodyText"], fontSize=8.5, leading=11)
