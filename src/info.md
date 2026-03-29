@@ -4,7 +4,7 @@ Código fuente principal del proyecto.
 
 ## Estructura clave
 - `main.py`: punto de entrada del CLI.
-- `seo_auditor/cli.py`: orquestación principal, parseo de argumentos, modos de prueba y modo dedicado `informe-ga4`.
+- `seo_auditor/cli.py`: orquestación principal, parseo de argumentos, perfiles de generación compuesta (`--generar-todo` / `--modo entrega-completa`), modos de prueba y modo dedicado `informe-ga4`.
 - `seo_auditor/config.py`: carga/validación de configuración desde variables de entorno.
 - `seo_auditor/models.py`: modelos de datos tipados para resultados técnicos, rendimiento, GSC y GA4.
 

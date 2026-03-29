@@ -68,6 +68,7 @@ def test_main_modo_informe_ga4_ejecuta_exportador(monkeypatch, tmp_path) -> None
         provincia="Madrid",
         date_from="2026-03-01",
         date_to="2026-03-20",
+        generar_todo=False,
     )
 
     # Define parser falso para inyectar argumentos controlados.

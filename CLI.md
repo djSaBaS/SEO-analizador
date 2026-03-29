@@ -42,6 +42,17 @@ python src/main.py --sitemap https://www.ejemplo.com/sitemap.xml --output ./sali
 Qué hace:
 - Limita el volumen de URLs auditadas para acelerar ejecución.
 
+### 1.5 Entrega completa en una sola ejecución
+```bash
+python src/main.py --sitemap https://www.ejemplo.com/sitemap.xml --output ./salidas --generar-todo
+python src/main.py --sitemap https://www.ejemplo.com/sitemap.xml --output ./salidas --modo entrega-completa
+```
+Qué hace:
+- Ejecuta la auditoría SEO base una sola vez.
+- Reutiliza el resultado consolidado para JSON, Excel, Word, PDF, HTML y Markdown IA.
+- Intenta añadir GA4 premium como bloque opcional (si GA4 está habilitado).
+- Si un exportador falla de forma aislada, el resto continúa y se informa en el resumen final.
+
 ---
 
 ## 2) IA (Gemini)

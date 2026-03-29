@@ -41,6 +41,10 @@ def test_main_persiste_rendimiento_y_fuente_pagespeed(monkeypatch, tmp_path) -> 
         noGSC=False,
         date_from="",
         date_to="",
+        generar_todo=False,
+        comparar="periodo-anterior",
+        provincia="",
+        cliente="",
     )
 
     # Define parser simulado para evitar CLI real.
@@ -194,6 +198,10 @@ def test_main_no_marca_pagespeed_como_activa_si_falla(monkeypatch, tmp_path) -> 
         noGSC=False,
         date_from="",
         date_to="",
+        generar_todo=False,
+        comparar="periodo-anterior",
+        provincia="",
+        cliente="",
     )
 
     # Define parser simulado para evitar CLI real.
@@ -348,6 +356,10 @@ def test_main_omite_gsc_si_se_usa_bandera_no_gsc(monkeypatch, tmp_path) -> None:
         noGSC=True,
         date_from="",
         date_to="",
+        generar_todo=False,
+        comparar="periodo-anterior",
+        provincia="",
+        cliente="",
     )
 
     # Define parser simulado para evitar CLI real.

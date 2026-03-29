@@ -12,6 +12,7 @@ Validar estabilidad funcional del CLI, integraciones y exportadores sin romper c
 - Caché local e invalidación (`test_cache.py`).
 - Integraciones opcionales de GSC y GA4 (`test_gsc.py`, `test_ga4.py`).
 - Modo dedicado GA4 premium y conectividad CLI (`test_ga4_premium.py`, `test_cli_ga4_premium_mode.py`, `test_cli_connectivity_modes.py`).
+- Perfiles de generación compuesta y degradación elegante de exportadores (`test_cli_generation_profiles.py`).
 - Generación y consistencia de narrativa IA (`test_gemini_client.py`).
 - Exportadores y jerarquía documental (`test_reporters.py`, `test_html_export.py`), incluyendo validaciones de capa semántica común, compatibilidad de emojis y explicabilidad de priorización.
 - Reglas de indexación y rastreo (`test_indexacion.py`).
