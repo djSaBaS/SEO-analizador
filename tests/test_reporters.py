@@ -3,6 +3,7 @@ from pathlib import Path
 
 # Importa modelos del dominio para fabricar una auditoría mínima de prueba.
 from seo_auditor.models import DatosAnalytics, DatosSearchConsole, DecisionIndexacion, HallazgoSeo, MetricaAnalyticsPagina, MetricaGscPagina, OportunidadRendimiento, ResultadoAuditoria, ResultadoRendimiento, ResultadoUrl
+import seo_auditor.reporters as reporters_mod
 
 # Importa funciones de reporters bajo prueba.
 from seo_auditor.reporters import (
@@ -22,6 +23,8 @@ from seo_auditor.reporters import (
     construir_jerarquia_visible,
     construir_secciones_desde_ia,
     exportar_excel,
+    exportar_html,
+    exportar_pdf,
     exportar_word,
     reemplazar_emojis_problematicos,
     sanitizar_texto_final_exportable,
@@ -383,6 +386,80 @@ def test_exportar_word_no_exporta_tokens_placeholder_residuales(tmp_path: Path) 
     assert re.search(r"\[[A-Z_]+\]", contenido) is None
 
 
+# Verifica que Word pinte periodo y metadatos con fallback cuando no hay fechas.
+def test_exportar_word_incluye_periodo_en_portada_con_fallback(tmp_path: Path) -> None:
+    """Comprueba presencia de periodo y fallback de fechas en portada DOCX."""
+
+    # Construye auditoría sin rango de fechas para forzar fallback.
+    auditoria = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=1,
+        resultados=[],
+        cliente="Cliente Word",
+        fecha_ejecucion="2026-03-29",
+        gestor="Gestor Word",
+    )
+
+    # Exporta documento y recupera texto renderizado.
+    ruta_docx = exportar_word(auditoria, tmp_path)
+    texto = "\n".join(parrafo.text for parrafo in Document(ruta_docx).paragraphs)
+
+    # Verifica bloque de periodo visible y fallback esperado.
+    assert "Periodo analizado: No disponible" in texto
+    assert "INFORME DE AUDITORÍA SEO" in texto
+
+
+# Verifica que PDF renderice metadatos completos y periodo con fallback.
+def test_exportar_pdf_incluye_bloque_meta_y_periodo_fallback(tmp_path: Path, monkeypatch) -> None:
+    """Comprueba que la portada PDF incluya metadatos y periodo visible."""
+
+    # Inicializa contenedor para capturar elementos enviados al builder.
+    capturas: dict[str, object] = {}
+
+    # Define plantilla fake para interceptar `build` sin parsear PDF binario.
+    class PlantillaPdfFake:
+        """Implementa interfaz mínima compatible con SimpleDocTemplate."""
+
+        # Inicializa el destino en memoria.
+        def __init__(self, *args, **kwargs) -> None:
+            # Persiste argumentos para depuración.
+            capturas["args"] = args
+            capturas["kwargs"] = kwargs
+
+        # Captura lista de elementos al construir el PDF.
+        def build(self, elementos) -> None:
+            # Guarda elementos generados por el exportador.
+            capturas["elementos"] = elementos
+
+    # Sustituye plantilla real por implementación fake.
+    monkeypatch.setattr(reporters_mod, "SimpleDocTemplate", PlantillaPdfFake)
+
+    # Construye auditoría sin fechas de periodo para forzar fallback.
+    auditoria = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=1,
+        resultados=[],
+        cliente="Cliente PDF",
+        fecha_ejecucion="2026-03-29",
+        gestor="Gestor PDF",
+    )
+
+    # Ejecuta exportación PDF con la plantilla interceptada.
+    exportar_pdf(auditoria, tmp_path)
+
+    # Concatena textos planos de párrafos capturados.
+    textos = " ".join(getattr(item, "text", "") for item in capturas.get("elementos", []))
+
+    # Verifica presencia del periodo fallback en portada.
+    assert "Periodo analizado: No disponible" in textos
+
+    # Localiza tabla de metadatos añadida en portada.
+    tabla_portada = next((item for item in capturas.get("elementos", []) if isinstance(item, Table)), None)
+
+    # Valida existencia de tabla meta renderizada.
+    assert tabla_portada is not None
+
+
 # Verifica que la tabla Word aplique sanitización final en cabeceras y celdas.
 def test_renderizar_tabla_word_aplica_sanitizacion_final_doc() -> None:
     """Comprueba que tablas DOCX no conserven placeholders ni emojis crudos."""
@@ -514,6 +591,58 @@ def test_construir_modelo_semantico_informe_incluye_tablas_clave() -> None:
     # Verifica secciones estructurales mínimas.
     assert "KPIs principales" in titulos
     assert "Anexo técnico" in titulos
+
+
+# Verifica bloque meta completo para exportadores documentales.
+def test_construir_modelo_semantico_informe_incluye_meta_completo() -> None:
+    """Comprueba que el modelo semántico publique metadatos completos."""
+
+    # Crea auditoría con periodo explícito.
+    auditoria = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=1,
+        resultados=[],
+        cliente="Cliente Demo",
+        fecha_ejecucion="2026-03-20",
+        gestor="Gestor Demo",
+        periodo_date_from="2026-02-01",
+        periodo_date_to="2026-02-29",
+    )
+
+    # Genera modelo semántico bajo prueba.
+    modelo = construir_modelo_semantico_informe(auditoria)
+    meta = modelo["meta"]
+
+    # Valida claves obligatorias del contrato meta.
+    assert meta["cliente"] == "Cliente Demo"
+    assert meta["gestor"] == "Gestor Demo"
+    assert meta["fecha_ejecucion"] == "2026-03-20"
+    assert meta["periodo_desde"] == "2026-02-01"
+    assert meta["periodo_hasta"] == "2026-02-29"
+    assert meta["sitemap"] == "https://ejemplo.com/sitemap.xml"
+
+
+# Verifica fallback de periodo cuando no hay fechas en fuentes ni periodo persistido.
+def test_construir_modelo_semantico_informe_periodo_fallback_sin_fechas() -> None:
+    """Comprueba que el periodo se marque como no disponible sin fechas origen."""
+
+    # Construye auditoría mínima sin periodo explícito.
+    auditoria = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=1,
+        resultados=[],
+        cliente="Cliente Demo",
+        fecha_ejecucion="2026-03-20",
+        gestor="Gestor Demo",
+    )
+
+    # Genera modelo semántico y obtiene bloque meta.
+    modelo = construir_modelo_semantico_informe(auditoria)
+
+    # Valida fallback de periodo textual y extremos vacíos.
+    assert modelo["meta"]["periodo_desde"] == ""
+    assert modelo["meta"]["periodo_hasta"] == ""
+    assert modelo["meta"]["periodo_texto"] == "No disponible"
 
 
 # Verifica que rendimiento conserve tabla detallada y oportunidades.
@@ -677,6 +806,56 @@ def test_exportar_excel_score_medio_desde_ejecuciones_unicas(tmp_path: Path) -> 
 
     # Verifica score rendimiento basado en ejecuciones únicas: (50 + 100) / 2 = 75.
     assert hoja_kpis[f"B{fila_score_rend}"].value == 75.0
+
+
+# Verifica que Excel muestre periodo en KPIs y Dashboard.
+def test_exportar_excel_incluye_periodo_en_kpis_y_dashboard(tmp_path: Path) -> None:
+    """Comprueba visibilidad del periodo en cabeceras ejecutivas de Excel."""
+
+    # Construye auditoría con periodo explícito.
+    auditoria = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=1,
+        resultados=[],
+        cliente="Cliente Excel",
+        fecha_ejecucion="2026-03-29",
+        gestor="Gestor Excel",
+        periodo_date_from="2026-03-01",
+        periodo_date_to="2026-03-28",
+    )
+
+    # Exporta archivo Excel y abre hojas objetivo.
+    ruta_excel = exportar_excel(auditoria, tmp_path)
+    libro = load_workbook(ruta_excel)
+    hoja_kpis = libro["KPIs"]
+    hoja_dashboard = libro["Dashboard"]
+
+    # Valida presencia del periodo en KPI superior y subcabecera dashboard.
+    assert "Periodo: 2026-03-01 - 2026-03-28" in str(hoja_kpis["A2"].value or "")
+    assert "Periodo: 2026-03-01 - 2026-03-28" in str(hoja_dashboard["A2"].value or "")
+
+
+# Verifica fallback de periodo en cabeceras de Excel sin fechas disponibles.
+def test_exportar_excel_periodo_fallback_sin_fechas(tmp_path: Path) -> None:
+    """Comprueba que Excel use 'No disponible' cuando no hay periodo."""
+
+    # Construye auditoría sin fechas de periodo.
+    auditoria = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=1,
+        resultados=[],
+        cliente="Cliente Excel",
+        fecha_ejecucion="2026-03-29",
+        gestor="Gestor Excel",
+    )
+
+    # Exporta y carga libro para validación.
+    ruta_excel = exportar_excel(auditoria, tmp_path)
+    libro = load_workbook(ruta_excel)
+
+    # Verifica fallback uniforme en KPIs y Dashboard.
+    assert "Periodo: No disponible" in str(libro["KPIs"]["A2"].value or "")
+    assert "Periodo: No disponible" in str(libro["Dashboard"]["A2"].value or "")
 
 
 # Verifica que el dashboard conserve los gráficos esperados.

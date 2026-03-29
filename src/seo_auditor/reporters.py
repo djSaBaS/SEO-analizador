@@ -3380,16 +3380,20 @@ def construir_modelo_semantico_informe(resultado: ResultadoAuditoria) -> dict[st
         )
     )
 
+    # Construye etiqueta de periodo para reutilización consistente.
+    periodo_texto = f"{periodo_desde} - {periodo_hasta}" if periodo_desde and periodo_hasta else "No disponible"
+
     # Devuelve modelo semántico único para todos los renderizadores.
     return {
         "meta": {
             "cliente": resultado.cliente,
             "gestor": resultado.gestor,
+            "fecha_ejecucion": resultado.fecha_ejecucion,
             "fecha": resultado.fecha_ejecucion,
             "sitemap": resultado.sitemap,
             "periodo_desde": periodo_desde,
             "periodo_hasta": periodo_hasta,
-            "periodo_texto": f"{periodo_desde} - {periodo_hasta}" if periodo_desde and periodo_hasta else "No disponible",
+            "periodo_texto": periodo_texto,
         },
         "secciones": secciones,
     }
@@ -3563,20 +3567,26 @@ def exportar_word(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     # Aplica tamaño destacado a portada.
     titulo.runs[0].font.size = Pt(26)
 
-    # Añade metadatos de portada.
-    documento.add_paragraph(f"Cliente: {sanitizar_texto_final_exportable(resultado.cliente, formato='doc')}")
+    # Extrae metadatos semánticos para portada consistente.
+    meta_modelo = modelo.get("meta", {}) if isinstance(modelo.get("meta", {}), dict) else {}
 
-    # Añade metadatos de gestor.
-    documento.add_paragraph(f"Gestor: {sanitizar_texto_final_exportable(resultado.gestor, formato='doc')}")
+    # Renderiza metadatos en tabla fija para conservar jerarquía visual.
+    tabla_meta = documento.add_table(rows=6, cols=2)
+    tabla_meta.style = "Table Grid"
+    filas_meta = [
+        ("Cliente", str(meta_modelo.get("cliente", resultado.cliente))),
+        ("Gestor", str(meta_modelo.get("gestor", resultado.gestor))),
+        ("Fecha de ejecución", str(meta_modelo.get("fecha_ejecucion", resultado.fecha_ejecucion))),
+        ("Periodo desde", str(meta_modelo.get("periodo_desde") or "No disponible")),
+        ("Periodo hasta", str(meta_modelo.get("periodo_hasta") or "No disponible")),
+        ("Sitemap", str(meta_modelo.get("sitemap", resultado.sitemap))),
+    ]
+    for indice, (etiqueta, valor) in enumerate(filas_meta):
+        tabla_meta.cell(indice, 0).text = sanitizar_texto_final_exportable(etiqueta, formato="doc")
+        tabla_meta.cell(indice, 1).text = sanitizar_texto_final_exportable(valor, formato="doc")
 
-    # Añade metadatos de sitemap.
-    documento.add_paragraph(f"Sitemap: {sanitizar_texto_final_exportable(resultado.sitemap, formato='doc')}")
-
-    # Añade metadatos de fecha.
-    documento.add_paragraph(f"Fecha: {sanitizar_texto_final_exportable(resultado.fecha_ejecucion, formato='doc')}")
-
-    # Añade metadatos de periodo para visibilidad editorial clara.
-    documento.add_paragraph(f"Periodo analizado: {sanitizar_texto_final_exportable(str(modelo['meta'].get('periodo_texto', 'No disponible')), formato='doc')}")
+    # Añade línea editorial con el periodo consolidado para visibilidad ejecutiva.
+    documento.add_paragraph(f"Periodo analizado: {sanitizar_texto_final_exportable(str(meta_modelo.get('periodo_texto', 'No disponible')), formato='doc')}")
 
     # Inserta salto de página tras portada.
     documento.add_page_break()
@@ -3640,13 +3650,44 @@ def exportar_pdf(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     # Inserta título de portada.
     elementos.append(Paragraph("INFORME DE AUDITORÍA SEO", estilo_portada))
 
+    # Extrae metadatos semánticos para portada consistente.
+    meta_modelo = modelo.get("meta", {}) if isinstance(modelo.get("meta", {}), dict) else {}
+
     # Inserta datos generales de portada.
     elementos.append(Spacer(1, 16))
-    elementos.append(Paragraph(f"Cliente: {sanear_texto_para_pdf(resultado.cliente)}", estilos["Normal"]))
-    elementos.append(Paragraph(f"Gestor: {sanear_texto_para_pdf(resultado.gestor)}", estilos["Normal"]))
-    elementos.append(Paragraph(f"Sitemap: {sanear_texto_para_pdf(resultado.sitemap)}", estilos["Normal"]))
-    elementos.append(Paragraph(f"Fecha de ejecución: {sanear_texto_para_pdf(resultado.fecha_ejecucion)}", estilos["Normal"]))
-    elementos.append(Paragraph(f"Periodo analizado: {sanear_texto_para_pdf(str(modelo['meta'].get('periodo_texto', 'No disponible')))}", estilos["Normal"]))
+    datos_meta_portada = [
+        ["Cliente", str(meta_modelo.get("cliente", resultado.cliente))],
+        ["Gestor", str(meta_modelo.get("gestor", resultado.gestor))],
+        ["Fecha de ejecución", str(meta_modelo.get("fecha_ejecucion", resultado.fecha_ejecucion))],
+        ["Periodo desde", str(meta_modelo.get("periodo_desde") or "No disponible")],
+        ["Periodo hasta", str(meta_modelo.get("periodo_hasta") or "No disponible")],
+        ["Sitemap", str(meta_modelo.get("sitemap", resultado.sitemap))],
+    ]
+    tabla_meta_portada = Table(
+        [
+            [
+                Paragraph(f"<b>{sanear_texto_para_pdf(etiqueta)}</b>", estilos["Normal"]),
+                Paragraph(sanear_texto_para_pdf(valor), estilos["Normal"]),
+            ]
+            for etiqueta, valor in datos_meta_portada
+        ],
+        colWidths=[130, float(A4[0] - 36 - 36 - 130)],
+    )
+    tabla_meta_portada.setStyle(
+        TableStyle(
+            [
+                ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#D9D9D9")),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ]
+        )
+    )
+    elementos.append(tabla_meta_portada)
+    elementos.append(Spacer(1, 8))
+    elementos.append(Paragraph(f"Periodo analizado: {sanear_texto_para_pdf(str(meta_modelo.get('periodo_texto', 'No disponible')))}", estilos["Normal"]))
     elementos.append(PageBreak())
 
     # Recorre secciones semánticas excluyendo portada ya renderizada.
@@ -3779,7 +3820,9 @@ def exportar_html(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     .contenedor {{ max-width: 1280px; margin: 0 auto; padding: 24px; }}
     .cabecera {{ background: linear-gradient(135deg, #1F4E78 0%, #0f2f4f 100%); color: #fff; border-radius: 14px; padding: 24px; box-shadow: 0 8px 20px rgba(15, 47, 79, 0.2); }}
     .cabecera h1 {{ margin: 0 0 10px 0; color: #fff; }}
-    .metadatos {{ display: grid; grid-template-columns: repeat(2, minmax(220px, 1fr)); gap: 8px 16px; font-size: 14px; }}
+    .metadatos {{ display: grid; grid-template-columns: repeat(2, minmax(220px, 1fr)); gap: 8px 16px; font-size: 14px; margin-top: 8px; }}
+    .meta-ejecutiva {{ margin-top: 12px; background: rgba(255, 255, 255, 0.12); border: 1px solid rgba(255,255,255,0.22); border-radius: 12px; padding: 12px; }}
+    .periodo-destacado {{ margin-top: 10px; display: inline-block; background: #FBBF24; color: #1F2937; padding: 6px 12px; border-radius: 999px; font-weight: 700; }}
     h2 {{ color: #1F4E78; margin-top: 24px; }}
     .kpis {{ display: grid; grid-template-columns: repeat(5, minmax(180px, 1fr)); gap: 12px; }}
     .kpi {{ background: #ffffff; padding: 12px; border-radius: 10px; border: 1px solid #dbe5f0; box-shadow: 0 3px 10px rgba(17, 24, 39, 0.06); }}
@@ -3797,12 +3840,16 @@ def exportar_html(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
   <div class="contenedor">
   <section class="cabecera">
     <h1>Informe de Auditoría SEO</h1>
-    <div class="metadatos">
-      <div><b>Cliente:</b> {escape(sanitizar_texto_final_exportable(str(meta_modelo.get("cliente", resultado.cliente)), formato="html"))}</div>
-      <div><b>Gestor:</b> {escape(sanitizar_texto_final_exportable(str(meta_modelo.get("gestor", resultado.gestor)), formato="html"))}</div>
-      <div><b>Fecha de ejecución:</b> {escape(sanitizar_texto_final_exportable(str(meta_modelo.get("fecha", resultado.fecha_ejecucion)), formato="html"))}</div>
-      <div><b>Periodo analizado:</b> {escape(sanitizar_texto_final_exportable(str(meta_modelo.get("periodo_texto", "No disponible")), formato="html"))}</div>
-      <div><b>Sitemap:</b> {escape(sanitizar_texto_final_exportable(str(meta_modelo.get("sitemap", resultado.sitemap)), formato="html"))}</div>
+    <div class="meta-ejecutiva">
+      <div class="metadatos">
+        <div><b>Cliente:</b> {escape(sanitizar_texto_final_exportable(str(meta_modelo.get("cliente", resultado.cliente)), formato="html"))}</div>
+        <div><b>Gestor:</b> {escape(sanitizar_texto_final_exportable(str(meta_modelo.get("gestor", resultado.gestor)), formato="html"))}</div>
+        <div><b>Fecha de ejecución:</b> {escape(sanitizar_texto_final_exportable(str(meta_modelo.get("fecha_ejecucion", resultado.fecha_ejecucion)), formato="html"))}</div>
+        <div><b>Periodo desde:</b> {escape(sanitizar_texto_final_exportable(str(meta_modelo.get("periodo_desde") or "No disponible"), formato="html"))}</div>
+        <div><b>Periodo hasta:</b> {escape(sanitizar_texto_final_exportable(str(meta_modelo.get("periodo_hasta") or "No disponible"), formato="html"))}</div>
+        <div><b>Sitemap:</b> {escape(sanitizar_texto_final_exportable(str(meta_modelo.get("sitemap", resultado.sitemap)), formato="html"))}</div>
+      </div>
+      <div class="periodo-destacado">Periodo analizado: {escape(sanitizar_texto_final_exportable(str(meta_modelo.get("periodo_texto", "No disponible")), formato="html"))}</div>
     </div>
   </section>
   <h2>KPIs ejecutivos</h2>

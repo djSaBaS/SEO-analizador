@@ -169,3 +169,50 @@ def test_exportar_html_no_expone_tokens_placeholder_mayusculas(tmp_path: Path) -
 
     # Verifica que no queden placeholders en mayúsculas entre corchetes.
     assert re.search(r"\[[A-Z_]+\]", contenido) is None
+
+
+# Verifica cabecera ejecutiva de metadatos con periodo destacado.
+def test_exportar_html_incluye_meta_ejecutiva_y_periodo_destacado(tmp_path: Path) -> None:
+    """Comprueba presencia del bloque meta superior con periodo visible."""
+
+    # Construye auditoría con periodo explícito.
+    auditoria = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=1,
+        resultados=[],
+        cliente="Cliente HTML",
+        fecha_ejecucion="2026-03-29",
+        gestor="Gestor HTML",
+        periodo_date_from="2026-03-01",
+        periodo_date_to="2026-03-28",
+    )
+
+    # Exporta HTML y lee contenido de salida.
+    contenido = exportar_html(auditoria, tmp_path).read_text(encoding="utf-8")
+
+    # Valida presencia de bloque ejecutivo y periodo destacado.
+    assert "meta-ejecutiva" in contenido
+    assert "periodo-destacado" in contenido
+    assert "Periodo desde:</b> 2026-03-01" in contenido
+    assert "Periodo hasta:</b> 2026-03-28" in contenido
+
+
+# Verifica fallback de periodo en HTML cuando no hay fechas.
+def test_exportar_html_periodo_fallback_sin_fechas(tmp_path: Path) -> None:
+    """Comprueba etiqueta No disponible cuando faltan fechas de periodo."""
+
+    # Crea auditoría sin rango de fechas.
+    auditoria = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=1,
+        resultados=[],
+        cliente="Cliente HTML",
+        fecha_ejecucion="2026-03-29",
+        gestor="Gestor HTML",
+    )
+
+    # Exporta contenido HTML para validación.
+    contenido = exportar_html(auditoria, tmp_path).read_text(encoding="utf-8")
+
+    # Verifica fallback visible en cabecera ejecutiva.
+    assert "Periodo analizado: No disponible" in contenido
