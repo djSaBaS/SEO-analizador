@@ -1,3 +1,9 @@
+## 0.10.8 - 2026-03-29
+- Se amplía `construir_modelo_semantico_informe` con tipos de bloque explícitos (`metadatos`, `kpi_cards`, `resumen_ejecutivo`, `prioridades`, `tablas_detalle`) manteniendo compatibilidad retroactiva con `parrafos`, `tablas` y `tarjetas`.
+- Se ajusta la política de síntesis del modelo semántico para limitar longitud narrativa/listas y favorecer lectura ejecutiva arriba con detalle tabular debajo.
+- Se adaptan renderizadores DOCX/PDF/HTML para priorizar el contrato de bloques nuevo cuando exista, con fallback automático al esquema legacy.
+- Se añaden tests de estructura semántica esperada para validar secciones obligatorias y bloques mínimos del nuevo contrato.
+
 ## 0.10.7 - 2026-03-29
 - Se completa el bloque `meta` del modelo semántico (`construir_modelo_semantico_informe`) con claves explícitas para `cliente`, `gestor`, `fecha_ejecucion`, `periodo_desde`, `periodo_hasta` y `sitemap` (manteniendo compatibilidad con `fecha`).
 - Se refuerza la jerarquía visual fija de metadatos en portada para Word y PDF mediante tablas de metadatos estructuradas y periodo consolidado visible.

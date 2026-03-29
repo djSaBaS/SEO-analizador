@@ -163,6 +163,12 @@ ANALYTICS_PEORES_REBOTE_LIMITE = 3
 ANALYTICS_MEJORES_ENGAGEMENT_LIMITE = 3
 ANALYTICS_CRUCES_LIMITE = 5
 
+# Define límite global de párrafos narrativos por sección para síntesis ejecutiva.
+LIMITE_PARRAFOS_NARRATIVOS = 6
+
+# Define límite de elementos narrativos por lista en tarjetas y anexos.
+LIMITE_ITEMS_LISTA_NARRATIVA = 5
+
 # Define política editorial por formato para marcadores visuales.
 POLITICA_MARCADORES_POR_FORMATO = {
     "doc": {
@@ -818,6 +824,11 @@ def _crear_bloque_semantico(tipo: str, titulo: str, subtitulo: str = "", **campo
         "listas": [],
         "tablas": [],
         "tarjetas": [],
+        "metadatos": [],
+        "kpi_cards": [],
+        "resumen_ejecutivo": [],
+        "prioridades": [],
+        "tablas_detalle": [],
         "notas": [],
     }
 
@@ -3174,6 +3185,13 @@ def construir_modelo_semantico_informe(resultado: ResultadoAuditoria) -> dict[st
         _crear_bloque_semantico(
             tipo="portada",
             titulo="Portada",
+            metadatos=[
+                {"etiqueta": "Cliente", "valor": resultado.cliente},
+                {"etiqueta": "Gestor", "valor": resultado.gestor},
+                {"etiqueta": "Sitemap", "valor": resultado.sitemap},
+                {"etiqueta": "Fecha", "valor": resultado.fecha_ejecucion},
+                {"etiqueta": "Periodo analizado", "valor": f"{periodo_desde} - {periodo_hasta}" if periodo_desde and periodo_hasta else "No disponible"},
+            ],
             parrafos=[
                 "INFORME DE AUDITORÍA SEO",
                 f"Cliente: {resultado.cliente}",
@@ -3208,16 +3226,23 @@ def construir_modelo_semantico_informe(resultado: ResultadoAuditoria) -> dict[st
         # Inserta tarjetas semánticas de quick wins.
         elif titulo_seccion == "Quick wins":
             for item in quick_wins:
+                tarjeta_quick_win = {
+                    "titulo": f"URL: {item['url']}",
+                    "subtitulo": f"Impacto: {item['impacto_maximo']} | Esfuerzo: {item['esfuerzo_maximo']}",
+                    "listas": [
+                        {"titulo": "Problemas", "items": [sanitizar_texto_editorial(str(valor)) for valor in item["problemas"][:LIMITE_ITEMS_LISTA_NARRATIVA]]},
+                        {"titulo": "Acciones recomendadas", "items": [sanitizar_texto_editorial(str(valor)) for valor in item["recomendaciones"][:LIMITE_ITEMS_LISTA_NARRATIVA]]},
+                    ],
+                }
+
                 bloque["tarjetas"].append(
                     {
-                        "titulo": f"URL: {item['url']}",
-                        "subtitulo": f"Impacto: {item['impacto_maximo']} | Esfuerzo: {item['esfuerzo_maximo']}",
-                        "listas": [
-                            {"titulo": "Problemas", "items": [sanitizar_texto_editorial(str(valor)) for valor in item["problemas"]]},
-                            {"titulo": "Acciones recomendadas", "items": [sanitizar_texto_editorial(str(valor)) for valor in item["recomendaciones"]]},
-                        ],
+                        "titulo": tarjeta_quick_win["titulo"],
+                        "subtitulo": tarjeta_quick_win["subtitulo"],
+                        "listas": tarjeta_quick_win["listas"],
                     }
                 )
+                bloque["prioridades"].append(tarjeta_quick_win)
 
         # Inserta tabla de comportamiento y conversión.
         elif titulo_seccion == "Comportamiento y conversión":
@@ -3238,6 +3263,7 @@ def construir_modelo_semantico_informe(resultado: ResultadoAuditoria) -> dict[st
                     ],
                 }
             )
+            bloque["tablas_detalle"] = list(bloque["tablas"])
 
         # Inserta tabla de gestión de indexación.
         elif titulo_seccion == "Gestión de indexación":
@@ -3257,6 +3283,7 @@ def construir_modelo_semantico_informe(resultado: ResultadoAuditoria) -> dict[st
                     ],
                 }
             )
+            bloque["tablas_detalle"] = list(bloque["tablas"])
 
         # Inserta tabla de páginas prioritarias con explicación estructurada.
         elif titulo_seccion == "Páginas prioritarias":
@@ -3278,6 +3305,18 @@ def construir_modelo_semantico_informe(resultado: ResultadoAuditoria) -> dict[st
                     ],
                 }
             )
+            bloque["prioridades"] = [
+                {
+                    "titulo": "Top páginas prioritarias",
+                    "items": [
+                        sanitizar_texto_editorial(
+                            f"{fila.get('url', '')} | score={fila.get('prioridad_score', 0)} | motivos={'; '.join(fila.get('motivos', [])[:2])}"
+                        )
+                        for fila in filas_prioritarias[:LIMITE_ITEMS_LISTA_NARRATIVA]
+                    ],
+                }
+            ]
+            bloque["tablas_detalle"] = list(bloque["tablas"])
 
         # Inserta tabla detallada de rendimiento y oportunidades.
         elif titulo_seccion == "Rendimiento y experiencia de usuario":
@@ -3349,10 +3388,23 @@ def construir_modelo_semantico_informe(resultado: ResultadoAuditoria) -> dict[st
                         "filas": filas_oportunidades,
                     }
                 )
+            bloque["tablas_detalle"] = list(bloque["tablas"])
 
         # Inserta contenido narrativo sanitizado como fallback estándar.
         else:
-            bloque["parrafos"] = [sanitizar_texto_final_exportable(str(linea), formato="doc") for linea in bloques_narrativos.get(titulo_seccion, [])[:10]]
+            bloque["parrafos"] = [sanitizar_texto_final_exportable(str(linea), formato="doc") for linea in bloques_narrativos.get(titulo_seccion, [])[:LIMITE_PARRAFOS_NARRATIVOS]]
+            bloque["resumen_ejecutivo"] = list(bloque["parrafos"])
+
+        # Propaga tipos de bloque explícitos para compatibilidad cruzada de render.
+        if titulo_seccion == "KPIs principales" and bloque["tablas"]:
+            bloque["kpi_cards"] = [
+                {"titulo": str(fila[0]), "valor": str(fila[1])}
+                for fila in bloque["tablas"][0].get("filas", [])
+            ]
+        if titulo_seccion == "Resumen ejecutivo":
+            bloque["resumen_ejecutivo"] = [sanitizar_texto_final_exportable(str(linea), formato="doc") for linea in bloques_narrativos.get(titulo_seccion, [])[:LIMITE_PARRAFOS_NARRATIVOS]]
+        if not bloque["tablas_detalle"] and bloque["tablas"]:
+            bloque["tablas_detalle"] = list(bloque["tablas"])
 
         # Añade nota estándar cuando no haya contenido explícito.
         if not bloque["parrafos"] and not bloque["tablas"] and not bloque["tarjetas"]:
@@ -3373,7 +3425,7 @@ def construir_modelo_semantico_informe(resultado: ResultadoAuditoria) -> dict[st
                         sanitizar_texto_editorial(
                             f"{item.url} | HTTP={item.estado_http} | redirección={'Sí' if item.redirecciona else 'No'} | noindex={'Sí' if item.noindex else 'No'}"
                         )
-                        for item in resultado.resultados[:20]
+                        for item in resultado.resultados[:LIMITE_PARRAFOS_NARRATIVOS]
                     ],
                 }
             ],
@@ -3393,6 +3445,13 @@ def construir_modelo_semantico_informe(resultado: ResultadoAuditoria) -> dict[st
             "sitemap": resultado.sitemap,
             "periodo_desde": periodo_desde,
             "periodo_hasta": periodo_hasta,
+            "periodo_texto": periodo_texto,
+        },
+        "metadatos": {
+            "cliente": resultado.cliente,
+            "gestor": resultado.gestor,
+            "fecha_ejecucion": resultado.fecha_ejecucion,
+            "sitemap": resultado.sitemap,
             "periodo_texto": periodo_texto,
         },
         "secciones": secciones,
@@ -3534,6 +3593,26 @@ def _renderizar_tabla_pdf(tabla_semantica: dict[str, Any], estilos: dict[str, An
     # Devuelve elementos tabulares maquetados.
     return elementos_tabla
 
+
+# Resuelve colección priorizando bloque semántico explícito sobre legado.
+def _resolver_bloque_render(seccion: dict[str, Any], clave_nueva: str, clave_legacy: str) -> list[Any]:
+    """Devuelve items de bloque nuevo si existen; si no, usa clave retrocompatible."""
+
+    # Obtiene colección del nuevo contrato semántico.
+    items_nuevos = seccion.get(clave_nueva, [])
+
+    # Devuelve bloque nuevo cuando tenga contenido explícito.
+    if isinstance(items_nuevos, list) and items_nuevos:
+        # Prioriza el contrato nuevo para homogeneidad entre formatos.
+        return items_nuevos
+
+    # Recupera datos del esquema legacy para mantener compatibilidad.
+    items_legacy = seccion.get(clave_legacy, [])
+
+    # Devuelve colección legacy cuando sea una lista válida.
+    return items_legacy if isinstance(items_legacy, list) else []
+
+
 def exportar_word(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     """Genera un DOCX corporativo usando estructura semántica intermedia."""
 
@@ -3598,17 +3677,22 @@ def exportar_word(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
         if seccion["titulo"] == "Anexo técnico":
             documento.add_page_break()
         documento.add_heading(sanitizar_texto_final_exportable(str(seccion["titulo"]), formato="doc"), level=1)
-        for tabla in seccion.get("tablas", []):
-            _renderizar_tabla_word(documento, tabla)
-        for tarjeta in seccion.get("tarjetas", []):
-            documento.add_paragraph(sanitizar_texto_final_exportable(str(tarjeta.get("titulo", "")), formato="doc"))
-            documento.add_paragraph(sanitizar_texto_final_exportable(str(tarjeta.get("subtitulo", "")), formato="doc"))
-            for lista in tarjeta.get("listas", []):
-                documento.add_paragraph(sanitizar_texto_final_exportable(str(lista.get("titulo", "")), formato="doc"))
-                for item in lista.get("items", []):
+        for resumen in _resolver_bloque_render(seccion, "resumen_ejecutivo", "parrafos"):
+            documento.add_paragraph(sanitizar_texto_final_exportable(str(resumen), formato="doc"))
+        for prioridad in _resolver_bloque_render(seccion, "prioridades", "tarjetas"):
+            if isinstance(prioridad, dict):
+                documento.add_paragraph(sanitizar_texto_final_exportable(str(prioridad.get("titulo", "")), formato="doc"))
+                subtitulo_prioridad = prioridad.get("subtitulo")
+                if subtitulo_prioridad:
+                    documento.add_paragraph(sanitizar_texto_final_exportable(str(subtitulo_prioridad), formato="doc"))
+                for lista in prioridad.get("listas", []):
+                    documento.add_paragraph(sanitizar_texto_final_exportable(str(lista.get("titulo", "")), formato="doc"))
+                    for item in lista.get("items", [])[:LIMITE_ITEMS_LISTA_NARRATIVA]:
+                        documento.add_paragraph(sanitizar_texto_final_exportable(str(item), formato="doc"), style="List Bullet")
+                for item in prioridad.get("items", [])[:LIMITE_ITEMS_LISTA_NARRATIVA]:
                     documento.add_paragraph(sanitizar_texto_final_exportable(str(item), formato="doc"), style="List Bullet")
-        for linea in seccion.get("parrafos", []):
-            documento.add_paragraph(sanitizar_texto_final_exportable(str(linea), formato="doc"))
+        for tabla in _resolver_bloque_render(seccion, "tablas_detalle", "tablas"):
+            _renderizar_tabla_word(documento, tabla)
         for nota in seccion.get("notas", []):
             documento.add_paragraph(sanitizar_texto_final_exportable(str(nota), formato="doc"))
 
@@ -3697,17 +3781,22 @@ def exportar_pdf(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
         if seccion["titulo"] == "Anexo técnico":
             elementos.append(PageBreak())
         elementos.append(Paragraph(f"<b>{sanear_texto_para_pdf(str(seccion['titulo']))}</b>", estilos["Heading2"]))
-        for tabla in seccion.get("tablas", []):
-            elementos.extend(_renderizar_tabla_pdf(tabla, estilos))
-        for tarjeta in seccion.get("tarjetas", []):
-            elementos.append(Paragraph(sanear_texto_para_pdf(str(tarjeta.get("titulo", ""))), estilos["Normal"]))
-            elementos.append(Paragraph(sanear_texto_para_pdf(str(tarjeta.get("subtitulo", ""))), estilos["Normal"]))
-            for lista in tarjeta.get("listas", []):
-                elementos.append(Paragraph(sanear_texto_para_pdf(str(lista.get("titulo", ""))), estilos["Normal"]))
-                for item in lista.get("items", []):
+        for resumen in _resolver_bloque_render(seccion, "resumen_ejecutivo", "parrafos"):
+            elementos.append(Paragraph(sanear_texto_para_pdf(str(resumen)), estilos["Normal"]))
+        for prioridad in _resolver_bloque_render(seccion, "prioridades", "tarjetas"):
+            if isinstance(prioridad, dict):
+                elementos.append(Paragraph(sanear_texto_para_pdf(str(prioridad.get("titulo", ""))), estilos["Normal"]))
+                subtitulo_prioridad = prioridad.get("subtitulo")
+                if subtitulo_prioridad:
+                    elementos.append(Paragraph(sanear_texto_para_pdf(str(subtitulo_prioridad)), estilos["Normal"]))
+                for lista in prioridad.get("listas", []):
+                    elementos.append(Paragraph(sanear_texto_para_pdf(str(lista.get("titulo", ""))), estilos["Normal"]))
+                    for item in lista.get("items", [])[:LIMITE_ITEMS_LISTA_NARRATIVA]:
+                        elementos.append(Paragraph(sanear_texto_para_pdf(f"- {item}"), estilos["Normal"]))
+                for item in prioridad.get("items", [])[:LIMITE_ITEMS_LISTA_NARRATIVA]:
                     elementos.append(Paragraph(sanear_texto_para_pdf(f"- {item}"), estilos["Normal"]))
-        for linea in seccion.get("parrafos", []):
-            elementos.append(Paragraph(sanear_texto_para_pdf(str(linea)), estilos["Normal"]))
+        for tabla in _resolver_bloque_render(seccion, "tablas_detalle", "tablas"):
+            elementos.extend(_renderizar_tabla_pdf(tabla, estilos))
         for nota in seccion.get("notas", []):
             elementos.append(Paragraph(sanear_texto_para_pdf(str(nota)), estilos["Normal"]))
         elementos.append(Spacer(1, 6))
@@ -3788,7 +3877,22 @@ def exportar_html(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
         if seccion["tipo_bloque"] == "portada":
             continue
         bloques_html: list[str] = []
-        for tabla in seccion.get("tablas", []):
+        resumenes = _resolver_bloque_render(seccion, "resumen_ejecutivo", "parrafos")
+        if resumenes:
+            bloques_html.append("<ul>" + "".join(f"<li>{escape(sanitizar_texto_final_exportable(str(linea), formato='html'))}</li>" for linea in resumenes) + "</ul>")
+        for prioridad in _resolver_bloque_render(seccion, "prioridades", "tarjetas"):
+            if isinstance(prioridad, dict):
+                listas = "".join(
+                    f"<p><b>{escape(sanitizar_texto_final_exportable(str(lista.get('titulo', '')), formato='html'))}</b></p><ul>{''.join(f'<li>{escape(sanitizar_texto_final_exportable(str(item), formato='html'))}</li>' for item in lista.get('items', [])[:LIMITE_ITEMS_LISTA_NARRATIVA])}</ul>"
+                    for lista in prioridad.get("listas", [])
+                )
+                items_simples = "".join(
+                    f"<li>{escape(sanitizar_texto_final_exportable(str(item), formato='html'))}</li>"
+                    for item in prioridad.get("items", [])[:LIMITE_ITEMS_LISTA_NARRATIVA]
+                )
+                lista_items = f"<ul>{items_simples}</ul>" if items_simples else ""
+                bloques_html.append(f"<div class='tarjeta'><h3>{escape(sanitizar_texto_final_exportable(str(prioridad.get('titulo', '')), formato='html'))}</h3><p>{escape(sanitizar_texto_final_exportable(str(prioridad.get('subtitulo', '')), formato='html'))}</p>{listas}{lista_items}</div>")
+        for tabla in _resolver_bloque_render(seccion, "tablas_detalle", "tablas"):
             columnas = "".join(f"<th>{escape(sanitizar_texto_final_exportable(str(columna), formato='html'))}</th>" for columna in tabla.get("columnas", []))
             filas = "".join(f"<tr>{''.join(f'<td>{escape(sanitizar_texto_final_exportable(str(valor), formato='html'))}</td>' for valor in fila)}</tr>" for fila in tabla.get("filas", []))
             colspan = max(1, len(tabla.get("columnas", [])))
@@ -3797,14 +3901,6 @@ def exportar_html(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
                 f"<table><thead><tr>{columnas}</tr></thead>"
                 f"<tbody>{filas or f'<tr><td colspan=\"{colspan}\">No disponible</td></tr>'}</tbody></table>"
             )
-        for tarjeta in seccion.get("tarjetas", []):
-            listas = "".join(
-                f"<p><b>{escape(sanitizar_texto_final_exportable(str(lista.get('titulo', '')), formato='html'))}</b></p><ul>{''.join(f'<li>{escape(sanitizar_texto_final_exportable(str(item), formato='html'))}</li>' for item in lista.get('items', []))}</ul>"
-                for lista in tarjeta.get("listas", [])
-            )
-            bloques_html.append(f"<div class='tarjeta'><h3>{escape(sanitizar_texto_final_exportable(str(tarjeta.get('titulo', '')), formato='html'))}</h3><p>{escape(sanitizar_texto_final_exportable(str(tarjeta.get('subtitulo', '')), formato='html'))}</p>{listas}</div>")
-        if seccion.get("parrafos"):
-            bloques_html.append("<ul>" + "".join(f"<li>{escape(sanitizar_texto_final_exportable(str(linea), formato='html'))}</li>" for linea in seccion.get("parrafos", [])) + "</ul>")
         if seccion.get("notas"):
             bloques_html.append("".join(f"<p>{escape(sanitizar_texto_final_exportable(str(nota), formato='html'))}</p>" for nota in seccion.get("notas", [])))
         secciones_html.append(f"<div class='bloque'><h2>{escape(sanitizar_texto_final_exportable(str(seccion['titulo']), formato='html'))}</h2>{''.join(bloques_html)}</div>")
