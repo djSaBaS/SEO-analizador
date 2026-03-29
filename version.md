@@ -1,3 +1,10 @@
+## 0.10.7 - 2026-03-29
+- Se completa el bloque `meta` del modelo semántico (`construir_modelo_semantico_informe`) con claves explícitas para `cliente`, `gestor`, `fecha_ejecucion`, `periodo_desde`, `periodo_hasta` y `sitemap` (manteniendo compatibilidad con `fecha`).
+- Se refuerza la jerarquía visual fija de metadatos en portada para Word y PDF mediante tablas de metadatos estructuradas y periodo consolidado visible.
+- Se mejora la cabecera ejecutiva de HTML con bloque superior de metadatos y periodo destacado visualmente.
+- Se valida presencia del periodo en Excel (`KPIs` y subcabecera de `Dashboard`) y fallback homogéneo `No disponible` cuando no hay fechas.
+- Se amplían tests de regresión para modelo semántico y exportadores Word/PDF/HTML/Excel, incluyendo escenarios con periodo informado y sin fechas.
+
 ## 0.10.6 - 2026-03-29
 - Se sustituye la política única de `EMOJIS_COMPATIBLES_TEXTO` por una política editorial por formato en `reporters.py`: DOCX/PDF con texto seguro sin emoji, HTML homogéneo seguro y Excel con etiquetas cortas seguras.
 - Se añade capa de sanitización final (`sanitizar_texto_final_exportable`) para bloquear placeholders residuales tipo `[TOKEN_MAYUSCULA]` antes de exportar DOCX/PDF/HTML.
