@@ -1,6 +1,8 @@
 """Valida que cada carpeta del repositorio incluya un archivo info.md."""
 
-# Importa utilidades para recorrer el sistema de archivos.
+# Importa utilidades de sistema para recorrer directorios de forma eficiente.
+import os
+# Importa utilidades para manejo robusto de rutas.
 from pathlib import Path
 
 
@@ -30,17 +32,30 @@ NOMBRE_INFO = "info.md"
 ROOT = Path(__file__).resolve().parents[2]
 
 
+# Determina si un segmento de ruta debe ignorarse por política.
+def segmento_ignorado(segmento: str) -> bool:
+    """Indica si un nombre de carpeta está fuera del alcance documental."""
+
+    # Descarta directorios internos y cachés definidos por configuración.
+    if segmento in DIRECTORIOS_EXCLUIDOS:
+        return True
+    # Descarta directorios ocultos para evitar falsos positivos con tooling local.
+    if segmento.startswith(PREFIJOS_EXCLUIDOS):
+        return True
+    # Mantiene el segmento dentro del alcance de validación.
+    return False
+
+
 # Determina si una carpeta debe ignorarse de la validación.
 def carpeta_ignorada(carpeta: Path) -> bool:
     """Indica si la carpeta está fuera del alcance documental."""
 
-    # Recorre cada segmento de la ruta para detectar exclusiones por nombre exacto.
-    for segmento in carpeta.parts:
-        # Descarta directorios internos y cachés.
-        if segmento in DIRECTORIOS_EXCLUIDOS:
-            return True
-        # Descarta directorios ocultos.
-        if segmento.startswith(PREFIJOS_EXCLUIDOS):
+    # Evalúa solo la ruta relativa al repositorio para no depender del entorno local.
+    ruta_relativa = carpeta.relative_to(ROOT)
+    # Recorre cada segmento relativo para detectar exclusiones por nombre exacto.
+    for segmento in ruta_relativa.parts:
+        # Omite la carpeta cuando algún segmento está excluido.
+        if segmento_ignorado(segmento):
             return True
     # Mantiene la carpeta dentro de la validación.
     return False
@@ -52,19 +67,27 @@ def encontrar_carpetas_sin_info(raiz: Path) -> list[Path]:
 
     # Inicializa el contenedor de resultados.
     faltantes: list[Path] = []
-    # Recorre recursivamente todas las carpetas desde la raíz.
-    for carpeta in sorted([raiz] + [ruta for ruta in raiz.rglob("*") if ruta.is_dir()]):
+    # Recorre recursivamente carpetas usando os.walk para evitar iterar archivos innecesarios.
+    for carpeta_actual, directorios, _ in os.walk(raiz):
+        # Convierte la ruta actual a Path para operaciones de alto nivel.
+        carpeta = Path(carpeta_actual)
+        # Excluye directorios in-place para podar el recorrido en profundidad.
+        directorios[:] = [
+            nombre_directorio
+            for nombre_directorio in directorios
+            if not segmento_ignorado(nombre_directorio)
+        ]
         # Omite la raíz porque este control aplica a carpetas del proyecto, no al repositorio completo.
         if carpeta == raiz:
             continue
-        # Omite carpetas excluidas por política.
+        # Omite carpetas excluidas por política de segmentos relativos.
         if carpeta_ignorada(carpeta):
             continue
         # Marca la carpeta cuando no existe su archivo info.md.
         if not (carpeta / NOMBRE_INFO).exists():
             faltantes.append(carpeta)
-    # Devuelve la lista de carpetas no conformes.
-    return faltantes
+    # Devuelve la lista ordenada para salida determinista en CI.
+    return sorted(faltantes)
 
 
 # Ejecuta la validación para uso por CLI y CI.
