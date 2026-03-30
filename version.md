@@ -1,3 +1,8 @@
+## 0.10.16 - 2026-03-30
+- Se documenta la base de arquitectura general en `docs/arquitectura/arquitectura_general.md` con inventario de entrypoints CLI, matriz de migración de módulos y criterios explícitos de no ruptura.
+- Se fijan los imports públicos que deben mantenerse temporalmente mediante fachadas/wrappers para asegurar compatibilidad durante la transición.
+- Se declara oficialmente el estado "fase de transición iniciada" para la evolución interna por capas sin alterar contratos externos.
+
 ## 0.10.15 - 2026-03-30
 - Se elimina el acoplamiento de producción con `monkeypatch` en los wrappers de exportación Word/PDF/HTML, dejando delegación limpia al núcleo compartido.
 - Se deja de exponer helpers privados desde `seo_auditor.reporters.__init__`; las pruebas importan privados directamente desde `seo_auditor.reporters.core`.
