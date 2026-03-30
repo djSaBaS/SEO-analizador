@@ -1,3 +1,9 @@
+## 0.10.15 - 2026-03-30
+- Se elimina el acoplamiento de producción con `monkeypatch` en los wrappers de exportación Word/PDF/HTML, dejando delegación limpia al núcleo compartido.
+- Se deja de exponer helpers privados desde `seo_auditor.reporters.__init__`; las pruebas importan privados directamente desde `seo_auditor.reporters.core`.
+- Se normaliza `estilos_documentales.py` exponiendo API pública explícita (`color_pastel_severidad`, `calcular_col_widths_pdf`) sin filtrar nombres privados al exterior.
+- Se ajustan tests de reporters para validar el nuevo contrato sin depender de reexportación de privados en la fachada pública.
+
 ## 0.10.14 - 2026-03-30
 - Se reorganiza la capa de reporting en un paquete modular `src/seo_auditor/reporters/` y se mantiene compatibilidad total del import público `seo_auditor.reporters` mediante `__init__.py` como fachada estable.
 - Se crean módulos dedicados por exportador (`exportador_word.py`, `exportador_pdf.py`, `exportador_html.py`, `exportador_excel.py`, `exportador_json.py`, `exportador_markdown.py`) para separar responsabilidades por formato y preparar evolución incremental.

@@ -3,17 +3,10 @@ from pathlib import Path
 
 # Importa modelos del dominio para fabricar una auditoría mínima de prueba.
 from seo_auditor.models import DatosAnalytics, DatosSearchConsole, DecisionIndexacion, HallazgoSeo, MetricaAnalyticsPagina, MetricaGscPagina, OportunidadRendimiento, ResultadoAuditoria, ResultadoRendimiento, ResultadoUrl
-import seo_auditor.reporters as reporters_mod
+import seo_auditor.reporters.core as reporters_core
 
 # Importa funciones de reporters bajo prueba.
 from seo_auditor.reporters import (
-    _calcular_col_widths_pdf,
-    _renderizar_bloque_dashboard,
-    _renderizar_tabla_pdf,
-    _renderizar_tabla_word,
-    _resolver_subtablas_pdf,
-    _construir_bloques_narrativos,
-    _construir_quick_wins,
     PDF_HORIZONTAL_MARGIN_POINTS,
     calcular_score_prioridad_pagina,
     calcular_metricas,
@@ -29,6 +22,17 @@ from seo_auditor.reporters import (
     reemplazar_emojis_problematicos,
     sanitizar_texto_final_exportable,
     sanear_texto_para_pdf,
+)
+
+# Importa helpers internos desde el núcleo para evitar exponer privados en la API pública.
+from seo_auditor.reporters.core import (
+    _calcular_col_widths_pdf,
+    _construir_bloques_narrativos,
+    _construir_quick_wins,
+    _renderizar_bloque_dashboard,
+    _renderizar_tabla_pdf,
+    _renderizar_tabla_word,
+    _resolver_subtablas_pdf,
 )
 
 # Importa lector de libros Excel para validar KPIs.
@@ -432,7 +436,7 @@ def test_exportar_pdf_incluye_bloque_meta_y_periodo_fallback(tmp_path: Path, mon
             capturas["elementos"] = elementos
 
     # Sustituye plantilla real por implementación fake.
-    monkeypatch.setattr(reporters_mod, "SimpleDocTemplate", PlantillaPdfFake)
+    monkeypatch.setattr(reporters_core, "SimpleDocTemplate", PlantillaPdfFake)
 
     # Construye auditoría sin fechas de periodo para forzar fallback.
     auditoria = ResultadoAuditoria(
@@ -1136,7 +1140,7 @@ def test_exportadores_mantienen_coherencia_de_titulos_principales(tmp_path: Path
             capturas_pdf["elementos"] = elementos
 
     # Sustituye constructor PDF por implementación fake.
-    monkeypatch.setattr(reporters_mod, "SimpleDocTemplate", PlantillaPdfFake)
+    monkeypatch.setattr(reporters_core, "SimpleDocTemplate", PlantillaPdfFake)
 
     # Construye auditoría mínima para exportaciones cruzadas.
     auditoria = ResultadoAuditoria(
@@ -1194,7 +1198,7 @@ def test_exportadores_mantienen_coherencia_secciones_base_desde_modelo(tmp_path:
             capturas_pdf["elementos"] = elementos
 
     # Sustituye template PDF real para poder validar texto en memoria.
-    monkeypatch.setattr(reporters_mod, "SimpleDocTemplate", PlantillaPdfFake)
+    monkeypatch.setattr(reporters_core, "SimpleDocTemplate", PlantillaPdfFake)
 
     # Construye auditoría mínima para derivar secciones base del modelo.
     auditoria = ResultadoAuditoria(
@@ -1256,7 +1260,7 @@ def test_exportadores_respetan_textos_base_personalizados_del_modelo(tmp_path: P
             capturas_pdf["elementos"] = elementos
 
     # Sustituye exportador PDF real por plantilla fake.
-    monkeypatch.setattr(reporters_mod, "SimpleDocTemplate", PlantillaPdfFake)
+    monkeypatch.setattr(reporters_core, "SimpleDocTemplate", PlantillaPdfFake)
 
     # Crea auditoría mínima para ejecutar exportadores.
     auditoria = ResultadoAuditoria(
@@ -1275,7 +1279,7 @@ def test_exportadores_respetan_textos_base_personalizados_del_modelo(tmp_path: P
     modelo_personalizado["textos_base"]["secciones"]["prioridades_quick_wins_vacio_descripcion"] = "Sin quick wins QA."
 
     # Fuerza exportadores a usar el modelo personalizado.
-    monkeypatch.setattr(reporters_mod, "construir_modelo_semantico_informe", lambda _: modelo_personalizado)
+    monkeypatch.setattr(reporters_core, "construir_modelo_semantico_informe", lambda _: modelo_personalizado)
 
     # Exporta Word y HTML, y ejecuta PDF en memoria.
     ruta_word = exportar_word(auditoria, tmp_path)
@@ -1321,7 +1325,7 @@ def test_exportadores_textuales_no_exponen_placeholders_token(tmp_path: Path, mo
             capturas_pdf["elementos"] = elementos
 
     # Sustituye plantilla PDF real por implementación fake.
-    monkeypatch.setattr(reporters_mod, "SimpleDocTemplate", PlantillaPdfFake)
+    monkeypatch.setattr(reporters_core, "SimpleDocTemplate", PlantillaPdfFake)
 
     # Construye auditoría con placeholders técnicos en metadatos y narrativa.
     auditoria = ResultadoAuditoria(
@@ -1450,7 +1454,7 @@ def test_exportadores_finales_no_leen_markdown_ia_directo(tmp_path: Path, monkey
             capturas_pdf["elementos"] = elementos
 
     # Sustituye exportador PDF real por plantilla fake.
-    monkeypatch.setattr(reporters_mod, "SimpleDocTemplate", PlantillaPdfFake)
+    monkeypatch.setattr(reporters_core, "SimpleDocTemplate", PlantillaPdfFake)
 
     # Crea auditoría mínima con markdown IA que no debe maquetar exportadores finales.
     auditoria = ResultadoAuditoria(
@@ -1475,7 +1479,7 @@ def test_exportadores_finales_no_leen_markdown_ia_directo(tmp_path: Path, monkey
         seccion["listas"] = []
 
     # Fuerza exportadores finales a usar el modelo semántico personalizado.
-    monkeypatch.setattr(reporters_mod, "construir_modelo_semantico_informe", lambda _: modelo_personalizado)
+    monkeypatch.setattr(reporters_core, "construir_modelo_semantico_informe", lambda _: modelo_personalizado)
 
     # Exporta Word y HTML, y ejecuta PDF en memoria.
     ruta_word = exportar_word(auditoria, tmp_path)
