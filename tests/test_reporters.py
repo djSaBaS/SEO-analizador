@@ -1053,8 +1053,8 @@ def test_construir_modelo_semantico_informe_exige_periodo_en_metadatos() -> None
     metadatos = modelo.get("metadatos", {})
 
     # Verifica presencia obligatoria de periodo en ambos contratos.
-    assert "periodo_texto" in meta and str(meta.get("periodo_texto", "")).strip()
-    assert "periodo_texto" in metadatos and str(metadatos.get("periodo_texto", "")).strip()
+    assert "periodo_texto" in meta and meta["periodo_texto"].strip()
+    assert "periodo_texto" in metadatos and metadatos["periodo_texto"].strip()
 
 
 # Verifica que rendimiento conserve tabla detallada y oportunidades.
@@ -1228,9 +1228,9 @@ def test_exportadores_mantienen_coherencia_secciones_base_desde_modelo(tmp_path:
         assert seccion in texto_pdf
 
     # Verifica además títulos premium mínimos en HTML según textos base.
-    assert str(textos_secciones.get("kpis_ejecutivos_titulo", "KPIs ejecutivos")) in texto_html
-    assert str(textos_secciones.get("prioridades_quick_wins_titulo", "Prioridades y quick wins")) in texto_html
-    assert str(textos_secciones.get("incidencias_detalle_titulo", "Incidencias técnicas (detalle)")) in texto_html
+    assert textos_secciones.get("kpis_ejecutivos_titulo", "KPIs ejecutivos") in texto_html
+    assert textos_secciones.get("prioridades_quick_wins_titulo", "Prioridades y quick wins") in texto_html
+    assert textos_secciones.get("incidencias_detalle_titulo", "Incidencias técnicas (detalle)") in texto_html
 
 
 # Verifica no regresión al cambiar textos del modelo semántico de portada y secciones.

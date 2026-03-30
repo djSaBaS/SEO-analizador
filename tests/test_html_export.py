@@ -307,6 +307,6 @@ def test_exportar_html_bloque_editorial_y_secciones_premium_minimas(tmp_path: Pa
     assert "Periodo analizado: 2026-03-01 - 2026-03-29" in contenido
 
     # Verifica baseline premium mínimo de secciones ejecutivas.
-    assert "KPIs ejecutivos" in contenido
-    assert "Prioridades y quick wins" in contenido
-    assert "Incidencias técnicas (detalle)" in contenido
+    secciones_premium = ["KPIs ejecutivos", "Prioridades y quick wins", "Incidencias técnicas (detalle)"]
+    for seccion in secciones_premium:
+        assert seccion in contenido
