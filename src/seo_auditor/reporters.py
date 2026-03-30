@@ -995,20 +995,85 @@ def construir_filas_contenido_consolidado(resultado: ResultadoAuditoria) -> list
 
     # Recorre resultados técnicos por URL para crear base consolidada.
     for item in resultado.resultados:
-        # Inserta registro único por URL con métricas on-page.
-        contenido_por_url[item.url] = {
-            "url": item.url,
-            "palabras": item.palabras,
-            "calidad_contenido": item.calidad_contenido,
-            "h1": item.h1,
-            "title": item.title,
-            "meta_description": item.meta_description,
-            "imagenes_sin_alt": item.imagenes_sin_alt,
-            "thin_content": "Sí" if item.thin_content else "No",
-            "densidad_texto": item.densidad_texto,
-            "ratio_texto_html": item.ratio_texto_html,
-            "incidencias_url": len(item.hallazgos),
-        }
+        # Crea acumulador inicial cuando la URL aún no esté consolidada.
+        if item.url not in contenido_por_url:
+            # Inicializa estructura consolidada con una única fila por URL.
+            contenido_por_url[item.url] = {
+                "url": item.url,
+                "palabras": item.palabras,
+                "calidad_contenido": item.calidad_contenido,
+                "h1": item.h1,
+                "title": item.title,
+                "meta_description": item.meta_description,
+                "imagenes_sin_alt": item.imagenes_sin_alt,
+                "thin_content": "Sí" if item.thin_content else "No",
+                "densidad_texto": item.densidad_texto,
+                "ratio_texto_html": item.ratio_texto_html,
+                "noindex": "Sí" if item.noindex else "No",
+                "h1_unico": "Sí" if item.h1_unico else "No",
+                "estructura_headings_correcta": "Sí" if item.estructura_headings_correcta else "No",
+                "lazy_load_detectado": "Sí" if item.lazy_load_detectado else "No",
+                "incidencias_url": 0,
+                "incidencias_criticas_altas": 0,
+                "incidencias_contenido": 0,
+                "areas_con_incidencias": "",
+                "senales_clave": [],
+                "_areas_set": set(),
+            }
+
+        # Obtiene fila consolidada para acumular métricas y conteos.
+        fila = contenido_por_url[item.url]
+
+        # Suma incidencias totales de la URL para trazabilidad operativa.
+        fila["incidencias_url"] = int(fila.get("incidencias_url", 0)) + len(item.hallazgos)
+
+        # Suma incidencias críticas y altas para priorización editorial.
+        fila["incidencias_criticas_altas"] = int(fila.get("incidencias_criticas_altas", 0)) + sum(1 for hallazgo in item.hallazgos if hallazgo.severidad.lower().strip() in {"crítica", "alta"})
+
+        # Suma incidencias del tipo contenido para enfoque on-page.
+        fila["incidencias_contenido"] = int(fila.get("incidencias_contenido", 0)) + sum(1 for hallazgo in item.hallazgos if hallazgo.tipo.lower().strip() == "contenido")
+
+        # Acumula áreas afectadas evitando duplicados.
+        areas = fila.get("_areas_set", set())
+        if isinstance(areas, set):
+            for hallazgo in item.hallazgos:
+                areas.add(hallazgo.area)
+
+        # Construye señales clave de forma explícita para cada URL.
+        senales_clave = fila.get("senales_clave", [])
+        if isinstance(senales_clave, list):
+            if item.thin_content:
+                senales_clave.append("thin_content")
+            if item.noindex:
+                senales_clave.append("noindex")
+            if item.imagenes_sin_alt > 0:
+                senales_clave.append("imagenes_sin_alt")
+            if not item.h1_unico:
+                senales_clave.append("h1_no_unico")
+            if not item.estructura_headings_correcta:
+                senales_clave.append("headings_incorrectos")
+            if not item.title:
+                senales_clave.append("title_vacio")
+            if not item.meta_description:
+                senales_clave.append("meta_description_vacia")
+            if item.lazy_load_detectado:
+                senales_clave.append("lazy_load")
+
+            # Deduplica señales manteniendo orden de detección.
+            fila["senales_clave"] = list(dict.fromkeys(senales_clave))
+
+    # Recorre filas para serializar campos internos en valores exportables.
+    for fila in contenido_por_url.values():
+        # Normaliza áreas acumuladas a texto ordenado y estable.
+        areas = fila.get("_areas_set", set())
+        if isinstance(areas, set):
+            fila["areas_con_incidencias"] = ", ".join(sorted(areas))
+
+        # Serializa señales clave para exportación tabular.
+        fila["senales_clave"] = ", ".join(fila.get("senales_clave", []))
+
+        # Elimina estructura interna auxiliar no exportable.
+        fila.pop("_areas_set", None)
 
     # Devuelve colección consolidada ordenada por URL para estabilidad.
     return [contenido_por_url[url] for url in sorted(contenido_por_url.keys())]
@@ -2303,7 +2368,27 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     hoja_errores.freeze_panes = "A2"
 
     # Define columnas de hoja de contenido para seguimiento editorial.
-    columnas_contenido = ["url", "palabras", "calidad_contenido", "h1", "title", "meta_description", "imagenes_sin_alt", "thin_content", "densidad_texto", "ratio_texto_html", "incidencias_url"]
+    columnas_contenido = [
+        "url",
+        "palabras",
+        "calidad_contenido",
+        "thin_content",
+        "h1",
+        "title",
+        "meta_description",
+        "imagenes_sin_alt",
+        "densidad_texto",
+        "ratio_texto_html",
+        "noindex",
+        "h1_unico",
+        "estructura_headings_correcta",
+        "lazy_load_detectado",
+        "incidencias_url",
+        "incidencias_criticas_altas",
+        "incidencias_contenido",
+        "areas_con_incidencias",
+        "senales_clave",
+    ]
 
     # Recorre encabezados de contenido.
     for columna, encabezado in enumerate(columnas_contenido, start=1):
@@ -2328,10 +2413,10 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     # Ajusta formato visual de la hoja de contenido.
     for indice in range(1, len(columnas_contenido) + 1):
         # Configura ancho homogéneo en todas las columnas.
-        hoja_contenido.column_dimensions[chr(64 + indice)].width = 24
+        hoja_contenido.column_dimensions[get_column_letter(indice)].width = 24
 
     # Activa filtros en la hoja de contenido.
-    hoja_contenido.auto_filter.ref = f"A1:K{max(2, len(filas_contenido) + 1)}"
+    hoja_contenido.auto_filter.ref = f"A1:{get_column_letter(len(columnas_contenido))}{max(2, len(filas_contenido) + 1)}"
 
     # Congela paneles de contenido para navegación.
     hoja_contenido.freeze_panes = "A2"
