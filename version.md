@@ -1,3 +1,9 @@
+## 0.10.18 - 2026-03-30
+- Se formaliza la norma de `info.md` por carpeta con plantilla mínima en `README.md` y `docs/arquitectura/sistema_documental.md`.
+- Se incorporan `info.md` faltantes en `Prompt/`, `prompts/`, `src/seo_auditor/` y `docs/arquitectura/` para cubrir rutas existentes no conformes.
+- Se crea validación automática en `scripts/mantenimiento/validar_entorno.py` para fallar cuando una carpeta carece de `info.md`.
+- Se añaden `scripts/info.md` y `scripts/mantenimiento/info.md` para mantener consistencia documental en carpetas nuevas.
+
 ## 0.10.17 - 2026-03-30
 - Se amplía `docs/arquitectura/arquitectura_general.md` especificando tipos esperados y restricciones/formato para flags CLI (URL, rutas, enteros, enums y fechas `YYYY-MM-DD`).
 - Se documentan validaciones clave de parámetros (mutua exclusión `--pagepsi`/`--pagepsi-list`, positividad de límites y regla `date_from < date_to`) para mejorar claridad operativa en transición.
