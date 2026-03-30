@@ -275,3 +275,38 @@ def test_exportar_html_estructura_contenedores_clave(tmp_path: Path) -> None:
     assert "KPIs ejecutivos" in contenido
     assert "Prioridades y quick wins" in contenido
     assert "Incidencias técnicas (detalle)" in contenido
+
+
+# Valida bloque editorial de metadatos y secciones premium mínimas del HTML.
+def test_exportar_html_bloque_editorial_y_secciones_premium_minimas(tmp_path: Path) -> None:
+    """Comprueba metadatos ejecutivos visibles y baseline premium del layout."""
+
+    # Construye auditoría con periodo explícito para validar metadatos editoriales.
+    auditoria = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=1,
+        resultados=[],
+        cliente="Cliente Premium",
+        fecha_ejecucion="2026-03-30",
+        gestor="Gestor Premium",
+        periodo_date_from="2026-03-01",
+        periodo_date_to="2026-03-29",
+    )
+
+    # Exporta HTML y carga contenido final.
+    contenido = exportar_html(auditoria, tmp_path).read_text(encoding="utf-8")
+
+    # Verifica bloque de metadatos editorial completo.
+    assert 'class="meta-ejecutiva"' in contenido
+    assert "<b>Cliente:</b> Cliente Premium" in contenido
+    assert "<b>Gestor:</b> Gestor Premium" in contenido
+    assert "<b>Fecha de ejecución:</b> 2026-03-30" in contenido
+    assert "<b>Periodo desde:</b> 2026-03-01" in contenido
+    assert "<b>Periodo hasta:</b> 2026-03-29" in contenido
+    assert "<b>Sitemap:</b> https://ejemplo.com/sitemap.xml" in contenido
+    assert "Periodo analizado: 2026-03-01 - 2026-03-29" in contenido
+
+    # Verifica baseline premium mínimo de secciones ejecutivas.
+    secciones_premium = ["KPIs ejecutivos", "Prioridades y quick wins", "Incidencias técnicas (detalle)"]
+    for seccion in secciones_premium:
+        assert seccion in contenido

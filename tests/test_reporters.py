@@ -1033,6 +1033,30 @@ def test_construir_modelo_semantico_informe_periodo_fallback_sin_fechas() -> Non
     assert modelo["meta"]["periodo_texto"] == "No disponible"
 
 
+# Verifica que metadatos semánticos incluyan siempre periodo textual obligatorio.
+def test_construir_modelo_semantico_informe_exige_periodo_en_metadatos() -> None:
+    """Comprueba contrato de periodo en `meta` y `metadatos` del modelo semántico."""
+
+    # Construye auditoría sin fechas explícitas para validar fallback obligatorio.
+    auditoria = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=1,
+        resultados=[],
+        cliente="Cliente Meta",
+        fecha_ejecucion="2026-03-30",
+        gestor="Gestor Meta",
+    )
+
+    # Genera modelo semántico y recupera bloques de metadatos.
+    modelo = construir_modelo_semantico_informe(auditoria)
+    meta = modelo.get("meta", {})
+    metadatos = modelo.get("metadatos", {})
+
+    # Verifica presencia obligatoria de periodo en ambos contratos.
+    assert "periodo_texto" in meta and meta["periodo_texto"].strip()
+    assert "periodo_texto" in metadatos and metadatos["periodo_texto"].strip()
+
+
 # Verifica que rendimiento conserve tabla detallada y oportunidades.
 def test_modelo_semantico_rendimiento_incluye_metricas_y_oportunidades() -> None:
     """Comprueba que no se pierda el detalle de PageSpeed en la capa semántica."""
@@ -1149,6 +1173,66 @@ def test_exportadores_mantienen_coherencia_de_titulos_principales(tmp_path: Path
         assert titulo in texto_pdf
 
 
+# Verifica coherencia de secciones base definidas en el modelo semántico.
+def test_exportadores_mantienen_coherencia_secciones_base_desde_modelo(tmp_path: Path, monkeypatch) -> None:
+    """Comprueba que DOCX/PDF/HTML respeten secciones base del contrato semántico."""
+
+    # Inicializa captura de elementos PDF sin escribir binario real.
+    capturas_pdf: dict[str, object] = {}
+
+    # Define plantilla fake para interceptar flujo build del PDF.
+    class PlantillaPdfFake:
+        """Implementa interfaz mínima de captura para exportar PDF."""
+
+        # Inicializa constructor compatible con SimpleDocTemplate.
+        def __init__(self, *args, **kwargs) -> None:
+            capturas_pdf["args"] = args
+            capturas_pdf["kwargs"] = kwargs
+
+        # Captura elementos renderizados por exportar_pdf.
+        def build(self, elementos) -> None:
+            capturas_pdf["elementos"] = elementos
+
+    # Sustituye template PDF real para poder validar texto en memoria.
+    monkeypatch.setattr(reporters_mod, "SimpleDocTemplate", PlantillaPdfFake)
+
+    # Construye auditoría mínima para derivar secciones base del modelo.
+    auditoria = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=1,
+        resultados=[],
+        cliente="Cliente Base Secciones",
+        fecha_ejecucion="2026-03-30",
+        gestor="Gestor Base Secciones",
+    )
+
+    # Obtiene modelo semántico y extrae títulos de secciones base contractuales.
+    modelo = construir_modelo_semantico_informe(auditoria)
+    secciones_base = [seccion["titulo"] for seccion in modelo["secciones"] if seccion.get("tipo_bloque") == "seccion"]
+    textos_secciones = modelo.get("textos_base", {}).get("secciones", {})
+
+    # Exporta tres formatos para validar coherencia transversal.
+    ruta_word = exportar_word(auditoria, tmp_path)
+    ruta_html = exportar_html(auditoria, tmp_path)
+    exportar_pdf(auditoria, tmp_path)
+
+    # Recupera texto plano de cada formato.
+    texto_word = "\n".join(parrafo.text for parrafo in Document(ruta_word).paragraphs)
+    texto_html = ruta_html.read_text(encoding="utf-8")
+    texto_pdf = " ".join(getattr(item, "text", "") for item in capturas_pdf.get("elementos", []))
+
+    # Verifica presencia de secciones base en Word/PDF/HTML.
+    for seccion in secciones_base:
+        assert seccion in texto_word
+        assert seccion in texto_html
+        assert seccion in texto_pdf
+
+    # Verifica además títulos premium mínimos en HTML según textos base.
+    assert textos_secciones.get("kpis_ejecutivos_titulo", "KPIs ejecutivos") in texto_html
+    assert textos_secciones.get("prioridades_quick_wins_titulo", "Prioridades y quick wins") in texto_html
+    assert textos_secciones.get("incidencias_detalle_titulo", "Incidencias técnicas (detalle)") in texto_html
+
+
 # Verifica no regresión al cambiar textos del modelo semántico de portada y secciones.
 def test_exportadores_respetan_textos_base_personalizados_del_modelo(tmp_path: Path, monkeypatch) -> None:
     """Comprueba que los exportadores usen textos base del modelo semántico."""
@@ -1214,6 +1298,133 @@ def test_exportadores_respetan_textos_base_personalizados_del_modelo(tmp_path: P
     # Verifica que HTML adopte títulos y fallback personalizados.
     assert "INFORME SEO PERSONALIZADO QA" in texto_html
     assert "Prioridades QA" in texto_html
+
+
+# Verifica que el render final textual no exponga placeholders [TOKEN] en Word/PDF.
+def test_exportadores_textuales_no_exponen_placeholders_token(tmp_path: Path, monkeypatch) -> None:
+    """Comprueba sanitización final de placeholders en salidas textuales DOCX/PDF."""
+
+    # Inicializa contenedor para capturar texto renderizado en PDF.
+    capturas_pdf: dict[str, object] = {}
+
+    # Define plantilla fake para interceptar flujo de exportación PDF.
+    class PlantillaPdfFake:
+        """Implementa constructor y build mínimos para capturar elementos."""
+
+        # Inicializa plantilla fake conservando argumentos.
+        def __init__(self, *args, **kwargs) -> None:
+            capturas_pdf["args"] = args
+            capturas_pdf["kwargs"] = kwargs
+
+        # Captura elementos renderizados por el exportador.
+        def build(self, elementos) -> None:
+            capturas_pdf["elementos"] = elementos
+
+    # Sustituye plantilla PDF real por implementación fake.
+    monkeypatch.setattr(reporters_mod, "SimpleDocTemplate", PlantillaPdfFake)
+
+    # Construye auditoría con placeholders técnicos en metadatos y narrativa.
+    auditoria = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=1,
+        resultados=[],
+        cliente="Cliente [OBJETIVO_Q2]",
+        fecha_ejecucion="2026-03-30",
+        gestor="Gestor [ALTA_PRIORIDAD]",
+        resumen_ia="## Resumen ejecutivo\n- Ejecutar [PLAN_TECNICO] en el sprint actual.",
+    )
+
+    # Exporta Word/PDF para validar salida final textual.
+    ruta_word = exportar_word(auditoria, tmp_path)
+    exportar_pdf(auditoria, tmp_path)
+
+    # Recupera texto de Word y PDF fake.
+    texto_word = "\n".join(parrafo.text for parrafo in Document(ruta_word).paragraphs)
+    texto_pdf = " ".join(getattr(item, "text", "") for item in capturas_pdf.get("elementos", []))
+
+    # Verifica que no queden placeholders de plantilla en ambos formatos.
+    assert re.search(r"\[[A-Z_]+\]", texto_word) is None
+    assert re.search(r"\[[A-Z_]+\]", texto_pdf) is None
+
+
+# Verifica unicidad de URL en Contenido y presencia de KPI/periodo en Dashboard/KPIs.
+def test_exportar_excel_valida_unicidad_contenido_y_periodo_en_dashboard_kpis(tmp_path: Path) -> None:
+    """Comprueba contrato mínimo del Excel para Contenido, Dashboard y KPIs."""
+
+    # Crea hallazgo para poblar al menos una incidencia en el libro.
+    hallazgo = HallazgoSeo(
+        tipo="contenido",
+        severidad="alta",
+        descripcion="Falta title.",
+        recomendacion="Definir title único.",
+        area="Contenido",
+        impacto="Alto",
+        esfuerzo="Bajo",
+        prioridad="P1",
+    )
+
+    # Construye entradas con URL duplicada para validar consolidación en Contenido.
+    resultado_a = ResultadoUrl(
+        url="https://ejemplo.com/a",
+        tipo="page",
+        estado_http=200,
+        redirecciona=False,
+        url_final="https://ejemplo.com/a",
+        title="A",
+        h1="A",
+        meta_description="A",
+        canonical="https://ejemplo.com/a",
+        noindex=False,
+        hallazgos=[hallazgo],
+    )
+    resultado_a_duplicado = ResultadoUrl(
+        url="https://ejemplo.com/a",
+        tipo="page",
+        estado_http=200,
+        redirecciona=False,
+        url_final="https://ejemplo.com/a",
+        title="A2",
+        h1="A2",
+        meta_description="A2",
+        canonical="https://ejemplo.com/a",
+        noindex=False,
+        hallazgos=[],
+    )
+
+    # Construye auditoría con periodo explícito para validar cabeceras ejecutivas.
+    auditoria = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=2,
+        resultados=[resultado_a, resultado_a_duplicado],
+        cliente="Cliente Excel",
+        fecha_ejecucion="2026-03-30",
+        gestor="Gestor Excel",
+        periodo_date_from="2026-03-01",
+        periodo_date_to="2026-03-29",
+    )
+
+    # Exporta libro y abre con openpyxl.
+    ruta_excel = exportar_excel(auditoria, tmp_path)
+    libro = load_workbook(ruta_excel)
+
+    # Valida unicidad estricta de URL en hoja Contenido.
+    hoja_contenido = libro["Contenido"]
+    cabeceras_contenido = [celda.value for celda in hoja_contenido[1]]
+    indice_url = cabeceras_contenido.index("url")
+    urls = [fila[indice_url] for fila in hoja_contenido.iter_rows(min_row=2, values_only=True) if fila[indice_url]]
+    assert len(urls) == len(set(urls))
+
+    # Valida presencia de periodo en cabeceras de Dashboard y KPIs.
+    hoja_dashboard = libro["Dashboard"]
+    hoja_kpis = libro["KPIs"]
+    assert "Periodo:" in str(hoja_dashboard["A2"].value)
+    assert "2026-03-01 - 2026-03-29" in str(hoja_dashboard["A2"].value)
+    assert "Periodo:" in str(hoja_kpis["A2"].value)
+    assert "2026-03-01 - 2026-03-29" in str(hoja_kpis["A2"].value)
+
+    # Valida KPI mínimo visible en hoja ejecutiva.
+    assert str(hoja_kpis["A4"].value) == "KPI"
+    assert str(hoja_kpis["B4"].value) == "Valor"
 
 
 # Verifica que DOCX/PDF/HTML no consuman markdown IA directo y usen capa semántica.
