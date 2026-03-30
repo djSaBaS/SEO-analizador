@@ -1,3 +1,8 @@
+## 0.10.12 - 2026-03-30
+- Se centralizan en `construir_modelo_semantico_informe` los textos base compartidos de portada, metadatos y secciones para DOCX/PDF/HTML (`textos_base`) y se añade `_resolver_portada_semantica` como contrato único de render.
+- Se refactorizan `exportar_word`, `exportar_pdf` y `exportar_html` para consumir el contrato semántico común y eliminar duplicación de literales transversales (excepto estilos CSS propios de HTML).
+- Se incorporan pruebas de coherencia cruzada de títulos principales entre Word/PDF/HTML y un test de no regresión que valida que los exportadores respetan personalizaciones del modelo semántico.
+
 ## 0.10.11 - 2026-03-30
 - Se corrige la consolidación de `construir_filas_contenido_consolidado` con una estrategia explícita y determinista de fusión para campos escalares (preferencia por valores informativos, máximos de métricas numéricas y banderas OR/AND según señal).
 - Se simplifica la acumulación de contadores (`incidencias_url`, `incidencias_criticas_altas`, `incidencias_contenido`) usando incremento directo `+=` para mejorar legibilidad.
