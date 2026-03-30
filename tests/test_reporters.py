@@ -2067,3 +2067,19 @@ def test_renderizar_tabla_pdf_configura_col_widths_en_tablas_criticas() -> None:
     assert len(tablas) == 2
     assert all(tabla_render._colWidths for tabla_render in tablas)
     assert max(len(tabla_render._colWidths) for tabla_render in tablas) <= 3
+
+# Verifica que cada exportador público viva en su módulo dedicado.
+def test_exportadores_publicos_viven_en_modulos_dedicados() -> None:
+    """Comprueba separación modular por formato en el paquete reporters."""
+
+    # Verifica que exportador Excel apunte al módulo específico.
+    assert exportar_excel.__module__.endswith("exportador_excel")
+
+    # Verifica que exportador HTML apunte al módulo específico.
+    assert exportar_html.__module__.endswith("exportador_html")
+
+    # Verifica que exportador PDF apunte al módulo específico.
+    assert exportar_pdf.__module__.endswith("exportador_pdf")
+
+    # Verifica que exportador Word apunte al módulo específico.
+    assert exportar_word.__module__.endswith("exportador_word")
