@@ -21,3 +21,5 @@ Validar estabilidad funcional del CLI, integraciones y exportadores sin romper c
 ```bash
 pytest -q
 ```
+
+- Incluye cobertura de regresión para la separación modular de exportadores en `seo_auditor/reporters/` sin romper el contrato público de la CLI.

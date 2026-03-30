@@ -1,3 +1,16 @@
+## 0.10.15 - 2026-03-30
+- Se elimina el acoplamiento de producción con `monkeypatch` en los wrappers de exportación Word/PDF/HTML, dejando delegación limpia al núcleo compartido.
+- Se deja de exponer helpers privados desde `seo_auditor.reporters.__init__`; las pruebas importan privados directamente desde `seo_auditor.reporters.core`.
+- Se normaliza `estilos_documentales.py` exponiendo API pública explícita (`color_pastel_severidad`, `calcular_col_widths_pdf`) sin filtrar nombres privados al exterior.
+- Se ajustan tests de reporters para validar el nuevo contrato sin depender de reexportación de privados en la fachada pública.
+
+## 0.10.14 - 2026-03-30
+- Se reorganiza la capa de reporting en un paquete modular `src/seo_auditor/reporters/` y se mantiene compatibilidad total del import público `seo_auditor.reporters` mediante `__init__.py` como fachada estable.
+- Se crean módulos dedicados por exportador (`exportador_word.py`, `exportador_pdf.py`, `exportador_html.py`, `exportador_excel.py`, `exportador_json.py`, `exportador_markdown.py`) para separar responsabilidades por formato y preparar evolución incremental.
+- Se añaden módulos auxiliares (`helpers_documentales.py`, `modelo_documental.py`, `estilos_documentales.py`) para explicitar la capa compartida entre exportadores sin duplicar lógica funcional.
+- Se amplía cobertura de pruebas con validación de separación modular de exportadores manteniendo la API histórica utilizada por CLI/tests.
+- Se actualiza documentación en `README.md`, `src/info.md`, `docs/info.md` y `tests/info.md` para reflejar la nueva organización documental.
+
 ## 0.10.13 - 2026-03-30
 - Se documenta en `README.md` y `docs/arquitectura.md` el contrato de `*_ia.md` como artefacto interno de revisión, explícitamente fuera de la fuente de layout final.
 - Se refuerza el contrato arquitectónico en `reporters.py` con comentarios en `construir_modelo_semantico_informe` y `exportar_markdown_ia` para dejar explícito que DOCX/PDF/HTML no deben maquetar desde markdown IA directo.
