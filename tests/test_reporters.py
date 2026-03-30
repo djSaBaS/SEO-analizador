@@ -1258,8 +1258,10 @@ def test_exportadores_finales_no_leen_markdown_ia_directo(tmp_path: Path, monkey
 
     # Sustituye contenido narrativo para probar que el layout sale del modelo semántico parcheado.
     for seccion in modelo_personalizado.get("secciones", []):
-        # Reemplaza párrafos ejecutivos por un texto controlado sin marcador markdown directo.
+        # Reemplaza párrafos ejecutivos por un texto controlado y limpia contenedores legacy.
         seccion["resumen_ejecutivo"] = ["Resumen contractual desde modelo semántico"]
+        seccion["parrafos"] = []
+        seccion["listas"] = []
 
     # Fuerza exportadores finales a usar el modelo semántico personalizado.
     monkeypatch.setattr(reporters_mod, "construir_modelo_semantico_informe", lambda _: modelo_personalizado)
