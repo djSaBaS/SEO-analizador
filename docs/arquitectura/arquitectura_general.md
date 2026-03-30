@@ -94,7 +94,7 @@ Este documento fija la **línea base de transición arquitectónica** para desac
 | `seo_auditor/ga4_premium.py` | `seo_auditor/use_cases/ga4_premium/report_builder.py` | Caso de uso dedicado para informe premium GA4. |
 | `seo_auditor/cache.py` | `seo_auditor/platform/cache/local_cache.py` | Infraestructura de caché local + TTL/invalidación. |
 | `seo_auditor/utils.py` | `seo_auditor/shared/utils/{urls.py,dates.py,io.py,text.py}` | Fragmentación por responsabilidad (sin mega-módulo). |
-| `seo_auditor/reporters/*` | `seo_auditor/presentation/reporting/*` | Capa de presentación/documentos y exportadores. |
+| `seo_auditor/reporters/*` + `seo_auditor/documentacion/*` | `seo_auditor/presentation/reporting/*` | `reporters` mantiene compatibilidad; `documentacion` concentra modelo/builders/shared/exportadores. |
 
 ---
 

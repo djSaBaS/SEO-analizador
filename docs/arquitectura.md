@@ -8,7 +8,7 @@ El sistema sigue una arquitectura modular con separación por capas:
 3. **Adquisición/análisis técnico**: `fetcher.py`, `analyzer.py`, `indexacion.py`.
 4. **Fuentes externas opcionales**: `pagespeed.py`, `gsc.py`, `ga4.py`.
 5. **Narrativa IA opcional**: `gemini_client.py`.
-6. **Exportación de entregables**: `reporters.py`.
+6. **Exportación de entregables**: `reporters/` (fachada puente) + `documentacion/` (responsabilidades internas).
 7. **Soporte transversal**: `models.py`, `utils.py`, `cache.py`.
 
 ## Flujos operativos soportados

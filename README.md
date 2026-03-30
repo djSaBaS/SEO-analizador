@@ -13,7 +13,7 @@ Herramienta de auditoría SEO técnica y ejecutiva con exportación a JSON, Exce
 ## Arquitectura de informes (capa semántica unificada)
 - La generación documental usa una capa intermedia única (`construir_modelo_semantico_informe`) que transforma datos técnicos + narrativa IA en una estructura neutral de secciones y bloques.
 - DOCX, PDF y HTML consumen esa misma capa semántica para mantener el mismo contenido base (tablas, párrafos, tarjetas y notas) con diferencias visuales razonables por formato.
-- La capa de exportación está modularizada por formato dentro de `src/seo_auditor/reporters/`: cada exportador tiene su archivo dedicado y reutiliza helpers/modelo semántico compartidos para evitar duplicación de lógica.
+- La capa de exportación está modularizada por formato dentro de `src/seo_auditor/documentacion/`: `modelo/`, `builders/`, `shared/` y `exportadores/` separan responsabilidades; `src/seo_auditor/reporters/` permanece como capa puente de compatibilidad.
 - El Markdown IA se mantiene como exportación adicional (`*_ia.md`) para revisión editorial, pero ya no es la fuente directa de maquetación final.
 - La sanitización editorial normaliza narrativa antes de renderizar:
   - limpieza de residuos markdown,

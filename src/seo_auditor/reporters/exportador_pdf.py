@@ -1,16 +1,10 @@
-# Importa el tipo Path para la salida final del informe PDF.
+# Módulo puente: reexporta exportar_pdf desde documentacion/exportadores.
 from pathlib import Path
 
-# Importa el modelo de resultado completo de la auditoría.
 from seo_auditor.models import ResultadoAuditoria
-
-# Importa la implementación central reutilizable del exportador PDF.
-from .core import exportar_pdf as _exportar_pdf_central
+from seo_auditor.documentacion.exportadores.exportador_pdf import exportar_pdf as _impl
 
 
-# Exporta el informe en formato PDF portable.
-def exportar_pdf(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
-    """Delega la maquetación PDF en la implementación central compartida."""
-
-    # Ejecuta el flujo central de bloques semánticos y tablas narrativas del PDF.
-    return _exportar_pdf_central(resultado, path_salida)
+def exportar_pdf(resultado: ResultadoAuditoria, path_salida: Path):
+    """Mantiene el contrato histórico delegando en la nueva ubicación modular."""
+    return _impl(resultado, path_salida)

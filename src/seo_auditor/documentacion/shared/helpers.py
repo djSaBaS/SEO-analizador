@@ -1,5 +1,5 @@
-# Módulo puente: reexporta helpers documentales desde la nueva ubicación.
-from seo_auditor.documentacion.shared.helpers import (
+# Reexporta utilidades documentales compartidas para todos los formatos.
+from seo_auditor.reporters.core import (
     bloquear_placeholders_residuales,
     limpiar_markdown_crudo,
     reemplazar_emojis_problematicos,

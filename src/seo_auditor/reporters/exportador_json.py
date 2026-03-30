@@ -1,16 +1,10 @@
-# Importa el tipo Path para devolver la ruta del archivo generado.
+# Módulo puente: reexporta exportar_json desde documentacion/exportadores.
 from pathlib import Path
 
-# Importa el modelo de resultado completo de la auditoría.
 from seo_auditor.models import ResultadoAuditoria
-
-# Importa la implementación central reutilizable del exportador JSON.
-from .core import exportar_json as _exportar_json_central
+from seo_auditor.documentacion.exportadores.exportador_json import exportar_json as _impl
 
 
-# Exporta el informe técnico en JSON manteniendo el contrato histórico.
-def exportar_json(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
-    """Delega la construcción JSON en la implementación central compartida."""
-
-    # Ejecuta el flujo central de exportación JSON sin alterar comportamiento.
-    return _exportar_json_central(resultado, path_salida)
+def exportar_json(resultado: ResultadoAuditoria, path_salida: Path):
+    """Mantiene el contrato histórico delegando en la nueva ubicación modular."""
+    return _impl(resultado, path_salida)
