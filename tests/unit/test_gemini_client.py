@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 # Importa módulo bajo prueba.
-from seo_auditor import gemini_client
+from seo_auditor.integrations.gemini import service as gemini_client
 from seo_auditor.models import MetricaGscPagina, ResultadoAuditoria
 
 
@@ -185,7 +185,6 @@ def test_resolver_ruta_prompt_ia_mapea_modos_en_prompts(monkeypatch, tmp_path, m
 
     # Inyecta carpetas temporales para evitar dependencia del árbol real.
     monkeypatch.setattr(gemini_client, "RUTA_CARPETA_PROMPTS", carpeta_prompts)
-    monkeypatch.setattr(gemini_client, "RUTA_CARPETA_PROMPTS_LEGACY", tmp_path / "Prompt")
 
     # Resuelve ruta para el modo validado.
     ruta_resuelta = gemini_client.resolver_ruta_prompt_ia(modo)
@@ -210,7 +209,6 @@ def test_resolver_ruta_prompt_ia_aplica_fallback_a_informe_general(monkeypatch, 
     monkeypatch.setattr(gemini_client, "RUTA_CARPETA_PROMPTS", carpeta_prompts)
 
     # Inyecta carpeta legacy inexistente para forzar uso de la principal.
-    monkeypatch.setattr(gemini_client, "RUTA_CARPETA_PROMPTS_LEGACY", tmp_path / "Prompt")
 
     # Resuelve ruta para modo sin archivo dedicado.
     ruta_resuelta = gemini_client.resolver_ruta_prompt_ia("gsc")

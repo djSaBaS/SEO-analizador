@@ -1,11 +1,8 @@
 # Importa Path para validar coherencia del archivo de prompt.
 from pathlib import Path
 
-# Importa utilidades de parametrización para cubrir todos los modos.
-import pytest
-
 # Importa módulo bajo prueba.
-from seo_auditor import gemini_client
+from seo_auditor.integrations.gemini import service as gemini_client
 from seo_auditor.models import MetricaGscPagina, ResultadoAuditoria
 
 
@@ -153,45 +150,6 @@ def test_validar_consistencia_resumen_ia_conserva_texto_sin_gsc() -> None:
 
     # Verifica que el mensaje permanezca sin cambios.
     assert salida == texto
-
-
-# Verifica resolución correcta para prompt principal y modos admitidos por CLI.
-@pytest.mark.parametrize(
-    ("modo", "archivo_esperado"),
-    [
-        ("completo", "informe_general.txt"),
-        ("resumen", "resumen_ejecutivo.txt"),
-        ("quickwins", "quick_wins.txt"),
-        ("gsc", "gsc_oportunidades.txt"),
-        ("roadmap", "roadmap.txt"),
-    ],
-)
-def test_resolver_ruta_prompt_ia_mapea_modos_en_prompts(monkeypatch, tmp_path, modo: str, archivo_esperado: str) -> None:
-    """Garantiza que cada modo resuelva su plantilla canónica en `prompts/`."""
-
-    # Define carpeta canónica de prompts para la prueba aislada.
-    carpeta_prompts = tmp_path / "prompts"
-    carpeta_prompts.mkdir()
-
-    # Crea plantillas mínimas para todos los modos y prompt principal.
-    for archivo in {
-        "informe_general.txt",
-        "resumen_ejecutivo.txt",
-        "quick_wins.txt",
-        "gsc_oportunidades.txt",
-        "roadmap.txt",
-    }:
-        (carpeta_prompts / archivo).write_text(f"Plantilla {archivo}\n{{datos_json}}", encoding="utf-8")
-
-    # Inyecta carpetas temporales para evitar dependencia del árbol real.
-    monkeypatch.setattr(gemini_client, "RUTA_CARPETA_PROMPTS", carpeta_prompts)
-    monkeypatch.setattr(gemini_client, "RUTA_CARPETA_PROMPTS_LEGACY", tmp_path / "Prompt")
-
-    # Resuelve ruta para el modo validado.
-    ruta_resuelta = gemini_client.resolver_ruta_prompt_ia(modo)
-
-    # Verifica que la ruta corresponda al archivo esperado.
-    assert ruta_resuelta == carpeta_prompts / archivo_esperado
 
 
 # Verifica resolución modular por modo con fallback a informe general.
