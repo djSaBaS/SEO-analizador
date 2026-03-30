@@ -22,28 +22,35 @@ Este documento fija la **línea base de transición arquitectónica** para desac
 
 #### Flags/modos principales
 
-- Entrada/salida general:
-  - `--sitemap` (obligatorio en auditoría normal).
-  - `--output` (si falta: fallback a `./salidas`).
-- IA:
-  - `--usar-ia`.
-  - `--modelo-ia`.
-  - `--max-muestras-ia`.
-- Modos de prueba (`--test*`):
-  - `--testia` (valida IA y finaliza).
-  - `--testga` (valida GA4 y finaliza).
-  - `--testgsc` (valida GSC y finaliza).
-- Modos/perfiles:
-  - `--modo` con opciones: `completo`, `resumen`, `quickwins`, `gsc`, `roadmap`, `informe-ga4`, `entrega-completa`.
-  - `--generar-todo` (atajo equivalente a `--modo entrega-completa`).
-- Rendimiento (PageSpeed):
-  - `--pagepsi`, `--pagepsi-list`, `--max-pagepsi-urls`, `--pagepsi-timeout`, `--pagepsi-reintentos`.
-- Integraciones y operación:
-  - `--noGSC`, `--invalidar-cache`, `--cache-ttl`, `--modo-rapido`.
-- Informe GA4 premium:
-  - `--cliente`, `--gestor`, `--comparar`, `--provincia`.
-- Ventana temporal:
-  - `--date-from`, `--date-to`.
+> Referencia de tipos y formato para evitar ambigüedad durante la transición.
+
+| Flag | Tipo esperado | Formato / restricciones | Notas operativas |
+|---|---|---|---|
+| `--sitemap` | `str` | URL HTTP/HTTPS válida | Obligatorio en auditoría normal (excepto `--testia`, `--testga`, `--testgsc`). |
+| `--output` | `str` | Ruta de directorio | Si falta, fallback a `./salidas`. |
+| `--usar-ia` | `bool` (flag) | sin valor (`store_true`) | Activa enriquecimiento narrativo con IA. |
+| `--modelo-ia` | `str` | Nombre de modelo | Vacío => usa configuración (`gemini_model`). |
+| `--max-muestras-ia` | `int` | entero positivo (`>0`) | Controla volumen de muestras para IA. |
+| `--testia` | `bool` (flag) | sin valor (`store_true`) | Prueba conectividad IA y finaliza. |
+| `--testga` | `bool` (flag) | sin valor (`store_true`) | Prueba conectividad GA4 y finaliza. |
+| `--testgsc` | `bool` (flag) | sin valor (`store_true`) | Prueba conectividad GSC y finaliza. |
+| `--modo` | `str` (enum) | `completo`/`resumen`/`quickwins`/`gsc`/`roadmap`/`informe-ga4`/`entrega-completa` | Selector de ejecución principal. |
+| `--generar-todo` | `bool` (flag) | sin valor (`store_true`) | Atajo equivalente a `--modo entrega-completa`. |
+| `--pagepsi` | `str` | URL HTTP/HTTPS válida | Mutuamente excluyente con `--pagepsi-list`. |
+| `--pagepsi-list` | `str` | Ruta a archivo de texto (1 URL por línea) | Si no hay URLs válidas, fallback a HOME. |
+| `--max-pagepsi-urls` | `int` | entero `>= 0` | `0` => usa configuración. |
+| `--pagepsi-timeout` | `int` | entero `>= 0` (segundos) | `0` => usa configuración. |
+| `--pagepsi-reintentos` | `int` | entero (negativo => configuración) | Define reintentos por URL/estrategia. |
+| `--noGSC` | `bool` (flag) | sin valor (`store_true`) | Desactiva GSC solo para esa ejecución. |
+| `--invalidar-cache` | `bool` (flag) | sin valor (`store_true`) | Limpia caché local antes de ejecutar. |
+| `--cache-ttl` | `int` | entero `>= 0` (segundos) | `0` => usa configuración. |
+| `--modo-rapido` | `bool` (flag) | sin valor (`store_true`) | Reduce alcance para ejecución rápida. |
+| `--cliente` | `str` | texto libre | Opcional, usado en portada GA4 premium. |
+| `--gestor` | `str` | texto libre | Responsable mostrado en metadatos. |
+| `--comparar` | `str` (enum) | `periodo-anterior` / `anio-anterior` | Solo aplica a informe GA4 premium. |
+| `--provincia` | `str` | texto libre | Filtro opcional de detalle local GA4 premium. |
+| `--date-from` | `str` | `YYYY-MM-DD` | Debe enviarse junto con `--date-to`. |
+| `--date-to` | `str` | `YYYY-MM-DD` | Debe enviarse junto con `--date-from`; `date_from < date_to`. |
 
 #### Resolución de perfil de generación
 

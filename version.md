@@ -1,3 +1,7 @@
+## 0.10.17 - 2026-03-30
+- Se amplía `docs/arquitectura/arquitectura_general.md` especificando tipos esperados y restricciones/formato para flags CLI (URL, rutas, enteros, enums y fechas `YYYY-MM-DD`).
+- Se documentan validaciones clave de parámetros (mutua exclusión `--pagepsi`/`--pagepsi-list`, positividad de límites y regla `date_from < date_to`) para mejorar claridad operativa en transición.
+
 ## 0.10.16 - 2026-03-30
 - Se documenta la base de arquitectura general en `docs/arquitectura/arquitectura_general.md` con inventario de entrypoints CLI, matriz de migración de módulos y criterios explícitos de no ruptura.
 - Se fijan los imports públicos que deben mantenerse temporalmente mediante fachadas/wrappers para asegurar compatibilidad durante la transición.
