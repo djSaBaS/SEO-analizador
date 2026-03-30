@@ -42,7 +42,12 @@ def leer_cache(path_cache: Path, clave: str, ttl_segundos: int) -> Any | None:
         return None
 
     # Carga el contenido serializado de la entrada.
-    contenido = json.loads(ruta.read_text(encoding="utf-8"))
+    try:
+        # Interpreta el JSON persistido.
+        contenido = json.loads(ruta.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        # Trata archivos corruptos o inaccesibles como cache miss.
+        return None
 
     # Obtiene timestamp de creación de la entrada.
     creado_en = float(contenido.get("timestamp", 0.0))

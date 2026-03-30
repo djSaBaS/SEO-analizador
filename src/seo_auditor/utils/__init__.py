@@ -144,14 +144,17 @@ def iterar_con_progreso(items: Iterable[T], descripcion: str, unidad: str) -> It
     Itera elementos mostrando progreso simple y compatible sin dependencias externas.
     """
 
-    # Convierte los elementos a lista para conocer el total.
-    lista = list(items)
-
-    # Calcula el total de elementos de la colección.
-    total = len(lista)
+    # Intenta resolver el total sin materializar iterables grandes.
+    try:
+        # Usa longitud directa cuando el iterable la expone.
+        total = len(items)  # type: ignore[arg-type]
+    except TypeError:
+        # Materializa solo cuando no exista longitud disponible.
+        items = list(items)
+        total = len(items)
 
     # Recorre cada elemento con índice para dibujar avance.
-    for indice, item in enumerate(lista, start=1):
+    for indice, item in enumerate(items, start=1):
         # Muestra progreso en una sola línea para no ensuciar la salida.
         print(f"\r{descripcion}: {indice}/{total} {unidad}", end="")
 
