@@ -990,11 +990,26 @@ def construir_filas(resultado: ResultadoAuditoria) -> list[dict]:
 def construir_filas_contenido_consolidado(resultado: ResultadoAuditoria) -> list[dict]:
     """Devuelve filas de contenido sin duplicar URLs por incidencia."""
 
+    # Define prioridad de calidad para consolidación conservadora.
+    prioridad_calidad = {"baja": 0, "media": 1, "alta": 2}
+
+    # Ordena resultados para tener base determinista incluso con entradas repetidas.
+    resultados_ordenados = sorted(
+        resultado.resultados,
+        key=lambda item: (
+            item.url,
+            -int(getattr(item, "palabras", 0) or 0),
+            -len(str(item.title or "")),
+            -len(str(item.meta_description or "")),
+            -len(str(item.h1 or "")),
+        ),
+    )
+
     # Inicializa colección consolidada indexada por URL.
     contenido_por_url: dict[str, dict[str, object]] = {}
 
     # Recorre resultados técnicos por URL para crear base consolidada.
-    for item in resultado.resultados:
+    for item in resultados_ordenados:
         # Crea acumulador inicial cuando la URL aún no esté consolidada.
         if item.url not in contenido_por_url:
             # Inicializa estructura consolidada con una única fila por URL.
@@ -1024,14 +1039,65 @@ def construir_filas_contenido_consolidado(resultado: ResultadoAuditoria) -> list
         # Obtiene fila consolidada para acumular métricas y conteos.
         fila = contenido_por_url[item.url]
 
+        # Consolida palabras con valor máximo para evitar pérdidas por orden.
+        fila["palabras"] = max(int(fila.get("palabras", 0) or 0), int(item.palabras or 0))
+
+        # Consolida calidad con criterio conservador (la peor detectada).
+        calidad_actual = str(fila.get("calidad_contenido", "baja")).strip().lower()
+        calidad_item = str(item.calidad_contenido or "baja").strip().lower()
+        if prioridad_calidad.get(calidad_item, 0) < prioridad_calidad.get(calidad_actual, 0):
+            fila["calidad_contenido"] = calidad_item
+
+        # Consolida H1 con el valor no vacío más informativo.
+        h1_actual = str(fila.get("h1", "") or "")
+        h1_item = str(item.h1 or "")
+        if h1_item and (len(h1_item), h1_item) > (len(h1_actual), h1_actual):
+            fila["h1"] = h1_item
+
+        # Consolida title con el valor no vacío más informativo.
+        title_actual = str(fila.get("title", "") or "")
+        title_item = str(item.title or "")
+        if title_item and (len(title_item), title_item) > (len(title_actual), title_actual):
+            fila["title"] = title_item
+
+        # Consolida meta description con el valor no vacío más informativo.
+        meta_actual = str(fila.get("meta_description", "") or "")
+        meta_item = str(item.meta_description or "")
+        if meta_item and (len(meta_item), meta_item) > (len(meta_actual), meta_actual):
+            fila["meta_description"] = meta_item
+
+        # Consolida imágenes sin ALT con criterio de máximo riesgo detectado.
+        fila["imagenes_sin_alt"] = max(int(fila.get("imagenes_sin_alt", 0) or 0), int(item.imagenes_sin_alt or 0))
+
+        # Consolida thin content como bandera OR para no ocultar riesgo.
+        fila["thin_content"] = "Sí" if str(fila.get("thin_content", "No")) == "Sí" or item.thin_content else "No"
+
+        # Consolida densidad de texto con valor máximo disponible.
+        fila["densidad_texto"] = max(float(fila.get("densidad_texto", 0.0) or 0.0), float(item.densidad_texto or 0.0))
+
+        # Consolida ratio texto/html con valor máximo disponible.
+        fila["ratio_texto_html"] = max(float(fila.get("ratio_texto_html", 0.0) or 0.0), float(item.ratio_texto_html or 0.0))
+
+        # Consolida noindex como bandera OR para no ocultar páginas bloqueadas.
+        fila["noindex"] = "Sí" if str(fila.get("noindex", "No")) == "Sí" or item.noindex else "No"
+
+        # Consolida H1 único como bandera AND para detectar cualquier inconsistencia.
+        fila["h1_unico"] = "Sí" if str(fila.get("h1_unico", "Sí")) == "Sí" and item.h1_unico else "No"
+
+        # Consolida estructura headings como bandera AND para detectar cualquier incoherencia.
+        fila["estructura_headings_correcta"] = "Sí" if str(fila.get("estructura_headings_correcta", "Sí")) == "Sí" and item.estructura_headings_correcta else "No"
+
+        # Consolida lazy-load como bandera OR para reflejar señal positiva detectada.
+        fila["lazy_load_detectado"] = "Sí" if str(fila.get("lazy_load_detectado", "No")) == "Sí" or item.lazy_load_detectado else "No"
+
         # Suma incidencias totales de la URL para trazabilidad operativa.
-        fila["incidencias_url"] = int(fila.get("incidencias_url", 0)) + len(item.hallazgos)
+        fila["incidencias_url"] += len(item.hallazgos)
 
         # Suma incidencias críticas y altas para priorización editorial.
-        fila["incidencias_criticas_altas"] = int(fila.get("incidencias_criticas_altas", 0)) + sum(1 for hallazgo in item.hallazgos if hallazgo.severidad.lower().strip() in {"crítica", "alta"})
+        fila["incidencias_criticas_altas"] += sum(1 for hallazgo in item.hallazgos if hallazgo.severidad.lower().strip() in {"crítica", "alta"})
 
         # Suma incidencias del tipo contenido para enfoque on-page.
-        fila["incidencias_contenido"] = int(fila.get("incidencias_contenido", 0)) + sum(1 for hallazgo in item.hallazgos if hallazgo.tipo.lower().strip() == "contenido")
+        fila["incidencias_contenido"] += sum(1 for hallazgo in item.hallazgos if hallazgo.tipo.lower().strip() == "contenido")
 
         # Acumula áreas afectadas evitando duplicados.
         areas = fila.get("_areas_set", set())

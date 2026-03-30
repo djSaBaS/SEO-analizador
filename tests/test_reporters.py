@@ -731,6 +731,109 @@ def test_exportar_excel_contenido_unico_y_conteos_consistentes(tmp_path: Path) -
     assert conteos_contenido == conteos_errores
 
 
+# Verifica que la fusión de campos escalares sea determinista e independiente del orden.
+def test_construir_filas_contenido_consolidado_fusiona_escalares_de_forma_determinista() -> None:
+    """Comprueba que la consolidación use estrategia explícita para campos escalares."""
+
+    # Crea hallazgo para conservar conteo de incidencias durante la fusión.
+    hallazgo = HallazgoSeo(
+        tipo="contenido",
+        severidad="alta",
+        descripcion="Falta profundidad.",
+        recomendacion="Ampliar texto.",
+        area="Contenido",
+        impacto="Alto",
+        esfuerzo="Medio",
+        prioridad="P1",
+    )
+
+    # Construye variante incompleta de la misma URL.
+    incompleto = ResultadoUrl(
+        url="https://ejemplo.com/c",
+        tipo="page",
+        estado_http=200,
+        redirecciona=False,
+        url_final="https://ejemplo.com/c",
+        title="",
+        h1="",
+        meta_description="",
+        canonical="https://ejemplo.com/c",
+        noindex=False,
+        palabras=120,
+        calidad_contenido="media",
+        thin_content=True,
+        densidad_texto=0.21,
+        ratio_texto_html=0.15,
+        h1_unico=False,
+        estructura_headings_correcta=False,
+        imagenes_sin_alt=3,
+        lazy_load_detectado=False,
+        hallazgos=[hallazgo],
+    )
+
+    # Construye variante completa de la misma URL.
+    completo = ResultadoUrl(
+        url="https://ejemplo.com/c",
+        tipo="page",
+        estado_http=200,
+        redirecciona=False,
+        url_final="https://ejemplo.com/c",
+        title="Guía completa de producto",
+        h1="Guía de producto",
+        meta_description="Descripción extensa para producto clave",
+        canonical="https://ejemplo.com/c",
+        noindex=True,
+        palabras=520,
+        calidad_contenido="alta",
+        thin_content=False,
+        densidad_texto=0.55,
+        ratio_texto_html=0.34,
+        h1_unico=True,
+        estructura_headings_correcta=True,
+        imagenes_sin_alt=1,
+        lazy_load_detectado=True,
+        hallazgos=[],
+    )
+
+    # Ejecuta consolidación con orden A.
+    auditoria_a = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=2,
+        resultados=[incompleto, completo],
+        cliente="Ejemplo",
+        fecha_ejecucion="2026-03-30",
+        gestor="Gestor",
+    )
+    fila_a = construir_filas_contenido_consolidado(auditoria_a)[0]
+
+    # Ejecuta consolidación con orden inverso para validar determinismo.
+    auditoria_b = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=2,
+        resultados=[completo, incompleto],
+        cliente="Ejemplo",
+        fecha_ejecucion="2026-03-30",
+        gestor="Gestor",
+    )
+    fila_b = construir_filas_contenido_consolidado(auditoria_b)[0]
+
+    # Verifica igualdad completa de filas sin depender del orden de entrada.
+    assert fila_a == fila_b
+
+    # Verifica reglas explícitas de fusión escalar.
+    assert fila_a["title"] == "Guía completa de producto"
+    assert fila_a["h1"] == "Guía de producto"
+    assert fila_a["meta_description"] == "Descripción extensa para producto clave"
+    assert fila_a["palabras"] == 520
+    assert fila_a["calidad_contenido"] == "media"
+    assert fila_a["imagenes_sin_alt"] == 3
+    assert fila_a["thin_content"] == "Sí"
+    assert fila_a["noindex"] == "Sí"
+    assert fila_a["h1_unico"] == "No"
+    assert fila_a["estructura_headings_correcta"] == "No"
+    assert fila_a["lazy_load_detectado"] == "Sí"
+
+
 # Verifica trazabilidad de score de páginas prioritarias por componentes.
 def test_calcular_score_prioridad_pagina_devuelve_componentes() -> None:
     """Comprueba que el cálculo de prioridad exponga desglose explicable."""
