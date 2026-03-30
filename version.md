@@ -1,3 +1,14 @@
+## 0.10.11 - 2026-03-30
+- Se corrige la consolidación de `construir_filas_contenido_consolidado` con una estrategia explícita y determinista de fusión para campos escalares (preferencia por valores informativos, máximos de métricas numéricas y banderas OR/AND según señal).
+- Se simplifica la acumulación de contadores (`incidencias_url`, `incidencias_criticas_altas`, `incidencias_contenido`) usando incremento directo `+=` para mejorar legibilidad.
+- Se añade test de regresión que valida independencia del orden de entrada y reglas de fusión escalar en la hoja consolidada de contenido.
+
+## 0.10.10 - 2026-03-29
+- Se refuerza `construir_filas_contenido_consolidado` para garantizar una única fila por URL incluso ante entradas repetidas, agregando conteos consolidados (`incidencias_url`, `incidencias_criticas_altas`, `incidencias_contenido`), áreas afectadas y señales clave on-page.
+- Se amplía la hoja `Contenido` de Excel con columnas de consolidación operativa (calidad/thin content, señales clave, noindex, estructura de headings y conteos agregados) alimentada exclusivamente desde el dataset consolidado por URL.
+- Se mantiene la hoja `Errores` como detalle por incidencia para trazabilidad operativa sin perder granularidad.
+- Se añaden pruebas de regresión para validar unicidad de URL en `Contenido` y consistencia de conteos frente a `Errores`.
+
 ## 0.10.9 - 2026-03-29
 - Se refactoriza la plantilla de `exportar_html` con estructura editorial premium portable: portada/cabecera, bloque semántico `.meta`, tarjetas KPI `.kpi-card`, bloque de prioridades y quick wins (`.prioridad`) y secciones secundarias para detalle narrativo/técnico.
 - Se incorpora escala tipográfica consistente en CSS mediante variables (`:root`) y jerarquía homogénea para títulos y cuerpo.

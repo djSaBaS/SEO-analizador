@@ -535,6 +535,305 @@ def test_construir_filas_contenido_consolidado_no_duplica_urls() -> None:
     assert filas_consolidadas[0]["url"] == "https://ejemplo.com/a"
 
 
+# Verifica consolidación de conteos y señales en filas de contenido.
+def test_construir_filas_contenido_consolidado_agrega_conteos_y_senales() -> None:
+    """Comprueba que la consolidación preserve conteos agregados por URL única."""
+
+    # Crea hallazgos de severidad y tipo mixtos para probar agregaciones.
+    hallazgo_critico_contenido = HallazgoSeo(
+        tipo="contenido",
+        severidad="crítica",
+        descripcion="Contenido muy pobre.",
+        recomendacion="Ampliar cobertura temática.",
+        area="Contenido",
+        impacto="Alto",
+        esfuerzo="Medio",
+        prioridad="P1",
+    )
+    hallazgo_alto_tecnico = HallazgoSeo(
+        tipo="indexación",
+        severidad="alta",
+        descripcion="Noindex no deseado.",
+        recomendacion="Revisar directiva robots.",
+        area="Indexación",
+        impacto="Alto",
+        esfuerzo="Bajo",
+        prioridad="P1",
+    )
+
+    # Construye dos resultados con la misma URL para validar merge consolidado.
+    resultado_url_a1 = ResultadoUrl(
+        url="https://ejemplo.com/a",
+        tipo="page",
+        estado_http=200,
+        redirecciona=False,
+        url_final="https://ejemplo.com/a",
+        title="",
+        h1="H1",
+        meta_description="",
+        canonical="https://ejemplo.com/a",
+        noindex=True,
+        thin_content=True,
+        h1_unico=False,
+        estructura_headings_correcta=False,
+        imagenes_sin_alt=2,
+        hallazgos=[hallazgo_critico_contenido],
+    )
+    resultado_url_a2 = ResultadoUrl(
+        url="https://ejemplo.com/a",
+        tipo="page",
+        estado_http=200,
+        redirecciona=False,
+        url_final="https://ejemplo.com/a",
+        title="Título",
+        h1="H1",
+        meta_description="Meta",
+        canonical="https://ejemplo.com/a",
+        noindex=False,
+        hallazgos=[hallazgo_alto_tecnico],
+    )
+
+    # Construye auditoría con duplicidad de URL en orígen.
+    auditoria = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=2,
+        resultados=[resultado_url_a1, resultado_url_a2],
+        cliente="Ejemplo",
+        fecha_ejecucion="2026-03-29",
+        gestor="Gestor",
+    )
+
+    # Calcula filas consolidadas y obtiene la URL objetivo.
+    filas_consolidadas = construir_filas_contenido_consolidado(auditoria)
+    fila_a = next(fila for fila in filas_consolidadas if fila["url"] == "https://ejemplo.com/a")
+
+    # Verifica agregación de conteos y áreas afectadas.
+    assert fila_a["incidencias_url"] == 2
+    assert fila_a["incidencias_criticas_altas"] == 2
+    assert fila_a["incidencias_contenido"] == 1
+    assert fila_a["areas_con_incidencias"] == "Contenido, Indexación"
+    assert "thin_content" in fila_a["senales_clave"]
+    assert "title_vacio" in fila_a["senales_clave"]
+
+
+# Verifica que la hoja Contenido del Excel mantenga URL única y conteos coherentes.
+def test_exportar_excel_contenido_unico_y_conteos_consistentes(tmp_path: Path) -> None:
+    """Comprueba unicidad de URL en Contenido y consistencia contra Errores."""
+
+    # Crea dos hallazgos para una misma URL.
+    hallazgo_a1 = HallazgoSeo(
+        tipo="contenido",
+        severidad="alta",
+        descripcion="Falta title.",
+        recomendacion="Definir title único.",
+        area="Contenido",
+        impacto="Alto",
+        esfuerzo="Bajo",
+        prioridad="P1",
+    )
+    hallazgo_a2 = HallazgoSeo(
+        tipo="indexación",
+        severidad="media",
+        descripcion="Canonical no coherente.",
+        recomendacion="Corregir canonical.",
+        area="Indexación",
+        impacto="Medio",
+        esfuerzo="Bajo",
+        prioridad="P2",
+    )
+
+    # Construye resultados de entrada con dos URLs y una duplicada.
+    resultado_a = ResultadoUrl(
+        url="https://ejemplo.com/a",
+        tipo="page",
+        estado_http=200,
+        redirecciona=False,
+        url_final="https://ejemplo.com/a",
+        title="A",
+        h1="A",
+        meta_description="A",
+        canonical="https://ejemplo.com/a",
+        noindex=False,
+        hallazgos=[hallazgo_a1, hallazgo_a2],
+    )
+    resultado_b = ResultadoUrl(
+        url="https://ejemplo.com/b",
+        tipo="page",
+        estado_http=200,
+        redirecciona=False,
+        url_final="https://ejemplo.com/b",
+        title="B",
+        h1="B",
+        meta_description="B",
+        canonical="https://ejemplo.com/b",
+        noindex=False,
+        hallazgos=[],
+    )
+    resultado_a_duplicado = ResultadoUrl(
+        url="https://ejemplo.com/a",
+        tipo="page",
+        estado_http=200,
+        redirecciona=False,
+        url_final="https://ejemplo.com/a",
+        title="A",
+        h1="A",
+        meta_description="A",
+        canonical="https://ejemplo.com/a",
+        noindex=False,
+        hallazgos=[],
+    )
+
+    # Construye auditoría y exporta Excel.
+    auditoria = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=3,
+        resultados=[resultado_a, resultado_b, resultado_a_duplicado],
+        cliente="Ejemplo",
+        fecha_ejecucion="2026-03-29",
+        gestor="Gestor",
+    )
+    ruta_excel = exportar_excel(auditoria, tmp_path)
+
+    # Carga libro y resuelve índices de columnas por nombre.
+    libro = load_workbook(ruta_excel)
+    hoja_contenido = libro["Contenido"]
+    cabeceras_contenido = [celda.value for celda in hoja_contenido[1]]
+    indice_url_contenido = cabeceras_contenido.index("url")
+    indice_incidencias_url = cabeceras_contenido.index("incidencias_url")
+
+    # Lee URLs y conteos de la hoja de contenido.
+    filas_contenido = [fila for fila in hoja_contenido.iter_rows(min_row=2, values_only=True) if fila[indice_url_contenido]]
+    urls_contenido = [fila[indice_url_contenido] for fila in filas_contenido]
+    conteos_contenido = {fila[indice_url_contenido]: int(fila[indice_incidencias_url] or 0) for fila in filas_contenido}
+
+    # Verifica unicidad estricta por URL en la hoja consolidada.
+    assert len(urls_contenido) == len(set(urls_contenido))
+    assert conteos_contenido["https://ejemplo.com/a"] == 2
+    assert conteos_contenido["https://ejemplo.com/b"] == 0
+
+    # Obtiene conteos desde la hoja de errores para validar consistencia.
+    hoja_errores = libro["Errores"]
+    cabeceras_errores = [celda.value for celda in hoja_errores[1]]
+    indice_url_errores = cabeceras_errores.index("url")
+    indice_problema_errores = cabeceras_errores.index("problema")
+    conteos_errores: dict[str, int] = {}
+    for fila in hoja_errores.iter_rows(min_row=2, values_only=True):
+        url = fila[indice_url_errores]
+        if not url:
+            continue
+        problema = str(fila[indice_problema_errores] or "").strip()
+        if problema:
+            conteos_errores[url] = conteos_errores.get(url, 0) + 1
+        else:
+            conteos_errores.setdefault(url, 0)
+
+    # Verifica coherencia entre conteos de Contenido y Errores.
+    assert conteos_contenido == conteos_errores
+
+
+# Verifica que la fusión de campos escalares sea determinista e independiente del orden.
+def test_construir_filas_contenido_consolidado_fusiona_escalares_de_forma_determinista() -> None:
+    """Comprueba que la consolidación use estrategia explícita para campos escalares."""
+
+    # Crea hallazgo para conservar conteo de incidencias durante la fusión.
+    hallazgo = HallazgoSeo(
+        tipo="contenido",
+        severidad="alta",
+        descripcion="Falta profundidad.",
+        recomendacion="Ampliar texto.",
+        area="Contenido",
+        impacto="Alto",
+        esfuerzo="Medio",
+        prioridad="P1",
+    )
+
+    # Construye variante incompleta de la misma URL.
+    incompleto = ResultadoUrl(
+        url="https://ejemplo.com/c",
+        tipo="page",
+        estado_http=200,
+        redirecciona=False,
+        url_final="https://ejemplo.com/c",
+        title="",
+        h1="",
+        meta_description="",
+        canonical="https://ejemplo.com/c",
+        noindex=False,
+        palabras=120,
+        calidad_contenido="media",
+        thin_content=True,
+        densidad_texto=0.21,
+        ratio_texto_html=0.15,
+        h1_unico=False,
+        estructura_headings_correcta=False,
+        imagenes_sin_alt=3,
+        lazy_load_detectado=False,
+        hallazgos=[hallazgo],
+    )
+
+    # Construye variante completa de la misma URL.
+    completo = ResultadoUrl(
+        url="https://ejemplo.com/c",
+        tipo="page",
+        estado_http=200,
+        redirecciona=False,
+        url_final="https://ejemplo.com/c",
+        title="Guía completa de producto",
+        h1="Guía de producto",
+        meta_description="Descripción extensa para producto clave",
+        canonical="https://ejemplo.com/c",
+        noindex=True,
+        palabras=520,
+        calidad_contenido="alta",
+        thin_content=False,
+        densidad_texto=0.55,
+        ratio_texto_html=0.34,
+        h1_unico=True,
+        estructura_headings_correcta=True,
+        imagenes_sin_alt=1,
+        lazy_load_detectado=True,
+        hallazgos=[],
+    )
+
+    # Ejecuta consolidación con orden A.
+    auditoria_a = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=2,
+        resultados=[incompleto, completo],
+        cliente="Ejemplo",
+        fecha_ejecucion="2026-03-30",
+        gestor="Gestor",
+    )
+    fila_a = construir_filas_contenido_consolidado(auditoria_a)[0]
+
+    # Ejecuta consolidación con orden inverso para validar determinismo.
+    auditoria_b = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=2,
+        resultados=[completo, incompleto],
+        cliente="Ejemplo",
+        fecha_ejecucion="2026-03-30",
+        gestor="Gestor",
+    )
+    fila_b = construir_filas_contenido_consolidado(auditoria_b)[0]
+
+    # Verifica igualdad completa de filas sin depender del orden de entrada.
+    assert fila_a == fila_b
+
+    # Verifica reglas explícitas de fusión escalar.
+    assert fila_a["title"] == "Guía completa de producto"
+    assert fila_a["h1"] == "Guía de producto"
+    assert fila_a["meta_description"] == "Descripción extensa para producto clave"
+    assert fila_a["palabras"] == 520
+    assert fila_a["calidad_contenido"] == "media"
+    assert fila_a["imagenes_sin_alt"] == 3
+    assert fila_a["thin_content"] == "Sí"
+    assert fila_a["noindex"] == "Sí"
+    assert fila_a["h1_unico"] == "No"
+    assert fila_a["estructura_headings_correcta"] == "No"
+    assert fila_a["lazy_load_detectado"] == "Sí"
+
+
 # Verifica trazabilidad de score de páginas prioritarias por componentes.
 def test_calcular_score_prioridad_pagina_devuelve_componentes() -> None:
     """Comprueba que el cálculo de prioridad exponga desglose explicable."""
