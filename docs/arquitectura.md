@@ -36,3 +36,8 @@ El sistema sigue una arquitectura modular con separación por capas:
 - Nuevas fuentes pueden añadirse como módulos desacoplados.
 - La capa de reporting reutiliza modelos estructurados, reduciendo acoplamiento con el origen de datos.
 - La capa de caché permite escalar a backends externos en futuras iteraciones.
+
+## Contrato documental de layout
+- El archivo `*_ia.md` se conserva únicamente como artefacto auxiliar de revisión interna.
+- El layout final de cliente (DOCX/PDF/HTML) no lee markdown IA de forma directa.
+- Los exportadores finales consumen exclusivamente la capa semántica intermedia (`construir_modelo_semantico_informe`) para mantener coherencia transversal.

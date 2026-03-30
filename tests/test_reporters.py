@@ -1216,6 +1216,81 @@ def test_exportadores_respetan_textos_base_personalizados_del_modelo(tmp_path: P
     assert "Prioridades QA" in texto_html
 
 
+# Verifica que DOCX/PDF/HTML no consuman markdown IA directo y usen capa semántica.
+def test_exportadores_finales_no_leen_markdown_ia_directo(tmp_path: Path, monkeypatch) -> None:
+    """Comprueba que DOCX/PDF/HTML dependan de `construir_modelo_semantico_informe`."""
+
+    # Inicializa captura de elementos PDF sin construir archivo real.
+    capturas_pdf: dict[str, object] = {}
+
+    # Define plantilla fake para interceptar contenido del PDF.
+    class PlantillaPdfFake:
+        """Implementa build mínimo para capturar textos renderizados."""
+
+        # Inicializa la plantilla fake.
+        def __init__(self, *args, **kwargs) -> None:
+            # Conserva parámetros por completitud.
+            capturas_pdf["args"] = args
+            capturas_pdf["kwargs"] = kwargs
+
+        # Captura elementos en memoria.
+        def build(self, elementos) -> None:
+            # Guarda elementos para aserciones.
+            capturas_pdf["elementos"] = elementos
+
+    # Sustituye exportador PDF real por plantilla fake.
+    monkeypatch.setattr(reporters_mod, "SimpleDocTemplate", PlantillaPdfFake)
+
+    # Crea auditoría mínima con markdown IA que no debe maquetar exportadores finales.
+    auditoria = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=1,
+        resultados=[],
+        cliente="Cliente Contrato",
+        fecha_ejecucion="2026-03-30",
+        gestor="Gestor Contrato",
+        resumen_ia="## MARCADOR_MD_DIRECTO_UNICO\n- Item markdown directo",
+    )
+
+    # Construye modelo base y añade texto contractual que sí debe aparecer.
+    modelo_personalizado = construir_modelo_semantico_informe(auditoria)
+    modelo_personalizado["textos_base"]["portada"]["titulo"] = "PORTADA DESDE MODELO SEMANTICO"
+
+    # Sustituye contenido narrativo para probar que el layout sale del modelo semántico parcheado.
+    for seccion in modelo_personalizado.get("secciones", []):
+        # Reemplaza párrafos ejecutivos por un texto controlado y limpia contenedores legacy.
+        seccion["resumen_ejecutivo"] = ["Resumen contractual desde modelo semántico"]
+        seccion["parrafos"] = []
+        seccion["listas"] = []
+
+    # Fuerza exportadores finales a usar el modelo semántico personalizado.
+    monkeypatch.setattr(reporters_mod, "construir_modelo_semantico_informe", lambda _: modelo_personalizado)
+
+    # Exporta Word y HTML, y ejecuta PDF en memoria.
+    ruta_word = exportar_word(auditoria, tmp_path)
+    ruta_html = exportar_html(auditoria, tmp_path)
+    exportar_pdf(auditoria, tmp_path)
+
+    # Recupera contenido textual de Word.
+    texto_word = "\n".join(parrafo.text for parrafo in Document(ruta_word).paragraphs)
+
+    # Recupera contenido textual de HTML.
+    texto_html = ruta_html.read_text(encoding="utf-8")
+
+    # Recupera contenido textual del PDF fake.
+    texto_pdf = " ".join(getattr(item, "text", "") for item in capturas_pdf.get("elementos", []))
+
+    # Verifica que los exportadores usen la portada del modelo semántico.
+    assert "PORTADA DESDE MODELO SEMANTICO" in texto_word
+    assert "PORTADA DESDE MODELO SEMANTICO" in texto_html
+    assert "PORTADA DESDE MODELO SEMANTICO" in texto_pdf
+
+    # Verifica que el markdown IA directo no aparezca en el layout final.
+    assert "MARCADOR_MD_DIRECTO_UNICO" not in texto_word
+    assert "MARCADOR_MD_DIRECTO_UNICO" not in texto_html
+    assert "MARCADOR_MD_DIRECTO_UNICO" not in texto_pdf
+
+
 # Verifica que la media de score de dashboard use ejecuciones únicas.
 def test_exportar_excel_score_medio_desde_ejecuciones_unicas(tmp_path: Path) -> None:
     """Comprueba que KPI de score medio no se sesgue por número de oportunidades."""
