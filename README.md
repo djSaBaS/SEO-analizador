@@ -198,6 +198,18 @@ Se incluye documentación ampliada y ejemplos completos en [`CLI.md`](./CLI.md).
 <output>/ga4_premium/<YYYY-MM-DD>/
 ```
 
+## Norma documental de carpetas (`info.md`)
+- Cada carpeta nueva debe crearse junto con su archivo `info.md` en el mismo commit.
+- El `info.md` debe usar la plantilla mínima: objetivo, archivos, responsabilidades, dependencias internas, flujo de uso, notas de mantenimiento y mejoras futuras.
+- La regla aplica a carpetas legacy y canónicas (por ejemplo, `Prompt/` y `prompts/`), subcarpetas en `src/seo_auditor/` y futuras carpetas como `tests/fixtures/`.
+- Validación automática:
+
+```bash
+python scripts/mantenimiento/validar_entorno.py
+```
+
+Más detalle en [`docs/arquitectura/sistema_documental.md`](./docs/arquitectura/sistema_documental.md).
+
 ## Tests
 ```bash
 pytest -q
