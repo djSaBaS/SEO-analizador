@@ -1,0 +1,487 @@
+# Importa utilidades de tipos para construir argumentos simulados.
+from types import SimpleNamespace
+from datetime import date, timedelta
+
+import pytest
+
+# Importa estructuras del dominio para fabricar resultados de prueba.
+from seo_auditor.models import ResultadoAuditoria, ResultadoRendimiento, ResultadoUrl
+
+# Importa módulo CLI bajo prueba.
+from seo_auditor import cli
+
+# Importa configuración tipada del proyecto.
+from seo_auditor.config import Configuracion
+
+
+# Verifica que PageSpeed persista datos y fuente activa en el flujo principal.
+def test_main_persiste_rendimiento_y_fuente_pagespeed(monkeypatch, tmp_path) -> None:
+    """Comprueba que el flujo CLI propague `rendimiento` y `pagespeed` al resultado final."""
+
+    # Construye argumentos simulados de ejecución.
+    argumentos = SimpleNamespace(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        output=str(tmp_path),
+        usar_ia=False,
+        testia=False,
+        testga=False,
+        testgsc=False,
+        modelo_ia="",
+        pagepsi="",
+        pagepsi_list="",
+        max_pagepsi_urls=0,
+        pagepsi_timeout=0,
+        pagepsi_reintentos=-1,
+        gestor="Gestor",
+        max_muestras_ia=5,
+        modo="completo",
+        modo_rapido=False,
+        cache_ttl=0,
+        invalidar_cache=False,
+        noGSC=False,
+        date_from="",
+        date_to="",
+        generar_todo=False,
+        comparar="periodo-anterior",
+        provincia="",
+        cliente="",
+    )
+
+    # Define parser simulado para evitar CLI real.
+    class _ParserFalso:
+        """Parser mínimo que devuelve argumentos simulados."""
+
+        # Devuelve argumentos preconstruidos.
+        def parse_args(self):
+            """Retorna argumentos simulados de forma estable."""
+            return argumentos
+
+    # Crea un resultado técnico base para el flujo.
+    resultado_base = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=1,
+        resultados=[
+            ResultadoUrl(
+                url="https://ejemplo.com/",
+                tipo="page",
+                estado_http=200,
+                redirecciona=False,
+                url_final="https://ejemplo.com/",
+                title="Inicio",
+                h1="Inicio",
+                meta_description="Meta",
+                canonical="https://ejemplo.com/",
+                noindex=False,
+                hallazgos=[],
+            )
+        ],
+        cliente="Ejemplo",
+        fecha_ejecucion="2026-03-20",
+        gestor="Gestor",
+    )
+
+    # Define resultado de PageSpeed simulado.
+    resultado_rendimiento = ResultadoRendimiento(
+        url="https://ejemplo.com/",
+        estrategia="mobile",
+        performance_score=88.0,
+        accessibility_score=90.0,
+        best_practices_score=92.0,
+        seo_score=95.0,
+        lcp="1,8 s",
+        cls="0,02",
+        inp="180 ms",
+        fcp="1,1 s",
+        tbt="90 ms",
+        speed_index="1,5 s",
+        campo_lcp=None,
+        campo_cls=None,
+        campo_inp=None,
+    )
+
+    # Inicializa capturador del resultado exportado.
+    capturado = {}
+
+    # Inyecta parser falso en el módulo CLI.
+    monkeypatch.setattr(cli, "crear_parser", lambda: _ParserFalso())
+
+    # Inyecta configuración con clave de PageSpeed activa.
+    monkeypatch.setattr(
+        cli,
+        "cargar_configuracion",
+        lambda: Configuracion(
+            gemini_api_key="",
+            gemini_model="gemini-2.5-flash",
+            pagespeed_api_key="clave-pagespeed",
+            http_timeout=10,
+            max_urls=10,
+            max_pagepsi_urls=5,
+            pagespeed_timeout=45,
+            pagespeed_reintentos=2,
+            cache_ttl_segundos=21600,
+            gsc_enabled=False,
+            gsc_site_url="",
+            gsc_credentials_file="",
+            gsc_date_from="",
+            gsc_date_to="",
+            gsc_row_limit=250,
+            ga_enabled=False,
+            ga_property_id="",
+            ga_credentials_file="",
+            ga_date_from="",
+            ga_date_to="",
+            ga_row_limit=1000,
+        ),
+    )
+
+    # Simula extracción de URLs desde sitemap.
+    monkeypatch.setattr(cli, "extraer_urls_sitemap", lambda *args, **kwargs: ["https://ejemplo.com/"])
+
+    # Simula auditoría técnica devolviendo el resultado base.
+    monkeypatch.setattr(cli, "auditar_urls", lambda *args, **kwargs: resultado_base)
+
+    # Simula ejecución de PageSpeed con un resultado válido.
+    monkeypatch.setattr(cli, "_ejecutar_pagespeed", lambda *args, **kwargs: [resultado_rendimiento])
+
+    # Captura el resultado que llega al exportador JSON.
+    def _capturar_json(resultado, _path):
+        """Guarda el resultado para validar persistencia de datos."""
+        capturado["resultado"] = resultado
+        return _path
+
+    # Inyecta exportador JSON espía.
+    monkeypatch.setattr(cli, "exportar_json", _capturar_json)
+
+    # Inyecta exportadores restantes como no-op.
+    monkeypatch.setattr(cli, "exportar_excel", lambda *args, **kwargs: None)
+    monkeypatch.setattr(cli, "exportar_word", lambda *args, **kwargs: None)
+    monkeypatch.setattr(cli, "exportar_pdf", lambda *args, **kwargs: None)
+    monkeypatch.setattr(cli, "exportar_markdown_ia", lambda *args, **kwargs: None)
+
+    # Ejecuta flujo principal.
+    codigo = cli.main()
+
+    # Verifica ejecución correcta.
+    assert codigo == 0
+
+    # Verifica que existan resultados de rendimiento persistidos.
+    assert capturado["resultado"].rendimiento
+
+    # Verifica que se marque PageSpeed como fuente activa.
+    assert "pagespeed" in capturado["resultado"].fuentes_activas
+
+
+# Verifica que PageSpeed fallido no quede como fuente activa.
+def test_main_no_marca_pagespeed_como_activa_si_falla(monkeypatch, tmp_path) -> None:
+    """Comprueba que errores de PageSpeed se registren como fuente fallida."""
+
+    # Construye argumentos simulados de ejecución.
+    argumentos = SimpleNamespace(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        output=str(tmp_path),
+        usar_ia=False,
+        testia=False,
+        testga=False,
+        testgsc=False,
+        modelo_ia="",
+        pagepsi="",
+        pagepsi_list="",
+        max_pagepsi_urls=0,
+        pagepsi_timeout=0,
+        pagepsi_reintentos=-1,
+        gestor="Gestor",
+        max_muestras_ia=5,
+        modo="completo",
+        modo_rapido=False,
+        cache_ttl=0,
+        invalidar_cache=False,
+        noGSC=False,
+        date_from="",
+        date_to="",
+        generar_todo=False,
+        comparar="periodo-anterior",
+        provincia="",
+        cliente="",
+    )
+
+    # Define parser simulado para evitar CLI real.
+    class _ParserFalso:
+        """Parser mínimo que devuelve argumentos simulados."""
+
+        # Devuelve argumentos preconstruidos.
+        def parse_args(self):
+            """Retorna argumentos simulados de forma estable."""
+            return argumentos
+
+    # Crea un resultado técnico base para el flujo.
+    resultado_base = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=1,
+        resultados=[
+            ResultadoUrl(
+                url="https://ejemplo.com/",
+                tipo="page",
+                estado_http=200,
+                redirecciona=False,
+                url_final="https://ejemplo.com/",
+                title="Inicio",
+                h1="Inicio",
+                meta_description="Meta",
+                canonical="https://ejemplo.com/",
+                noindex=False,
+                hallazgos=[],
+            )
+        ],
+        cliente="Ejemplo",
+        fecha_ejecucion="2026-03-20",
+        gestor="Gestor",
+    )
+
+    # Define resultado de PageSpeed fallido.
+    resultado_rendimiento = ResultadoRendimiento(
+        url="https://ejemplo.com/",
+        estrategia="mobile",
+        performance_score=None,
+        accessibility_score=None,
+        best_practices_score=None,
+        seo_score=None,
+        lcp=None,
+        cls=None,
+        inp=None,
+        fcp=None,
+        tbt=None,
+        speed_index=None,
+        campo_lcp=None,
+        campo_cls=None,
+        campo_inp=None,
+        error="timeout",
+    )
+
+    # Inicializa capturador del resultado exportado.
+    capturado = {}
+
+    # Inyecta parser falso en el módulo CLI.
+    monkeypatch.setattr(cli, "crear_parser", lambda: _ParserFalso())
+
+    # Inyecta configuración con clave de PageSpeed activa.
+    monkeypatch.setattr(
+        cli,
+        "cargar_configuracion",
+        lambda: Configuracion(
+            gemini_api_key="",
+            gemini_model="gemini-2.5-flash",
+            pagespeed_api_key="clave-pagespeed",
+            http_timeout=10,
+            max_urls=10,
+            max_pagepsi_urls=5,
+            pagespeed_timeout=45,
+            pagespeed_reintentos=2,
+            cache_ttl_segundos=21600,
+            gsc_enabled=False,
+            gsc_site_url="",
+            gsc_credentials_file="",
+            gsc_date_from="",
+            gsc_date_to="",
+            gsc_row_limit=250,
+            ga_enabled=False,
+            ga_property_id="",
+            ga_credentials_file="",
+            ga_date_from="",
+            ga_date_to="",
+            ga_row_limit=1000,
+        ),
+    )
+
+    # Simula extracción de URLs desde sitemap.
+    monkeypatch.setattr(cli, "extraer_urls_sitemap", lambda *args, **kwargs: ["https://ejemplo.com/"])
+
+    # Simula auditoría técnica devolviendo el resultado base.
+    monkeypatch.setattr(cli, "auditar_urls", lambda *args, **kwargs: resultado_base)
+
+    # Simula ejecución fallida de PageSpeed.
+    monkeypatch.setattr(cli, "_ejecutar_pagespeed", lambda *args, **kwargs: [resultado_rendimiento])
+
+    # Captura el resultado que llega al exportador JSON.
+    def _capturar_json(resultado, _path):
+        """Guarda el resultado para validar estado de fuentes."""
+        capturado["resultado"] = resultado
+        return _path
+
+    # Inyecta exportador JSON espía.
+    monkeypatch.setattr(cli, "exportar_json", _capturar_json)
+
+    # Inyecta exportadores restantes como no-op.
+    monkeypatch.setattr(cli, "exportar_excel", lambda *args, **kwargs: None)
+    monkeypatch.setattr(cli, "exportar_word", lambda *args, **kwargs: None)
+    monkeypatch.setattr(cli, "exportar_pdf", lambda *args, **kwargs: None)
+    monkeypatch.setattr(cli, "exportar_markdown_ia", lambda *args, **kwargs: None)
+
+    # Ejecuta flujo principal.
+    codigo = cli.main()
+
+    # Verifica ejecución correcta.
+    assert codigo == 0
+
+    # Verifica que PageSpeed no se marque como fuente activa.
+    assert "pagespeed" not in capturado["resultado"].fuentes_activas
+
+    # Verifica que PageSpeed sí quede registrado como fuente fallida.
+    assert "pagespeed" in capturado["resultado"].fuentes_fallidas
+
+
+# Verifica que --noGSC omita por completo la consulta a Search Console.
+def test_main_omite_gsc_si_se_usa_bandera_no_gsc(monkeypatch, tmp_path) -> None:
+    """Comprueba que la bandera --noGSC evite llamadas a la integración GSC."""
+
+    # Construye argumentos simulados con omisión explícita de GSC.
+    argumentos = SimpleNamespace(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        output=str(tmp_path),
+        usar_ia=False,
+        testia=False,
+        testga=False,
+        testgsc=False,
+        modelo_ia="",
+        pagepsi="",
+        pagepsi_list="",
+        max_pagepsi_urls=0,
+        pagepsi_timeout=0,
+        pagepsi_reintentos=-1,
+        gestor="Gestor",
+        max_muestras_ia=5,
+        modo="completo",
+        modo_rapido=False,
+        cache_ttl=0,
+        invalidar_cache=False,
+        noGSC=True,
+        date_from="",
+        date_to="",
+        generar_todo=False,
+        comparar="periodo-anterior",
+        provincia="",
+        cliente="",
+    )
+
+    # Define parser simulado para evitar CLI real.
+    class _ParserFalso:
+        """Parser mínimo que devuelve argumentos simulados."""
+
+        # Devuelve argumentos preconstruidos.
+        def parse_args(self):
+            """Retorna argumentos simulados de forma estable."""
+            return argumentos
+
+    # Crea un resultado técnico base para el flujo.
+    resultado_base = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=1,
+        resultados=[
+            ResultadoUrl(
+                url="https://ejemplo.com/",
+                tipo="page",
+                estado_http=200,
+                redirecciona=False,
+                url_final="https://ejemplo.com/",
+                title="Inicio",
+                h1="Inicio",
+                meta_description="Meta",
+                canonical="https://ejemplo.com/",
+                noindex=False,
+                hallazgos=[],
+            )
+        ],
+        cliente="Ejemplo",
+        fecha_ejecucion="2026-03-24",
+        gestor="Gestor",
+    )
+
+    # Inyecta parser falso en el módulo CLI.
+    monkeypatch.setattr(cli, "crear_parser", lambda: _ParserFalso())
+
+    # Inyecta configuración con GSC habilitado para validar omisión por bandera.
+    monkeypatch.setattr(
+        cli,
+        "cargar_configuracion",
+        lambda: Configuracion(
+            gemini_api_key="",
+            gemini_model="gemini-2.5-flash",
+            pagespeed_api_key="",
+            http_timeout=10,
+            max_urls=10,
+            max_pagepsi_urls=5,
+            pagespeed_timeout=45,
+            pagespeed_reintentos=2,
+            cache_ttl_segundos=21600,
+            gsc_enabled=True,
+            gsc_site_url="https://ejemplo.com/",
+            gsc_credentials_file="./credenciales/gsc.json",
+            gsc_date_from="2026-02-01",
+            gsc_date_to="2026-03-01",
+            gsc_row_limit=250,
+            ga_enabled=False,
+            ga_property_id="",
+            ga_credentials_file="",
+            ga_date_from="",
+            ga_date_to="",
+            ga_row_limit=1000,
+        ),
+    )
+
+    # Simula extracción de URLs desde sitemap.
+    monkeypatch.setattr(cli, "extraer_urls_sitemap", lambda *args, **kwargs: ["https://ejemplo.com/"])
+
+    # Simula auditoría técnica devolviendo el resultado base.
+    monkeypatch.setattr(cli, "auditar_urls", lambda *args, **kwargs: resultado_base)
+
+    # Simula análisis de indexación para no depender de red.
+    monkeypatch.setattr(cli, "analizar_indexacion_rastreo", lambda *args, **kwargs: {})
+
+    # Define llamada prohibida para GSC cuando exista --noGSC.
+    monkeypatch.setattr(cli, "cargar_datos_search_console", lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("No debe llamarse GSC con --noGSC")))
+
+    # Inyecta exportadores como no-op para aislar la prueba.
+    monkeypatch.setattr(cli, "exportar_json", lambda *args, **kwargs: None)
+    monkeypatch.setattr(cli, "exportar_excel", lambda *args, **kwargs: None)
+    monkeypatch.setattr(cli, "exportar_word", lambda *args, **kwargs: None)
+    monkeypatch.setattr(cli, "exportar_pdf", lambda *args, **kwargs: None)
+    monkeypatch.setattr(cli, "exportar_html", lambda *args, **kwargs: None)
+    monkeypatch.setattr(cli, "exportar_markdown_ia", lambda *args, **kwargs: None)
+
+    # Ejecuta flujo principal.
+    codigo = cli.main()
+
+    # Verifica ejecución correcta sin consulta GSC.
+    assert codigo == 0
+
+
+# Verifica que el periodo por defecto sea de últimos 28 días.
+def test_resolver_periodo_analisis_por_defecto_usa_ultimos_28_dias() -> None:
+    """Comprueba que sin parámetros se use ventana inclusiva de 28 días."""
+
+    # Construye argumentos vacíos de fechas.
+    argumentos = SimpleNamespace(date_from="", date_to="")
+
+    # Ejecuta resolución del periodo por defecto.
+    fecha_desde, fecha_hasta = cli._resolver_periodo_analisis(argumentos)
+
+    # Calcula fecha fin esperada (ayer).
+    ayer = date.today() - timedelta(days=1)
+
+    # Calcula fecha inicio esperada para ventana inclusiva de 28 días.
+    inicio = ayer - timedelta(days=27)
+
+    # Verifica fechas efectivas calculadas por el resolver.
+    assert (fecha_desde, fecha_hasta) == (inicio.isoformat(), ayer.isoformat())
+
+
+# Verifica validación estricta de rango cuando fecha inicial no es menor.
+def test_resolver_periodo_analisis_falla_si_date_from_no_es_menor() -> None:
+    """Comprueba que `date_from < date_to` sea obligatorio."""
+
+    # Construye argumentos con rango inválido por igualdad.
+    argumentos = SimpleNamespace(date_from="2026-03-01", date_to="2026-03-01")
+
+    # Verifica que se lance error por rango no estricto.
+    with pytest.raises(ValueError, match="--date-from debe ser anterior a --date-to."):
+        # Ejecuta resolución para disparar validación.
+        cli._resolver_periodo_analisis(argumentos)
