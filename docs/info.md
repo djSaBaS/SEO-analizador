@@ -3,6 +3,8 @@
 Documentación funcional y de arquitectura del proyecto.
 
 ## Archivos
+- `integraciones/gemini.md`: reglas de integración IA y convención de carga de prompts.
+- `ejemplos/comandos_cli.md`: ejemplos operativos de uso de CLI por modo.
 - `arquitectura.md`: arquitectura actual, flujo operativo y decisiones técnicas.
 - `modo-pro-preparacion.md`: criterios para evolución de fuentes/autenticación y reglas editoriales de datos.
 
