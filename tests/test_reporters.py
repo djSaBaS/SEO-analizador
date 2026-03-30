@@ -1089,6 +1089,133 @@ def test_modelo_semantico_rendimiento_incluye_metricas_y_oportunidades() -> None
     assert any(tabla.get("titulo") == "Oportunidades PageSpeed priorizadas" for tabla in seccion_rendimiento.get("tablas", []))
 
 
+# Verifica coherencia cruzada de secciones principales entre DOCX, PDF y HTML.
+def test_exportadores_mantienen_coherencia_de_titulos_principales(tmp_path: Path, monkeypatch) -> None:
+    """Comprueba que los títulos principales estén presentes en los tres formatos."""
+
+    # Inicializa captura de elementos PDF sin escribir binario real.
+    capturas_pdf: dict[str, object] = {}
+
+    # Define plantilla fake para interceptar el build del PDF.
+    class PlantillaPdfFake:
+        """Implementa interfaz mínima para capturar contenido renderizado."""
+
+        # Inicializa constructor compatible con SimpleDocTemplate.
+        def __init__(self, *args, **kwargs) -> None:
+            # Guarda parámetros por trazabilidad.
+            capturas_pdf["args"] = args
+            capturas_pdf["kwargs"] = kwargs
+
+        # Captura elementos renderizados del PDF.
+        def build(self, elementos) -> None:
+            # Guarda elementos para validaciones posteriores.
+            capturas_pdf["elementos"] = elementos
+
+    # Sustituye constructor PDF por implementación fake.
+    monkeypatch.setattr(reporters_mod, "SimpleDocTemplate", PlantillaPdfFake)
+
+    # Construye auditoría mínima para exportaciones cruzadas.
+    auditoria = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=1,
+        resultados=[],
+        cliente="Cliente Coherencia",
+        fecha_ejecucion="2026-03-30",
+        gestor="Gestor Coherencia",
+    )
+
+    # Genera modelo semántico y obtiene secciones principales visibles.
+    modelo = construir_modelo_semantico_informe(auditoria)
+    titulos_principales = [seccion["titulo"] for seccion in modelo["secciones"] if seccion.get("tipo_bloque") == "seccion"]
+
+    # Exporta formatos a validar.
+    ruta_word = exportar_word(auditoria, tmp_path)
+    ruta_html = exportar_html(auditoria, tmp_path)
+    exportar_pdf(auditoria, tmp_path)
+
+    # Recupera texto plano de Word.
+    texto_word = "\n".join(parrafo.text for parrafo in Document(ruta_word).paragraphs)
+
+    # Recupera texto plano de HTML.
+    texto_html = ruta_html.read_text(encoding="utf-8")
+
+    # Recupera texto plano de elementos PDF capturados.
+    texto_pdf = " ".join(getattr(item, "text", "") for item in capturas_pdf.get("elementos", []))
+
+    # Verifica presencia de títulos principales en los tres formatos.
+    for titulo in titulos_principales:
+        assert titulo in texto_word
+        assert titulo in texto_html
+        assert titulo in texto_pdf
+
+
+# Verifica no regresión al cambiar textos del modelo semántico de portada y secciones.
+def test_exportadores_respetan_textos_base_personalizados_del_modelo(tmp_path: Path, monkeypatch) -> None:
+    """Comprueba que los exportadores usen textos base del modelo semántico."""
+
+    # Inicializa captura de elementos PDF sin construir archivo real.
+    capturas_pdf: dict[str, object] = {}
+
+    # Define plantilla fake para interceptar contenido del PDF.
+    class PlantillaPdfFake:
+        """Implementa build mínimo para capturar textos renderizados."""
+
+        # Inicializa la plantilla fake.
+        def __init__(self, *args, **kwargs) -> None:
+            # Conserva parámetros por completitud.
+            capturas_pdf["args"] = args
+            capturas_pdf["kwargs"] = kwargs
+
+        # Captura elementos en memoria.
+        def build(self, elementos) -> None:
+            # Guarda elementos para aserciones.
+            capturas_pdf["elementos"] = elementos
+
+    # Sustituye exportador PDF real por plantilla fake.
+    monkeypatch.setattr(reporters_mod, "SimpleDocTemplate", PlantillaPdfFake)
+
+    # Crea auditoría mínima para ejecutar exportadores.
+    auditoria = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=1,
+        resultados=[],
+        cliente="Cliente Base",
+        fecha_ejecucion="2026-03-30",
+        gestor="Gestor Base",
+    )
+
+    # Construye modelo base y aplica personalización de no regresión.
+    modelo_personalizado = construir_modelo_semantico_informe(auditoria)
+    modelo_personalizado["textos_base"]["portada"]["titulo"] = "INFORME SEO PERSONALIZADO QA"
+    modelo_personalizado["textos_base"]["secciones"]["prioridades_quick_wins_titulo"] = "Prioridades QA"
+    modelo_personalizado["textos_base"]["secciones"]["prioridades_quick_wins_vacio_descripcion"] = "Sin quick wins QA."
+
+    # Fuerza exportadores a usar el modelo personalizado.
+    monkeypatch.setattr(reporters_mod, "construir_modelo_semantico_informe", lambda _: modelo_personalizado)
+
+    # Exporta Word y HTML, y ejecuta PDF en memoria.
+    ruta_word = exportar_word(auditoria, tmp_path)
+    ruta_html = exportar_html(auditoria, tmp_path)
+    exportar_pdf(auditoria, tmp_path)
+
+    # Recupera contenido textual de Word.
+    texto_word = "\n".join(parrafo.text for parrafo in Document(ruta_word).paragraphs)
+
+    # Recupera contenido textual de HTML.
+    texto_html = ruta_html.read_text(encoding="utf-8")
+
+    # Recupera contenido textual del PDF fake.
+    texto_pdf = " ".join(getattr(item, "text", "") for item in capturas_pdf.get("elementos", []))
+
+    # Verifica que Word y PDF adopten el nuevo título de portada.
+    assert "INFORME SEO PERSONALIZADO QA" in texto_word
+    assert "INFORME SEO PERSONALIZADO QA" in texto_pdf
+
+    # Verifica que HTML adopte títulos y fallback personalizados.
+    assert "INFORME SEO PERSONALIZADO QA" in texto_html
+    assert "Prioridades QA" in texto_html
+
+
 # Verifica que la media de score de dashboard use ejecuciones únicas.
 def test_exportar_excel_score_medio_desde_ejecuciones_unicas(tmp_path: Path) -> None:
     """Comprueba que KPI de score medio no se sesgue por número de oportunidades."""
