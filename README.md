@@ -34,6 +34,7 @@ Herramienta de auditoría SEO técnica y ejecutiva con exportación a JSON, Exce
 
 ## Papel del archivo Markdown IA
 - El archivo `*_ia.md` se mantiene como salida auxiliar interna para revisión editorial.
+- Es un artefacto contractual de revisión interna y no es la fuente de layout final.
 - No es el artefacto principal de cliente.
 - La maquetación premium final (Word/PDF/HTML) se construye desde la capa semántica intermedia, no desde markdown directo.
 

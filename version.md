@@ -1,3 +1,9 @@
+## 0.10.13 - 2026-03-30
+- Se documenta en `README.md` y `docs/arquitectura.md` el contrato de `*_ia.md` como artefacto interno de revisión, explícitamente fuera de la fuente de layout final.
+- Se refuerza el contrato arquitectónico en `reporters.py` con comentarios en `construir_modelo_semantico_informe` y `exportar_markdown_ia` para dejar explícito que DOCX/PDF/HTML no deben maquetar desde markdown IA directo.
+- Se añade test de regresión en `tests/test_reporters.py` para validar que exportadores finales dependen de `construir_modelo_semantico_informe` y no consumen markdown IA directo.
+- Se actualizan `docs/info.md`, `src/info.md` y `tests/info.md` para reflejar el contrato documental y su cobertura de pruebas.
+
 ## 0.10.12 - 2026-03-30
 - Se centralizan en `construir_modelo_semantico_informe` los textos base compartidos de portada, metadatos y secciones para DOCX/PDF/HTML (`textos_base`) y se añade `_resolver_portada_semantica` como contrato único de render.
 - Se refactorizan `exportar_word`, `exportar_pdf` y `exportar_html` para consumir el contrato semántico común y eliminar duplicación de literales transversales (excepto estilos CSS propios de HTML).

@@ -3239,7 +3239,8 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     return destino
 
 
-# Exporta un informe ejecutivo en Word.
+# Define contrato arquitectónico único de layout final para DOCX/PDF/HTML.
+# Este contrato evita depender de markdown IA directo en exportadores finales.
 def construir_modelo_semantico_informe(resultado: ResultadoAuditoria) -> dict[str, Any]:
     """Construye una única capa semántica neutral para DOCX/PDF/HTML."""
 
@@ -3957,8 +3958,10 @@ def exportar_pdf(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
 
 
 # Exporta el informe IA en Markdown para edición y revisión humana.
+# Contrato: este archivo `*_ia.md` es solo artefacto de revisión interna.
+# No puede ser utilizado como fuente de layout final de DOCX/PDF/HTML.
 def exportar_markdown_ia(resultado: ResultadoAuditoria, path_salida: Path) -> Path | None:
-    """Genera un archivo Markdown con el resumen IA y metadatos."""
+    """Genera un archivo Markdown auxiliar de revisión interna con metadatos."""
 
     # Sale sin crear archivo cuando no existe resumen IA.
     if not resultado.resumen_ia:
