@@ -1,0 +1,24 @@
+"""Servicios de entregables y perfiles de generación."""
+
+ENTREGABLE_JSON_TECNICO = "json_tecnico"
+ENTREGABLE_EXCEL_SEO = "excel_seo"
+ENTREGABLE_WORD_SEO = "word_seo"
+ENTREGABLE_PDF_SEO = "pdf_seo"
+ENTREGABLE_HTML_SEO = "html_seo"
+ENTREGABLE_MARKDOWN_IA = "markdown_ia"
+ENTREGABLE_GA4_PREMIUM = "ga4_premium"
+
+ENTREGABLES_BASE_AUDITORIA = [
+    ENTREGABLE_JSON_TECNICO,
+    ENTREGABLE_EXCEL_SEO,
+    ENTREGABLE_WORD_SEO,
+    ENTREGABLE_PDF_SEO,
+    ENTREGABLE_HTML_SEO,
+    ENTREGABLE_MARKDOWN_IA,
+]
+
+PERFILES_GENERACION: dict[str, list[str]] = {
+    "auditoria-seo-completa": ENTREGABLES_BASE_AUDITORIA,
+    "todo": ENTREGABLES_BASE_AUDITORIA + [ENTREGABLE_GA4_PREMIUM],
+    "solo-ga4-premium": [ENTREGABLE_GA4_PREMIUM],
+}
