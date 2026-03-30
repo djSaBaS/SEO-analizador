@@ -2865,47 +2865,29 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     hoja_kpis.column_dimensions["B"].width = 18
     hoja_kpis.freeze_panes = "A5"
 
-    # Define tarjetas visuales principales en primera franja del dashboard.
-    tarjetas_superiores = [
-        ("Total URLs", metricas["total_urls"], "E8F0FE", "1F4E78"),
-        ("Total incidencias", metricas["total_incidencias"], "FDECEC", "9B1C1C"),
-        ("Score global", metricas["score"], "E7F8EF", "166534"),
-        ("URLs sanas", metricas["urls_sanas"], "ECFDF3", "065F46"),
-        ("CTR medio GSC", ctr_medio_gsc, "EFF6FF", "1D4ED8"),
-        ("Posición media GSC", posicion_media_gsc, "FEF3C7", "92400E"),
-        ("Sesiones GA4", sesiones_totales_analytics, "ECFEFF", "155E75"),
-        ("Rebote GA4", rebote_medio_analytics, "FEF2F2", "991B1B"),
-        ("Duración GA4", duracion_media_analytics, "F0FDF4", "166534"),
-        ("Score técnico", resultado.score_tecnico, "F3E8FF", "6B21A8"),
-        ("Score contenido", resultado.score_contenido, "FFF7ED", "9A3412"),
-        ("Score rendimiento", resultado.score_rendimiento, "E0F2FE", "0C4A6E"),
-    ]
+    # Aplica ancho fijo de columnas para no romper la jerarquía visual.
+    for indice_columna in range(1, 13):
+        hoja_dashboard.column_dimensions[get_column_letter(indice_columna)].width = 14.0
 
-    # Renderiza tarjetas KPI grandes en una fila superior de alto impacto visual.
-    for indice, (titulo, valor, color_fondo, color_texto) in enumerate(tarjetas_superiores):
-        # Calcula bloque de dos columnas por tarjeta.
-        col_inicio = 1 + (indice * 2)
-        col_fin = col_inicio + 1
-        letra_inicio = get_column_letter(col_inicio)
-        letra_fin = get_column_letter(col_fin)
+    # Define alturas fijas de filas de la primera pantalla ejecutiva.
+    for indice_fila in range(3, 35):
+        hoja_dashboard.row_dimensions[indice_fila].height = 22
 
-        # Fusiona celdas para construir tarjeta amplia.
-        hoja_dashboard.merge_cells(f"{letra_inicio}3:{letra_fin}3")
-        hoja_dashboard.merge_cells(f"{letra_inicio}4:{letra_fin}6")
-
-        # Escribe título y valor de tarjeta.
-        hoja_dashboard[f"{letra_inicio}3"] = titulo
-        hoja_dashboard[f"{letra_inicio}4"] = valor
-
-        # Estiliza título de tarjeta.
-        hoja_dashboard[f"{letra_inicio}3"].font = Font(size=10, bold=True, color=color_texto)
-        hoja_dashboard[f"{letra_inicio}3"].alignment = Alignment(horizontal="center", vertical="center")
-        hoja_dashboard[f"{letra_inicio}3"].fill = PatternFill(fill_type="solid", fgColor=color_fondo)
-
-        # Estiliza valor principal de tarjeta.
-        hoja_dashboard[f"{letra_inicio}4"].font = Font(size=18, bold=True, color=color_texto)
-        hoja_dashboard[f"{letra_inicio}4"].alignment = Alignment(horizontal="center", vertical="center")
-        hoja_dashboard[f"{letra_inicio}4"].fill = PatternFill(fill_type="solid", fgColor=color_fondo)
+    # Renderiza bloque principal de score global + score por bloques (zona A-F).
+    _renderizar_bloque_dashboard(
+        hoja_dashboard,
+        "A4",
+        "Score global y score por bloques",
+        [
+            f"Score global: {metricas['score']}",
+            f"Score técnico: {resultado.score_tecnico}",
+            f"Score contenido: {resultado.score_contenido}",
+            f"Score rendimiento: {resultado.score_rendimiento}",
+            f"Indexación / arquitectura: {score_bloques.get('indexacion_arquitectura', {}).get('score', 0)}",
+            f"Multimedia / accesibilidad: {score_bloques.get('multimedia_accesibilidad', {}).get('score', 0)}",
+        ][:6],
+        COLOR_BLOQUE_SCORE,
+    )
 
     # Obtiene top páginas por impresiones para bloque de visibilidad.
     top_paginas = ", ".join(str(fila.get("url", "")) for fila in sorted(filas_gsc_paginas, key=lambda item: float(item.get("impresiones", 0.0)), reverse=True)[:3]) or "Sin datos"
@@ -2913,13 +2895,13 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     # Obtiene top queries por impresiones para bloque de visibilidad.
     top_queries = ", ".join(str(fila.get("query", "")) for fila in sorted(filas_gsc_queries, key=lambda item: float(item.get("impresiones", 0.0)), reverse=True)[:3]) or "Sin datos"
 
-    # Obtiene top páginas por sesiones de Analytics.
+    # Obtiene top páginas por sesiones de Analytics para bloque secundario inferior.
     top_paginas_analytics = ", ".join(str(fila.get("url", "")) for fila in sorted(filas_analytics_paginas, key=lambda item: float(item.get("sesiones", 0.0)), reverse=True)[:3]) or "Sin datos"
 
-    # Obtiene páginas con peor comportamiento en Analytics.
+    # Obtiene páginas con peor comportamiento en Analytics para bloque secundario inferior.
     peores_paginas_analytics = ", ".join(str(fila.get("url", "")) for fila in sorted(filas_analytics_paginas, key=lambda item: float(item.get("rebote", 0.0)), reverse=True)[:3]) or "Sin datos"
 
-    # Construye distribuciones para gráficos de dashboard.
+    # Construye distribuciones para gráficos y bloque de severidades.
     severidades_rend = Counter([str(fila.get("severidad", "informativa")).lower() for fila in filas_rendimiento if fila.get("oportunidad")])
 
     # Construye distribución por tipo de mejora.
@@ -2931,12 +2913,8 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     # Construye distribución de incidencias por área para bloque ejecutivo.
     incidencias_por_area = Counter([str(fila.get("area", "Sin área")).strip() for fila in filas if fila.get("problema")])
 
-    # Construye distribución de incidencias por tipo para bloque ejecutivo.
+    # Construye distribución de incidencias por tipo para hoja auxiliar.
     incidencias_por_tipo = Counter([str(fila.get("tipo", "Sin tipo")).strip() for fila in filas if fila.get("problema")])
-
-    # Obtiene incidencias agrupadas por familia desde métricas.
-    incidencias_agrupadas_data = metricas.get("incidencias_agrupadas")
-    incidencias_por_familia = incidencias_agrupadas_data if isinstance(incidencias_agrupadas_data, dict) else {}
 
     # Escribe bloque de severidad de rendimiento en hoja auxiliar.
     hoja_aux["A1"] = "Severidad rendimiento"
@@ -2970,14 +2948,6 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     hoja_aux["J1"] = "Bloque score"
     hoja_aux["K1"] = "Score"
 
-    # Escribe bloque de comparación técnico vs agrupado en hoja auxiliar.
-    hoja_aux["M1"] = "Tipo conteo"
-    hoja_aux["N1"] = "Cantidad"
-    hoja_aux["M2"] = "Incidencias técnicas"
-    hoja_aux["N2"] = metricas["total_incidencias"]
-    hoja_aux["M3"] = "Incidencias agrupadas"
-    hoja_aux["N3"] = metricas.get("total_incidencias_agrupadas", 0)
-
     # Define pares de score por bloques para visualización.
     bloques_score = [
         ("Indexación/arquitectura", score_bloques.get("indexacion_arquitectura", {}).get("score", 0)),
@@ -3010,6 +2980,22 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
         # Inserta valor por defecto.
         hoja_aux["H2"] = 1
 
+    # Renderiza bloque de severidades en primera pantalla (zona G-L).
+    _renderizar_bloque_dashboard(
+        hoja_dashboard,
+        "G4",
+        "Severidades",
+        [
+            f"Crítica: {incidencias_criticas}",
+            f"Alta: {incidencias_altas}",
+            f"Media: {incidencias_medias}",
+            f"Baja: {incidencias_bajas}",
+            f"Informativa: {metricas['severidades'].get('informativa', 0)}",
+            "Top áreas: " + ", ".join(f"{k}={v}" for k, v in incidencias_por_area.most_common(2)),
+        ][:6],
+        COLOR_BLOQUE_INCIDENCIAS,
+    )
+
     # Calcula total de quick wins para sección de oportunidades.
     total_quick_wins = len(_construir_quick_wins(filas, limite=7))
 
@@ -3018,18 +3004,38 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     oportunidades_ctr_bajo = len([fila for fila in filas_oportunidades_gsc if "ctr bajo" in str(fila.get("oportunidad", "")).lower()])
     mayor_potencial = ", ".join(str(fila.get("url", "")) for fila in filas_oportunidades_gsc[:3]) or "Sin datos"
 
-    # Define desglose de score por bloques para lectura rápida.
-    lineas_score_bloques = [
-        f"Indexación / arquitectura: {score_bloques.get('indexacion_arquitectura', {}).get('score', 0)}",
-        f"Contenido on-page: {score_bloques.get('contenido_onpage', {}).get('score', 0)}",
-        f"Rendimiento: {score_bloques.get('rendimiento', {}).get('score', 0)}",
-        f"Multimedia / accesibilidad: {score_bloques.get('multimedia_accesibilidad', {}).get('score', 0)}",
-    ]
-
-    # Renderiza bloque de visibilidad orgánica real.
+    # Renderiza bloque de oportunidades principales en primera pantalla (zona A-F).
     _renderizar_bloque_dashboard(
         hoja_dashboard,
-        "D9",
+        "A14",
+        "Oportunidades principales",
+        [
+            f"Páginas con CTR bajo: {oportunidades_ctr_bajo}",
+            f"Páginas en posición 4-15: {oportunidades_pos_4_15}",
+            f"Quick wins detectados: {total_quick_wins}",
+            f"Páginas de mayor potencial: {mayor_potencial}",
+            f"Top oportunidades de rendimiento: {sum(severidades_rend.values())}",
+        ][:5],
+        COLOR_BLOQUE_OPORTUNIDADES,
+    )
+
+    # Renderiza bloque de top páginas prioritarias en primera pantalla (zona G-L).
+    _renderizar_bloque_dashboard(
+        hoja_dashboard,
+        "G14",
+        "Top páginas prioritarias",
+        [
+            f"{item.get('url', '')} (score={item.get('prioridad_score', 0)})"
+            for item in construir_paginas_prioritarias(resultado, limite=5)
+        ]
+        or ["Sin señales suficientes para priorizar."],
+        "7C3AED",
+    )
+
+    # Renderiza bloque secundario de visibilidad orgánica fuera de la primera pantalla.
+    _renderizar_bloque_dashboard(
+        hoja_dashboard,
+        "A24",
         "Visibilidad orgánica real",
         [
             f"Clics: {clics_totales_gsc}",
@@ -3042,33 +3048,23 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
         COLOR_BLOQUE_VISIBILIDAD,
     )
 
-    # Renderiza bloque de score por bloques.
+    # Renderiza bloque secundario de gestión de indexación.
     _renderizar_bloque_dashboard(
         hoja_dashboard,
-        "D17",
-        "Score por bloques",
-        lineas_score_bloques,
-        COLOR_BLOQUE_SCORE,
-    )
-
-    # Renderiza bloque de oportunidades de negocio.
-    _renderizar_bloque_dashboard(
-        hoja_dashboard,
-        "D23",
-        "Oportunidades",
+        "G24",
+        "Gestión de indexación",
         [
-            f"Páginas con CTR bajo: {oportunidades_ctr_bajo}",
-            f"Páginas en posición 4-15: {oportunidades_pos_4_15}",
-            f"Quick wins detectados: {total_quick_wins}",
-            f"Páginas de mayor potencial: {mayor_potencial}",
+            f"Indexable: {resumen_gestion_indexacion.get('indexable', 0)}",
+            f"Revisar: {resumen_gestion_indexacion.get('revisar', 0)}",
+            f"No indexar: {resumen_gestion_indexacion.get('no_indexar', 0)}",
         ],
-        COLOR_BLOQUE_OPORTUNIDADES,
+        COLOR_BLOQUE_INDEXACION,
     )
 
-    # Renderiza bloque de comportamiento de usuario basado en Analytics.
+    # Renderiza bloque secundario de analytics fuera de primera pantalla.
     _renderizar_bloque_dashboard(
         hoja_dashboard,
-        "D28",
+        "A31",
         "Comportamiento Analytics",
         [
             f"Sesiones totales: {sesiones_totales_analytics}",
@@ -3082,57 +3078,15 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
         "0E7490",
     )
 
-    # Renderiza bloque de gestión de indexación.
+    # Renderiza bloque secundario de desglose técnico por tipo.
     _renderizar_bloque_dashboard(
         hoja_dashboard,
-        "L9",
-        "Gestión de indexación",
+        "G31",
+        "Detalle técnico secundario",
         [
-            f"Indexable: {resumen_gestion_indexacion.get('indexable', 0)}",
-            f"Revisar: {resumen_gestion_indexacion.get('revisar', 0)}",
-            f"No indexar: {resumen_gestion_indexacion.get('no_indexar', 0)}",
-        ],
-        COLOR_BLOQUE_INDEXACION,
-    )
-
-    # Renderiza bloque de incidencias agrupadas y severidad.
-    _renderizar_bloque_dashboard(
-        hoja_dashboard,
-        "L14",
-        "Incidencias",
-        [
-            f"Por severidad: crítica={incidencias_criticas}, alta={incidencias_altas}, media={incidencias_medias}, baja={incidencias_bajas}",
-            "Por área: " + ", ".join(f"{k}={v}" for k, v in incidencias_por_area.most_common(3)),
-            "Por tipo: " + ", ".join(f"{k}={v}" for k, v in incidencias_por_tipo.most_common(3)),
-            "Por familia: " + ", ".join(f"{k}={v}" for k, v in list(incidencias_por_familia.items())[:3]),
-        ],
-        COLOR_BLOQUE_INCIDENCIAS,
-    )
-
-    # Renderiza bloque de ranking de páginas y queries prioritarias.
-    _renderizar_bloque_dashboard(
-        hoja_dashboard,
-        "L20",
-        "Top páginas y queries",
-        [
-            f"Top páginas GSC: {top_paginas}",
-            f"Top queries GSC: {top_queries}",
-            f"Top páginas GA4: {top_paginas_analytics}",
+            "Por tipo: " + ", ".join(f"{k}={v}" for k, v in incidencias_por_tipo.most_common(4)),
         ],
         "334155",
-    )
-
-    # Renderiza bloque de páginas prioritarias por cruce SEO + negocio.
-    _renderizar_bloque_dashboard(
-        hoja_dashboard,
-        "L30",
-        "Páginas prioritarias",
-        [
-            f"{item.get('url', '')} (score={item.get('prioridad_score', 0)})"
-            for item in construir_paginas_prioritarias(resultado, limite=4)
-        ]
-        or ["Sin señales suficientes para priorizar."],
-        "7C3AED",
     )
 
     # Crea gráfico de distribución de severidad de rendimiento.
@@ -3153,8 +3107,8 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     # Fija altura visual del gráfico.
     grafico_severidad_rend.height = 5.4
 
-    # Inserta gráfico en posición explícita.
-    hoja_dashboard.add_chart(grafico_severidad_rend, "D30")
+    # Inserta gráfico en zona ejecutiva inferior.
+    hoja_dashboard.add_chart(grafico_severidad_rend, "A40")
 
     # Crea gráfico de severidad técnica.
     grafico_severidad_tecnica = BarChart()
@@ -3174,8 +3128,8 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     # Ajusta alto del gráfico.
     grafico_severidad_tecnica.height = 5.4
 
-    # Inserta gráfico en posición explícita.
-    hoja_dashboard.add_chart(grafico_severidad_tecnica, "L24")
+    # Inserta gráfico en zona ejecutiva inferior.
+    hoja_dashboard.add_chart(grafico_severidad_tecnica, "G40")
 
     # Crea gráfico de tipos de mejora de rendimiento.
     grafico_tipos_mejora = BarChart()
@@ -3198,8 +3152,8 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     # Ajusta alto del gráfico.
     grafico_tipos_mejora.height = 5.8
 
-    # Inserta gráfico en posición explícita.
-    hoja_dashboard.add_chart(grafico_tipos_mejora, "D46")
+    # Inserta gráfico en zona ejecutiva inferior.
+    hoja_dashboard.add_chart(grafico_tipos_mejora, "A54")
 
     # Crea gráfico de score por bloques para explicar score global.
     grafico_score_bloques = BarChart()
@@ -3220,28 +3174,7 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     grafico_score_bloques.height = 5.4
 
     # Inserta gráfico de score por bloques en dashboard.
-    hoja_dashboard.add_chart(grafico_score_bloques, "L38")
-
-    # Crea gráfico de comparación entre incidencias técnicas y agrupadas.
-    grafico_agrupadas = PieChart()
-
-    # Define título del gráfico de comparación.
-    grafico_agrupadas.title = "Incidencias técnicas vs agrupadas"
-
-    # Carga datos para gráfico de comparación.
-    grafico_agrupadas.add_data(Reference(hoja_aux, min_col=14, min_row=1, max_row=3), titles_from_data=True)
-
-    # Carga categorías para gráfico de comparación.
-    grafico_agrupadas.set_categories(Reference(hoja_aux, min_col=13, min_row=2, max_row=3))
-
-    # Ajusta ancho del gráfico comparativo.
-    grafico_agrupadas.width = 7.2
-
-    # Ajusta alto del gráfico comparativo.
-    grafico_agrupadas.height = 5.4
-
-    # Inserta gráfico comparativo en dashboard.
-    hoja_dashboard.add_chart(grafico_agrupadas, "D60")
+    hoja_dashboard.add_chart(grafico_score_bloques, "G54")
 
     # Oculta la hoja auxiliar para no contaminar entregable final.
     hoja_aux.sheet_state = "hidden"
@@ -3260,9 +3193,9 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
         # Inserta tabla en hoja.
         hoja_rendimiento.add_table(tabla)
 
-    # Ajusta anchos base del dashboard para tarjetas y bloques visuales.
-    for indice_columna in range(1, 21):
-        # Aplica ancho uniforme para permitir tarjetas amplias.
+    # Ajusta anchos complementarios fuera de la rejilla ejecutiva principal.
+    for indice_columna in range(13, 21):
+        # Aplica ancho homogéneo en columnas auxiliares no críticas.
         hoja_dashboard.column_dimensions[get_column_letter(indice_columna)].width = 17
 
     # Congela paneles del dashboard para mantener visibilidad de KPIs.
@@ -3274,7 +3207,6 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     # Aplica autoajuste global de todas las hojas de datos.
     hojas_a_ajustar = [
         hoja_kpis,
-        hoja_dashboard,
         hoja_errores,
         hoja_contenido,
         hoja_rendimiento,
