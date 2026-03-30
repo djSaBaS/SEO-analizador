@@ -1356,8 +1356,61 @@ def test_exportar_excel_dashboard_mejorado_legible(tmp_path: Path) -> None:
     # Verifica congelación de panel para navegación de KPIs.
     assert dashboard.freeze_panes == "A7"
 
-    # Verifica existencia de bloque de score por bloques.
-    assert dashboard["D17"].value == "Score por bloques"
+    # Verifica existencia de bloque principal de score global + bloques.
+    assert dashboard["A4"].value == "Score global y score por bloques"
+
+
+# Verifica que la primera pantalla priorice solo bloques ejecutivos clave.
+def test_exportar_excel_dashboard_primera_pantalla_con_bloques_clave(tmp_path: Path) -> None:
+    """Comprueba presencia de bloques ancla y orden de lectura en la rejilla A-F / G-L."""
+
+    # Construye auditoría mínima para validar layout ejecutivo.
+    auditoria = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=1,
+        resultados=[],
+        cliente="Ejemplo",
+        fecha_ejecucion="2026-03-30",
+        gestor="Gestor",
+    )
+
+    # Exporta Excel y abre dashboard.
+    ruta_excel = exportar_excel(auditoria, tmp_path)
+    dashboard = load_workbook(ruta_excel)["Dashboard"]
+
+    # Verifica bloques clave en celdas ancla de primera pantalla.
+    assert dashboard["A4"].value == "Score global y score por bloques"
+    assert dashboard["G4"].value == "Severidades"
+    assert dashboard["A14"].value == "Oportunidades principales"
+    assert dashboard["G14"].value == "Top páginas prioritarias"
+
+    # Valida orden de lectura ejecutiva (fila superior antes que fila inferior).
+    assert dashboard["A4"].row < dashboard["A14"].row
+    assert dashboard["G4"].row < dashboard["G14"].row
+
+
+# Verifica que el detalle secundario quede desplazado fuera de la primera pantalla.
+def test_exportar_excel_dashboard_mueve_detalle_secundario_a_bloques_inferiores(tmp_path: Path) -> None:
+    """Comprueba que los bloques secundarios arranquen por debajo de la zona ejecutiva inicial."""
+
+    # Construye auditoría mínima para validar estructura.
+    auditoria = ResultadoAuditoria(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        total_urls=1,
+        resultados=[],
+        cliente="Ejemplo",
+        fecha_ejecucion="2026-03-30",
+        gestor="Gestor",
+    )
+
+    # Exporta Excel y abre dashboard.
+    ruta_excel = exportar_excel(auditoria, tmp_path)
+    dashboard = load_workbook(ruta_excel)["Dashboard"]
+
+    # Valida que los bloques secundarios estén debajo de la primera pantalla.
+    assert dashboard["A24"].value == "Visibilidad orgánica real"
+    assert dashboard["G24"].value == "Gestión de indexación"
+    assert dashboard["A31"].value == "Comportamiento Analytics"
 
 
 # Verifica retorno coherente de bloque dashboard cuando no hay líneas.
