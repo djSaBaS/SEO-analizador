@@ -121,6 +121,15 @@ COLOR_BLOQUE_INDEXACION = "0F766E"
 COLOR_BLOQUE_INCIDENCIAS = "B91C1C"
 COLOR_BLOQUE_OPORTUNIDADES = "7C3AED"
 COLOR_BLOQUE_SCORE = "0B7285"
+COLOR_BLOQUE_ANALYTICS = "0E7490"
+COLOR_BLOQUE_DETALLE_TECNICO = "334155"
+
+# Define constantes de la rejilla fija de la primera pantalla del dashboard.
+DASHBOARD_REJILLA_COLUMNAS_PRINCIPALES = 12
+DASHBOARD_REJILLA_ANCHO_COLUMNA = 14.0
+DASHBOARD_REJILLA_FILA_INICIO = 3
+DASHBOARD_REJILLA_FILA_FIN_EXCLUSIVA = 35
+DASHBOARD_REJILLA_ALTO_FILA = 22
 
 # Define total de márgenes horizontales del PDF en puntos (36+36).
 PDF_HORIZONTAL_MARGIN_POINTS = 72.0
@@ -2866,12 +2875,12 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     hoja_kpis.freeze_panes = "A5"
 
     # Aplica ancho fijo de columnas para no romper la jerarquía visual.
-    for indice_columna in range(1, 13):
-        hoja_dashboard.column_dimensions[get_column_letter(indice_columna)].width = 14.0
+    for indice_columna in range(1, DASHBOARD_REJILLA_COLUMNAS_PRINCIPALES + 1):
+        hoja_dashboard.column_dimensions[get_column_letter(indice_columna)].width = DASHBOARD_REJILLA_ANCHO_COLUMNA
 
     # Define alturas fijas de filas de la primera pantalla ejecutiva.
-    for indice_fila in range(3, 35):
-        hoja_dashboard.row_dimensions[indice_fila].height = 22
+    for indice_fila in range(DASHBOARD_REJILLA_FILA_INICIO, DASHBOARD_REJILLA_FILA_FIN_EXCLUSIVA):
+        hoja_dashboard.row_dimensions[indice_fila].height = DASHBOARD_REJILLA_ALTO_FILA
 
     # Renderiza bloque principal de score global + score por bloques (zona A-F).
     _renderizar_bloque_dashboard(
@@ -3029,7 +3038,7 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
             for item in construir_paginas_prioritarias(resultado, limite=5)
         ]
         or ["Sin señales suficientes para priorizar."],
-        "7C3AED",
+        COLOR_BLOQUE_OPORTUNIDADES,
     )
 
     # Renderiza bloque secundario de visibilidad orgánica fuera de la primera pantalla.
@@ -3075,7 +3084,7 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
             f"Top páginas tráfico: {top_paginas_analytics}",
             f"Páginas peor comportamiento: {peores_paginas_analytics}",
         ],
-        "0E7490",
+        COLOR_BLOQUE_ANALYTICS,
     )
 
     # Renderiza bloque secundario de desglose técnico por tipo.
@@ -3086,7 +3095,7 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
         [
             "Por tipo: " + ", ".join(f"{k}={v}" for k, v in incidencias_por_tipo.most_common(4)),
         ],
-        "334155",
+        COLOR_BLOQUE_DETALLE_TECNICO,
     )
 
     # Crea gráfico de distribución de severidad de rendimiento.
