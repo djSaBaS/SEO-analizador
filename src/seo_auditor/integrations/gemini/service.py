@@ -182,10 +182,8 @@ def resolver_ruta_prompt_ia(modo: str) -> Path:
     # Define rutas candidatas en orden de prioridad funcional.
     rutas_candidatas = [
         RUTA_CARPETA_PROMPTS / nombre_prompt,
-        RUTA_CARPETA_PROMPTS_LEGACY / nombre_prompt,
         RUTA_CARPETA_PROMPTS / nombre_prompt_default,
         RUTA_PROMPT_UNICO_LEGACY,
-        RUTA_CARPETA_PROMPTS_LEGACY / nombre_prompt_default,
     ]
 
     # Elimina duplicados manteniendo el orden para evitar comprobaciones repetidas.
