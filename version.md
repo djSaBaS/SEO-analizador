@@ -1,3 +1,7 @@
+## 0.10.20 - 2026-03-31
+- Se corrige `docs/info.md` para reflejar el estado real post Fase 1: la modularización principal de exportadores reside en `src/seo_auditor/documentacion/exportadores/`, manteniendo `src/seo_auditor/reporters/` como compatibilidad temporal.
+- Se completa la plantilla mínima de `info.md` en `docs/ejemplos/` y `docs/integraciones/` incorporando objetivo, responsabilidades, dependencias internas, flujo de uso, notas de mantenimiento y mejoras futuras.
+
 ## 0.10.19 - 2026-03-31
 - Se declara **Fase 1 cerrada** de la migración documental: exportadores consolidados en `src/seo_auditor/documentacion/exportadores/`, wrappers de compatibilidad activos en `src/seo_auditor/reporters/` y paridad de artefactos de salida mantenida.
 - Se declara **Fase 2 cerrada** de la modularización funcional: separación operativa en `src/seo_auditor/integrations/`, `src/seo_auditor/analyzers/` y `src/seo_auditor/services/`, CLI estable y suite reorganizada en `tests/unit/` y `tests/integration/` sin perder rutas legacy.
