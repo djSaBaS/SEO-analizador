@@ -33,6 +33,24 @@ Herramienta de auditoría SEO técnica y ejecutiva con exportación a JSON, Exce
   - la hoja `Contenido` se construye ahora por URL consolidada para evitar duplicados por incidencia,
   - el detalle por incidencia sigue en la hoja `Errores`.
 
+
+## Estado de migración (fases)
+- **Fase 1: cerrada (2026-03-31).**
+  - Exportadores consolidados en `src/seo_auditor/documentacion/exportadores/`.
+  - Wrappers de compatibilidad activos en `src/seo_auditor/reporters/`.
+  - Artefactos de salida equivalentes conservados (nombres/rutas/formatos).
+  - Validación documental en verde con tests específicos de `documentacion`/`reporters`.
+- **Fase 2: cerrada (2026-03-31).**
+  - Módulos funcionales divididos en `integrations`, `analyzers` y `services`.
+  - CLI estable y mantenida sin ruptura de flags/flows públicos.
+  - Tests reorganizados en `tests/unit` y `tests/integration` con compatibilidad de rutas legacy.
+
+### Changelog de migración
+Se mantiene en `docs/arquitectura/changelog_migracion.md` con tres bloques fijos por iteración:
+- `módulos movidos`,
+- `compatibilidades mantenidas`,
+- `riesgos pendientes`.
+
 ## Papel del archivo Markdown IA
 - El archivo `*_ia.md` se mantiene como salida auxiliar interna para revisión editorial.
 - Es un artefacto contractual de revisión interna y no es la fuente de layout final.

@@ -1,3 +1,9 @@
+## 0.10.19 - 2026-03-31
+- Se declara **Fase 1 cerrada** de la migración documental: exportadores consolidados en `src/seo_auditor/documentacion/exportadores/`, wrappers de compatibilidad activos en `src/seo_auditor/reporters/` y paridad de artefactos de salida mantenida.
+- Se declara **Fase 2 cerrada** de la modularización funcional: separación operativa en `src/seo_auditor/integrations/`, `src/seo_auditor/analyzers/` y `src/seo_auditor/services/`, CLI estable y suite reorganizada en `tests/unit/` y `tests/integration/` sin perder rutas legacy.
+- Se añade changelog de migración en `docs/arquitectura/changelog_migracion.md` con trazabilidad por bloques: módulos movidos, compatibilidades mantenidas y riesgos pendientes.
+- Se actualiza la documentación transversal (`README.md`, `docs/info.md` e `info.md` de carpetas afectadas) para reflejar el cierre formal de fases y los criterios de continuidad.
+
 ## 0.10.18 - 2026-03-30
 - Se formaliza la norma de `info.md` por carpeta con plantilla mínima en `README.md` y `docs/arquitectura/sistema_documental.md`.
 - Se incorporan `info.md` faltantes en `Prompt/`, `prompts/`, `src/seo_auditor/` y `docs/arquitectura/` para cubrir rutas existentes no conformes.

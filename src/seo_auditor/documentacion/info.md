@@ -1,4 +1,4 @@
-# src/seo_auditor/documentacion/info.md
+# src/seo_auditor/documentacion
 
 Nueva capa documental modular para organizar responsabilidades de reporting.
 
@@ -10,3 +10,7 @@ Nueva capa documental modular para organizar responsabilidades de reporting.
 
 ## Nota de transición
 - `src/seo_auditor/reporters/` se mantiene como capa puente de compatibilidad para imports históricos.
+
+## Estado de fase
+- Fase 1 cerrada (2026-03-31): la capa documental modular se mantiene como destino principal de exportación y `reporters/` funciona como wrapper de compatibilidad.
+- Contrato de salida equivalente preservado para JSON, Excel, Word, PDF, HTML y Markdown IA.

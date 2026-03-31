@@ -15,3 +15,5 @@ Documentación funcional y de arquitectura del proyecto.
 - Los cambios de arquitectura documental deben reflejar explícitamente la capa semántica común usada por DOCX/PDF/HTML y sus políticas editoriales (sanitización por formato, compatibilidad tipográfica, bloqueo final de placeholders residuales y visibilidad del periodo analizado).
 - Debe mantenerse explícito el contrato de artefacto `*_ia.md`: revisión interna editorial, nunca fuente de layout final de cliente.
 - La arquitectura documental modulariza exportadores por formato en `src/seo_auditor/reporters/` y mantiene `core.py` como capa común de helpers, modelo semántico y utilidades transversales.
+
+- Debe reflejar el estado de fases de migración (Fase 1/Fase 2) y apuntar al changelog vivo `docs/arquitectura/changelog_migracion.md` con bloques de módulos movidos, compatibilidades mantenidas y riesgos pendientes.
