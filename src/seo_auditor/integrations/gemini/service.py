@@ -3,12 +3,10 @@ import json
 
 # Importa contador para resumir hallazgos por frecuencia.
 from collections import Counter
+from importlib import import_module
 
 # Importa Path para caché local opcional y lectura de plantilla de prompt.
 from pathlib import Path
-
-# Importa el cliente oficial actual de Google Gemini.
-from google import genai
 
 # Importa utilidades de caché local reutilizable.
 from seo_auditor.cache import construir_clave_cache, escribir_cache, leer_cache
@@ -63,6 +61,21 @@ METRICAS_PAGESPEED_VALIDAS = (
     "tbt",
     "speed_index",
 )
+
+
+# Resuelve el cliente de Google Gemini de forma perezosa para evitar fallos en import global.
+def _crear_cliente_gemini(api_key: str):
+    """Crea un cliente de Gemini resolviendo la dependencia en tiempo de uso."""
+
+    try:
+        modulo_genai = import_module("google.genai")
+    except ModuleNotFoundError as exc:
+        raise RuntimeError(
+            "Dependencia opcional no disponible: instala `google-genai` para usar --usar-ia o --testia."
+        ) from exc
+
+    return modulo_genai.Client(api_key=api_key)
+
 
 
 # Define fallback interno alineado 1:1 con el archivo editable del repositorio.
@@ -448,7 +461,7 @@ def probar_conexion_ia(api_key: str, model_name: str) -> str:
         raise ValueError("No se ha configurado GEMINI_API_KEY.")
 
     # Crea cliente de Gemini con la clave indicada.
-    cliente = genai.Client(api_key=api_key)
+    cliente = _crear_cliente_gemini(api_key)
 
     # Lanza una petición mínima para validar credenciales y modelo.
     respuesta = cliente.models.generate_content(model=model_name, contents="Responde solo con: OK")
@@ -480,7 +493,7 @@ def generar_resumen_ia(
         raise ValueError("No se ha configurado GEMINI_API_KEY.")
 
     # Instancia el cliente del SDK con la clave indicada por entorno.
-    cliente = genai.Client(api_key=api_key)
+    cliente = _crear_cliente_gemini(api_key)
 
     # Construye el contexto resumido de IA con límite de muestras.
     datos = construir_contexto_ia(resultado, max_muestras)

@@ -1,6 +1,8 @@
 # Importa Path para validar coherencia del archivo de prompt.
 from pathlib import Path
 
+import pytest
+
 # Importa módulo bajo prueba.
 from seo_auditor.integrations.gemini import service as gemini_client
 from seo_auditor.models import MetricaGscPagina, ResultadoAuditoria
@@ -213,7 +215,7 @@ def test_generar_resumen_ia_inyecta_modo_y_contexto_extendido(monkeypatch) -> No
             self.models = self._Models()
 
     # Inyecta cliente falso para evitar red real.
-    monkeypatch.setattr(gemini_client.genai, "Client", ClienteFalso)
+    monkeypatch.setattr(gemini_client, "_crear_cliente_gemini", lambda _api_key: ClienteFalso(_api_key))
 
     # Inyecta plantilla mínima válida para construir el prompt.
     monkeypatch.setattr(gemini_client, "cargar_plantilla_prompt_ia", lambda modo: "Prompt base\n{datos_json}")
@@ -255,3 +257,17 @@ def test_resolver_ruta_prompt_ia_prioriza_consulta_legacy_si_no_hay_modulares(mo
 
     # Verifica que se use el archivo histórico editable.
     assert ruta_resuelta == ruta_consulta
+
+
+# Verifica degradación elegante cuando falta dependencia opcional de Gemini.
+def test_crear_cliente_gemini_falla_con_error_claro_si_falta_sdk(monkeypatch) -> None:
+    """Debe informar dependencia opcional sin romper import global del módulo."""
+
+    # Simula ausencia del SDK oficial en tiempo de uso.
+    def _import_falso(_nombre: str):
+        raise ModuleNotFoundError("google.genai")
+
+    monkeypatch.setattr(gemini_client, "import_module", _import_falso)
+
+    with pytest.raises(RuntimeError, match="google-genai"):
+        gemini_client._crear_cliente_gemini("clave")

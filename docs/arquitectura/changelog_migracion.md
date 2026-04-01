@@ -36,3 +36,21 @@
 - **Fase 2:** modularización funcional sin ruptura del contrato CLI.
 - **Fase 3:** contratos tipados + equivalencia CLI/servicio + degradación elegante + perfiles de entregables verificados por tests.
 
+
+## 2026-04-01 — Hardening de dependencias opcionales y fachada CLI
+
+### Decisiones de fuente de verdad por capa
+- **Oficial (nuevo):** `services/` orquesta casos de uso y define contratos de ejecución para CLI.
+- **Oficial (nuevo):** `documentacion/` mantiene el modelo y exportadores canónicos para evolución futura.
+- **Compatibilidad temporal:** `reporters/` y módulos raíz legacy (`analyzer.py`, `fetcher.py`, `indexacion.py`, etc.) se mantienen para no romper imports históricos.
+- **Rutas provisionales explícitas:** wrappers/aliases legacy continúan hasta retirar dependencias externas de importación antigua.
+
+### Cambios aplicados
+- Integración Gemini convertida a **import perezoso** de `google.genai` para que la ausencia del SDK no rompa imports globales.
+- CLI mantiene contrato estable y encapsula el wiring en `_crear_adaptadores_temporales` como paso transicional hacia una fachada más delgada.
+- Se documenta que el acoplamiento legacy restante queda encapsulado en adaptadores de infraestructura, no en la interfaz CLI.
+
+### Próximos pasos recomendados
+- Migrar implementación interna de `documentacion/exportadores/*` para eliminar delegación residual a `reporters.core`.
+- Retirar gradualmente wrappers de `reporters/` y módulos raíz legacy una vez que consumidores externos migren.
+- Mantener pruebas de equivalencia mientras conviven ambos mundos, eliminando duplicidad al cerrar compatibilidad.
