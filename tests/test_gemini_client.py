@@ -2,7 +2,7 @@
 from pathlib import Path
 
 # Importa módulo bajo prueba.
-from seo_auditor import gemini_client
+from seo_auditor.integrations.gemini import service as gemini_client
 from seo_auditor.models import MetricaGscPagina, ResultadoAuditoria
 
 

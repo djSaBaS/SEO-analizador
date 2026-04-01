@@ -1,4 +1,0 @@
-Genera roadmap SEO dividido en corto, medio y largo plazo.
-Corto: quick wins
-Medio: optimización páginas clave
-Largo: estrategia SEO completa

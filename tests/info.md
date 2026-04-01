@@ -23,3 +23,8 @@ pytest -q
 ```
 
 - Incluye cobertura de regresión para la separación modular de exportadores en `seo_auditor/reporters/` sin romper el contrato público de la CLI.
+
+
+## Organización por fase
+- Fase 2 cerrada (2026-03-31): la suite se reorganiza en `tests/unit/` y `tests/integration/` como estructura canónica.
+- Se mantienen rutas legacy en `tests/` para compatibilidad temporal mientras se completa la transición.

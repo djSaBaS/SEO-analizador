@@ -1,3 +1,19 @@
+## 0.10.20 - 2026-03-31
+- Se corrige `docs/info.md` para reflejar el estado real post Fase 1: la modularización principal de exportadores reside en `src/seo_auditor/documentacion/exportadores/`, manteniendo `src/seo_auditor/reporters/` como compatibilidad temporal.
+- Se completa la plantilla mínima de `info.md` en `docs/ejemplos/` y `docs/integraciones/` incorporando objetivo, responsabilidades, dependencias internas, flujo de uso, notas de mantenimiento y mejoras futuras.
+
+## 0.10.19 - 2026-03-31
+- Se declara **Fase 1 cerrada** de la migración documental: exportadores consolidados en `src/seo_auditor/documentacion/exportadores/`, wrappers de compatibilidad activos en `src/seo_auditor/reporters/` y paridad de artefactos de salida mantenida.
+- Se declara **Fase 2 cerrada** de la modularización funcional: separación operativa en `src/seo_auditor/integrations/`, `src/seo_auditor/analyzers/` y `src/seo_auditor/services/`, CLI estable y suite reorganizada en `tests/unit/` y `tests/integration/` sin perder rutas legacy.
+- Se añade changelog de migración en `docs/arquitectura/changelog_migracion.md` con trazabilidad por bloques: módulos movidos, compatibilidades mantenidas y riesgos pendientes.
+- Se actualiza la documentación transversal (`README.md`, `docs/info.md` e `info.md` de carpetas afectadas) para reflejar el cierre formal de fases y los criterios de continuidad.
+
+## 0.10.18 - 2026-03-30
+- Se formaliza la norma de `info.md` por carpeta con plantilla mínima en `README.md` y `docs/arquitectura/sistema_documental.md`.
+- Se incorporan `info.md` faltantes en `Prompt/`, `prompts/`, `src/seo_auditor/` y `docs/arquitectura/` para cubrir rutas existentes no conformes.
+- Se crea validación automática en `scripts/mantenimiento/validar_entorno.py` para fallar cuando una carpeta carece de `info.md`.
+- Se añaden `scripts/info.md` y `scripts/mantenimiento/info.md` para mantener consistencia documental en carpetas nuevas.
+
 ## 0.10.17 - 2026-03-30
 - Se amplía `docs/arquitectura/arquitectura_general.md` especificando tipos esperados y restricciones/formato para flags CLI (URL, rutas, enteros, enums y fechas `YYYY-MM-DD`).
 - Se documentan validaciones clave de parámetros (mutua exclusión `--pagepsi`/`--pagepsi-list`, positividad de límites y regla `date_from < date_to`) para mejorar claridad operativa en transición.

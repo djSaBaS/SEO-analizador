@@ -20,7 +20,7 @@ from seo_auditor.cache import invalidar_cache
 from seo_auditor.config import cargar_configuracion
 
 # Importa cliente IA y utilidades de prueba.
-from seo_auditor.gemini_client import generar_resumen_ia, probar_conexion_ia
+from seo_auditor.integrations.gemini.service import generar_resumen_ia, probar_conexion_ia
 
 # Importa análisis de indexación y rastreo basado en robots/sitemap.
 from seo_auditor.indexacion import analizar_indexacion_rastreo, generar_gestion_indexacion_inteligente
@@ -29,19 +29,19 @@ from seo_auditor.indexacion import analizar_indexacion_rastreo, generar_gestion_
 from seo_auditor.fetcher import extraer_urls_sitemap
 
 # Importa integración opcional con Google Search Console.
-from seo_auditor.gsc import cargar_datos_search_console
+from seo_auditor.integrations.gsc.service import cargar_datos_search_console
 
 # Importa integración opcional con Google Analytics 4.
-from seo_auditor.ga4 import cargar_datos_analytics
+from seo_auditor.integrations.ga4.service import cargar_datos_analytics
 
 # Importa generador premium de informe dedicado de GA4.
-from seo_auditor.ga4_premium import generar_informe_ga4_premium
+from seo_auditor.integrations.ga4.premium_service import generar_informe_ga4_premium
 
 # Importa modelo de resultado de rendimiento.
 from seo_auditor.models import ResultadoRendimiento
 
 # Importa utilidades de PageSpeed.
-from seo_auditor.pagespeed import analizar_pagespeed_url, detectar_home
+from seo_auditor.integrations.pagespeed.service import analizar_pagespeed_url, detectar_home
 
 # Importa los exportadores de salida del proyecto.
 from seo_auditor.reporters import exportar_excel, exportar_html, exportar_json, exportar_markdown_ia, exportar_pdf, exportar_word
@@ -49,48 +49,21 @@ from seo_auditor.reporters import exportar_excel, exportar_html, exportar_json, 
 # Importa utilidades de entrada, fecha y estructura de salida.
 from seo_auditor.utils import es_url_http_valida, fecha_ejecucion_iso, inferir_cliente_desde_slug, iterar_con_progreso, slug_dominio_desde_url
 
+from seo_auditor.services.entregables_service import (
+    ENTREGABLES_BASE_AUDITORIA,
+    ENTREGABLE_EXCEL_SEO,
+    ENTREGABLE_GA4_PREMIUM,
+    ENTREGABLE_HTML_SEO,
+    ENTREGABLE_JSON_TECNICO,
+    ENTREGABLE_MARKDOWN_IA,
+    ENTREGABLE_PDF_SEO,
+    ENTREGABLE_WORD_SEO,
+    PERFILES_GENERACION,
+)
+
 
 # Define gestor por defecto para metadatos de informe.
 GESTOR_POR_DEFECTO = "Juan Antonio Sánchez Plaza"
-
-# Define identificadores canónicos de entregables SEO.
-ENTREGABLE_JSON_TECNICO = "json_tecnico"
-
-# Define identificador canónico de entregable Excel SEO.
-ENTREGABLE_EXCEL_SEO = "excel_seo"
-
-# Define identificador canónico de entregable Word SEO.
-ENTREGABLE_WORD_SEO = "word_seo"
-
-# Define identificador canónico de entregable PDF SEO.
-ENTREGABLE_PDF_SEO = "pdf_seo"
-
-# Define identificador canónico de entregable HTML SEO.
-ENTREGABLE_HTML_SEO = "html_seo"
-
-# Define identificador canónico de entregable Markdown IA.
-ENTREGABLE_MARKDOWN_IA = "markdown_ia"
-
-# Define identificador canónico de entregable GA4 premium compuesto.
-ENTREGABLE_GA4_PREMIUM = "ga4_premium"
-
-# Centraliza la definición de entregables base de auditoría SEO.
-ENTREGABLES_BASE_AUDITORIA = [
-    ENTREGABLE_JSON_TECNICO,
-    ENTREGABLE_EXCEL_SEO,
-    ENTREGABLE_WORD_SEO,
-    ENTREGABLE_PDF_SEO,
-    ENTREGABLE_HTML_SEO,
-    ENTREGABLE_MARKDOWN_IA,
-]
-
-# Centraliza perfiles de generación para composición de salidas.
-PERFILES_GENERACION: dict[str, list[str]] = {
-    "auditoria-seo-completa": ENTREGABLES_BASE_AUDITORIA,
-    "todo": ENTREGABLES_BASE_AUDITORIA + [ENTREGABLE_GA4_PREMIUM],
-    "solo-ga4-premium": [ENTREGABLE_GA4_PREMIUM],
-}
-
 
 # Convierte una fecha ISO textual en objeto date con validación clara.
 def _parsear_fecha_cli(valor: str, parametro: str) -> date:

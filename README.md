@@ -13,7 +13,7 @@ Herramienta de auditoría SEO técnica y ejecutiva con exportación a JSON, Exce
 ## Arquitectura de informes (capa semántica unificada)
 - La generación documental usa una capa intermedia única (`construir_modelo_semantico_informe`) que transforma datos técnicos + narrativa IA en una estructura neutral de secciones y bloques.
 - DOCX, PDF y HTML consumen esa misma capa semántica para mantener el mismo contenido base (tablas, párrafos, tarjetas y notas) con diferencias visuales razonables por formato.
-- La capa de exportación está modularizada por formato dentro de `src/seo_auditor/reporters/`: cada exportador tiene su archivo dedicado y reutiliza helpers/modelo semántico compartidos para evitar duplicación de lógica.
+- La capa de exportación está modularizada por formato dentro de `src/seo_auditor/documentacion/`: `modelo/`, `builders/`, `shared/` y `exportadores/` separan responsabilidades; `src/seo_auditor/reporters/` permanece como capa puente de compatibilidad.
 - El Markdown IA se mantiene como exportación adicional (`*_ia.md`) para revisión editorial, pero ya no es la fuente directa de maquetación final.
 - La sanitización editorial normaliza narrativa antes de renderizar:
   - limpieza de residuos markdown,
@@ -32,6 +32,24 @@ Herramienta de auditoría SEO técnica y ejecutiva con exportación a JSON, Exce
 - Excel:
   - la hoja `Contenido` se construye ahora por URL consolidada para evitar duplicados por incidencia,
   - el detalle por incidencia sigue en la hoja `Errores`.
+
+
+## Estado de migración (fases)
+- **Fase 1: cerrada (2026-03-31).**
+  - Exportadores consolidados en `src/seo_auditor/documentacion/exportadores/`.
+  - Wrappers de compatibilidad activos en `src/seo_auditor/reporters/`.
+  - Artefactos de salida equivalentes conservados (nombres/rutas/formatos).
+  - Validación documental en verde con tests específicos de `documentacion`/`reporters`.
+- **Fase 2: cerrada (2026-03-31).**
+  - Módulos funcionales divididos en `integrations`, `analyzers` y `services`.
+  - CLI estable y mantenida sin ruptura de flags/flows públicos.
+  - Tests reorganizados en `tests/unit` y `tests/integration` con compatibilidad de rutas legacy.
+
+### Changelog de migración
+Se mantiene en `docs/arquitectura/changelog_migracion.md` con tres bloques fijos por iteración:
+- `módulos movidos`,
+- `compatibilidades mantenidas`,
+- `riesgos pendientes`.
 
 ## Papel del archivo Markdown IA
 - El archivo `*_ia.md` se mantiene como salida auxiliar interna para revisión editorial.
@@ -197,6 +215,18 @@ Se incluye documentación ampliada y ejemplos completos en [`CLI.md`](./CLI.md).
 ```text
 <output>/ga4_premium/<YYYY-MM-DD>/
 ```
+
+## Norma documental de carpetas (`info.md`)
+- Cada carpeta nueva debe crearse junto con su archivo `info.md` en el mismo commit.
+- El `info.md` debe usar la plantilla mínima: objetivo, archivos, responsabilidades, dependencias internas, flujo de uso, notas de mantenimiento y mejoras futuras.
+- La regla aplica a carpetas legacy y canónicas (por ejemplo, `Prompt/` y `prompts/`), subcarpetas en `src/seo_auditor/` y futuras carpetas como `tests/fixtures/`.
+- Validación automática:
+
+```bash
+python scripts/mantenimiento/validar_entorno.py
+```
+
+Más detalle en [`docs/arquitectura/sistema_documental.md`](./docs/arquitectura/sistema_documental.md).
 
 ## Tests
 ```bash
