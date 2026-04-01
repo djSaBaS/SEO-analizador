@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
@@ -11,6 +12,7 @@ from seo_auditor.models import (
     ConfiguracionCacheAuditoria,
     ConfiguracionInforme,
     FlagsIntegracionesAuditoria,
+    ResultadoAuditoria,
     ResumenEjecucion,
     ResultadoEntregables,
     ResultadoRendimiento,
@@ -28,58 +30,32 @@ from seo_auditor.services.entregables_service import (
 )
 
 
+@dataclass(slots=True)
 class AuditoriaAdapters:
     """Dependencias inyectables para facilitar migración y compatibilidad."""
-
-    def __init__(
-        self,
-        extraer_urls_sitemap: Callable[..., list[str]],
-        auditar_urls: Callable[..., Any],
-        analizar_indexacion_rastreo: Callable[..., Any],
-        generar_gestion_indexacion_inteligente: Callable[..., Any],
-        cargar_datos_search_console: Callable[..., Any],
-        cargar_datos_analytics: Callable[..., Any],
-        generar_resumen_ia: Callable[..., str],
-        generar_informe_ga4_premium: Callable[..., dict[str, Any]],
-        detectar_home: Callable[..., str],
-        invalidar_cache: Callable[..., int],
-        exportar_json: Callable[..., Any],
-        exportar_excel: Callable[..., Any],
-        exportar_word: Callable[..., Any],
-        exportar_pdf: Callable[..., Any],
-        exportar_html: Callable[..., Any],
-        exportar_markdown_ia: Callable[..., Any],
-        iterar_con_progreso: Callable[..., Any],
-        es_url_http_valida: Callable[[str], bool],
-        fecha_ejecucion_iso: Callable[[], str],
-        slug_dominio_desde_url: Callable[[str], str],
-        inferir_cliente_desde_slug: Callable[[str], str],
-        ejecutar_pagespeed: Callable[..., list[ResultadoRendimiento]],
-        resolver_cliente_informe_ga4: Callable[[str | None, str | None], str],
-    ) -> None:
-        self.extraer_urls_sitemap = extraer_urls_sitemap
-        self.auditar_urls = auditar_urls
-        self.analizar_indexacion_rastreo = analizar_indexacion_rastreo
-        self.generar_gestion_indexacion_inteligente = generar_gestion_indexacion_inteligente
-        self.cargar_datos_search_console = cargar_datos_search_console
-        self.cargar_datos_analytics = cargar_datos_analytics
-        self.generar_resumen_ia = generar_resumen_ia
-        self.generar_informe_ga4_premium = generar_informe_ga4_premium
-        self.detectar_home = detectar_home
-        self.invalidar_cache = invalidar_cache
-        self.exportar_json = exportar_json
-        self.exportar_excel = exportar_excel
-        self.exportar_word = exportar_word
-        self.exportar_pdf = exportar_pdf
-        self.exportar_html = exportar_html
-        self.exportar_markdown_ia = exportar_markdown_ia
-        self.iterar_con_progreso = iterar_con_progreso
-        self.es_url_http_valida = es_url_http_valida
-        self.fecha_ejecucion_iso = fecha_ejecucion_iso
-        self.slug_dominio_desde_url = slug_dominio_desde_url
-        self.inferir_cliente_desde_slug = inferir_cliente_desde_slug
-        self.ejecutar_pagespeed = ejecutar_pagespeed
-        self.resolver_cliente_informe_ga4 = resolver_cliente_informe_ga4
+    extraer_urls_sitemap: Callable[..., list[str]]
+    auditar_urls: Callable[..., Any]
+    analizar_indexacion_rastreo: Callable[..., Any]
+    generar_gestion_indexacion_inteligente: Callable[..., Any]
+    cargar_datos_search_console: Callable[..., Any]
+    cargar_datos_analytics: Callable[..., Any]
+    generar_resumen_ia: Callable[..., str]
+    generar_informe_ga4_premium: Callable[..., dict[str, Any]]
+    detectar_home: Callable[..., str]
+    invalidar_cache: Callable[..., int]
+    exportar_json: Callable[..., Any]
+    exportar_excel: Callable[..., Any]
+    exportar_word: Callable[..., Any]
+    exportar_pdf: Callable[..., Any]
+    exportar_html: Callable[..., Any]
+    exportar_markdown_ia: Callable[..., Any]
+    iterar_con_progreso: Callable[..., Any]
+    es_url_http_valida: Callable[[str], bool]
+    fecha_ejecucion_iso: Callable[[], str]
+    slug_dominio_desde_url: Callable[[str], str]
+    inferir_cliente_desde_slug: Callable[[str], str]
+    ejecutar_pagespeed: Callable[..., list[ResultadoRendimiento]]
+    resolver_cliente_informe_ga4: Callable[[str | None, str | None], str]
 
 
 class AuditoriaService:
@@ -110,9 +86,14 @@ class AuditoriaService:
 
     def _resultado_solo_codigo(self, codigo: int) -> AuditoriaResult:
         """Crea un contrato mínimo para flujos de conectividad sin auditoría completa."""
-        from seo_auditor.models import ResultadoAuditoria
-
-        auditoria_vacia = ResultadoAuditoria(sitemap="", total_urls=0, resultados=[], cliente="", fecha_ejecucion="", gestor="")
+        auditoria_vacia = ResultadoAuditoria(
+            sitemap="",
+            total_urls=0,
+            resultados=[],
+            cliente="",
+            fecha_ejecucion="",
+            gestor="",
+        )
         return AuditoriaResult(auditoria=auditoria_vacia, resumen_ejecucion=ResumenEjecucion(codigo_salida=codigo))
 
     def _ejecutar_testia(self, configuracion: Any, modelo_ia: str) -> int:
@@ -234,8 +215,28 @@ class AuditoriaService:
             scores_validos = [item.performance_score for item in resultado.rendimiento if isinstance(item.performance_score, (int, float))]
             if scores_validos:
                 resultado.score_rendimiento = round(sum(scores_validos) / len(scores_validos), 1)
-                resultado.seo_score_global = round((float(resultado.score_tecnico or 0.0) * 0.4) + (float(resultado.score_contenido or 0.0) * 0.4) + (float(resultado.score_rendimiento or 0.0) * 0.2), 1)
-            hay_metricas_validas = any(((item.performance_score is not None or item.accessibility_score is not None or item.best_practices_score is not None or item.seo_score is not None or item.lcp is not None or item.cls is not None or item.inp is not None or item.fcp is not None or item.tbt is not None or item.speed_index is not None) and not item.error) for item in resultado.rendimiento)
+                resultado.seo_score_global = round(
+                    (float(resultado.score_tecnico or 0.0) * 0.4)
+                    + (float(resultado.score_contenido or 0.0) * 0.4)
+                    + (float(resultado.score_rendimiento or 0.0) * 0.2),
+                    1,
+                )
+            hay_metricas_validas = any(
+                (
+                    item.performance_score is not None
+                    or item.accessibility_score is not None
+                    or item.best_practices_score is not None
+                    or item.seo_score is not None
+                    or item.lcp is not None
+                    or item.cls is not None
+                    or item.inp is not None
+                    or item.fcp is not None
+                    or item.tbt is not None
+                    or item.speed_index is not None
+                )
+                and not item.error
+                for item in resultado.rendimiento
+            )
             if hay_metricas_validas:
                 if "pagespeed" not in resultado.fuentes_activas:
                     resultado.fuentes_activas.append("pagespeed")
@@ -307,7 +308,20 @@ class AuditoriaService:
                     resumen.omitidos.append(f"{entregable} (GA4 no habilitado)")
                     continue
                 try:
-                    salida_premium = self.adapters.generar_informe_ga4_premium(configuracion, Path(request.informe.carpeta_salida) / "ga4_premium" / fecha, self.adapters.resolver_cliente_informe_ga4(request.cliente, request.sitemap), request.gestor, request.periodo_desde, request.periodo_hasta, request.argumentos.comparar if request.argumentos else "periodo-anterior", request.argumentos.provincia if request.argumentos else "")
+                    carpeta_premium = Path(request.informe.carpeta_salida) / "ga4_premium" / fecha
+                    cliente_premium = self.adapters.resolver_cliente_informe_ga4(request.cliente, request.sitemap)
+                    comparacion = request.argumentos.comparar if request.argumentos else "periodo-anterior"
+                    provincia = request.argumentos.provincia if request.argumentos else ""
+                    salida_premium = self.adapters.generar_informe_ga4_premium(
+                        configuracion,
+                        carpeta_premium,
+                        cliente_premium,
+                        request.gestor,
+                        request.periodo_desde,
+                        request.periodo_hasta,
+                        comparacion,
+                        provincia,
+                    )
                     if salida_premium.get("activo", False):
                         resumen.generados.append(entregable)
                     else:

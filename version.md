@@ -1,3 +1,8 @@
+## 0.10.24 - 2026-04-01
+- Se atienden observaciones de revisión en `auditoria_service.py`: se restaura `@dataclass(slots=True)` en `AuditoriaAdapters`, se elimina import local de `ResultadoAuditoria` y se consolida en imports de módulo.
+- Se mejora legibilidad descompactando líneas extensas de cálculo (`seo_score_global`) y validación de métricas (`hay_metricas_validas`) a formato multilínea.
+- Se simplifica la llamada de generación GA4 premium extrayendo variables locales (`carpeta_premium`, `cliente_premium`, `comparacion`, `provincia`) para facilitar mantenimiento y depuración.
+
 ## 0.10.23 - 2026-04-01
 - Se formalizan contratos estables en `models.py` con `AuditoriaRequest` y `AuditoriaResult`, incorporando campos explícitos de sitemap, periodo, flags de integración, caché y configuración documental.
 - Se añaden modelos auxiliares `ResultadoEntregables`, `ConfiguracionInforme` y `ResumenEjecucion` para estabilizar intercambio entre servicios.
