@@ -29,6 +29,7 @@ class AuditoriaRequest:
     modelo_ia: str
     periodo_desde: str
     periodo_hasta: str
+    perfil_generacion: str
 
 
 @dataclass
@@ -44,7 +45,6 @@ class AuditoriaAdapters:
     generar_resumen_ia: Callable[..., str]
     generar_informe_ga4_premium: Callable[..., dict[str, Any]]
     detectar_home: Callable[..., str]
-    analizar_pagespeed_url: Callable[..., ResultadoRendimiento]
     invalidar_cache: Callable[..., int]
     exportar_json: Callable[..., Any]
     exportar_excel: Callable[..., Any]
@@ -70,7 +70,6 @@ class AuditoriaService:
     def ejecutar(self, request: AuditoriaRequest) -> int:
         argumentos = request.argumentos
         configuracion = request.configuracion
-        perfil_generacion = self._resolver_perfil_generacion(argumentos)
 
         if argumentos.testia:
             return self._ejecutar_testia(configuracion, request.modelo_ia)
@@ -78,9 +77,9 @@ class AuditoriaService:
             return self._ejecutar_testgsc(configuracion)
         if argumentos.testga:
             return self._ejecutar_testga(configuracion)
-        if perfil_generacion == "solo-ga4-premium":
+        if request.perfil_generacion == "solo-ga4-premium":
             return self._ejecutar_modo_ga4_premium(request)
-        return self._ejecutar_auditoria_completa(request, perfil_generacion)
+        return self._ejecutar_auditoria_completa(request, request.perfil_generacion)
 
     def _ejecutar_testia(self, configuracion: Any, modelo_ia: str) -> int:
         from seo_auditor.integrations.gemini.service import probar_conexion_ia
@@ -139,52 +138,66 @@ class AuditoriaService:
         return 0
 
     def _ejecutar_auditoria_completa(self, request: AuditoriaRequest, perfil_generacion: str) -> int:
-        a, c = request.argumentos, request.configuracion
-        if not a.output:
+        argumentos, configuracion = request.argumentos, request.configuracion
+        if not argumentos.output:
             print("Aviso: no se indicó --output, se usará ./salidas por compatibilidad.")
-            a.output = "./salidas"
+            argumentos.output = "./salidas"
         fecha = self.adapters.fecha_ejecucion_iso()
-        slug = self.adapters.slug_dominio_desde_url(a.sitemap)
+        slug = self.adapters.slug_dominio_desde_url(argumentos.sitemap)
         cliente = self.adapters.inferir_cliente_desde_slug(slug)
-        carpeta_cache = Path(a.output) / ".cache"
-        if a.invalidar_cache:
+        carpeta_cache = Path(argumentos.output) / ".cache"
+        if argumentos.invalidar_cache:
             print(f"[cache] Entradas eliminadas: {self.adapters.invalidar_cache(carpeta_cache)}")
-        carpeta_salida = Path(a.output) / slug / fecha
+        carpeta_salida = Path(argumentos.output) / slug / fecha
         entregables_perfil = PERFILES_GENERACION.get(perfil_generacion, ENTREGABLES_BASE_AUDITORIA)
         print(f"[perfil] Ejecutando perfil de generación: {perfil_generacion}")
         print("[1/6] Extrayendo URLs del sitemap...")
-        urls = self.adapters.extraer_urls_sitemap(a.sitemap, c.http_timeout, c.max_urls)
-        if a.modo_rapido:
+        urls = self.adapters.extraer_urls_sitemap(argumentos.sitemap, configuracion.http_timeout, configuracion.max_urls)
+        if argumentos.modo_rapido:
             urls = urls[: min(25, len(urls))]
         if not urls:
             print("Error: no se han encontrado URLs válidas en el sitemap indicado.")
             return 1
         print(f"[2/6] Auditando {len(urls)} URLs...")
-        resultado = self.adapters.auditar_urls(a.sitemap, urls, c.http_timeout, cliente, fecha, a.gestor)
+        resultado = self.adapters.auditar_urls(argumentos.sitemap, urls, configuracion.http_timeout, cliente, fecha, argumentos.gestor)
         resultado.periodo_date_from = request.periodo_desde
         resultado.periodo_date_to = request.periodo_hasta
-        resultado.indexacion_rastreo = self.adapters.analizar_indexacion_rastreo(a.sitemap, urls, c.http_timeout)
+        resultado.indexacion_rastreo = self.adapters.analizar_indexacion_rastreo(argumentos.sitemap, urls, configuracion.http_timeout)
         resultado.gestion_indexacion = self.adapters.generar_gestion_indexacion_inteligente(resultado.resultados)
         self._ejecutar_fuentes(request, resultado, urls, carpeta_cache)
         self._exportar_entregables(request, resultado, carpeta_salida, fecha, perfil_generacion, entregables_perfil)
         return 0
 
     def _ejecutar_fuentes(self, request: AuditoriaRequest, resultado: Any, urls: list[str], carpeta_cache: Path) -> None:
-        a, c = request.argumentos, request.configuracion
-        max_urls = a.max_pagepsi_urls if a.max_pagepsi_urls > 0 else c.max_pagepsi_urls
-        timeout = a.pagepsi_timeout if a.pagepsi_timeout > 0 else c.pagespeed_timeout
-        reint = a.pagepsi_reintentos if a.pagepsi_reintentos >= 0 else c.pagespeed_reintentos
-        cache_ttl = a.cache_ttl if a.cache_ttl > 0 else c.cache_ttl_segundos
-        if c.pagespeed_api_key:
-            urls_ps = self._resolver_urls_pagespeed(a, a.sitemap, urls, max_urls)
+        argumentos, configuracion = request.argumentos, request.configuracion
+        max_urls = argumentos.max_pagepsi_urls if argumentos.max_pagepsi_urls > 0 else configuracion.max_pagepsi_urls
+        timeout = argumentos.pagepsi_timeout if argumentos.pagepsi_timeout > 0 else configuracion.pagespeed_timeout
+        reintentos = argumentos.pagepsi_reintentos if argumentos.pagepsi_reintentos >= 0 else configuracion.pagespeed_reintentos
+        cache_ttl = argumentos.cache_ttl if argumentos.cache_ttl > 0 else configuracion.cache_ttl_segundos
+        if configuracion.pagespeed_api_key:
+            urls_ps = self._resolver_urls_pagespeed(argumentos, argumentos.sitemap, urls, max_urls)
             resultado.rendimiento = self.adapters.ejecutar_pagespeed(
                 urls_ps,
-                c.pagespeed_api_key,
+                configuracion.pagespeed_api_key,
                 timeout,
-                reint,
+                reintentos,
                 carpeta_cache / "pagespeed",
                 cache_ttl,
             )
+            estado_pagespeed: dict[str, dict[str, str]] = {}
+            for item in resultado.rendimiento:
+                estado_pagespeed.setdefault(item.url, {})
+                estado_pagespeed[item.url][item.estrategia] = item.error or "ok"
+            resultado.pagespeed_estado = estado_pagespeed
+            scores_validos = [item.performance_score for item in resultado.rendimiento if isinstance(item.performance_score, (int, float))]
+            if scores_validos:
+                resultado.score_rendimiento = round(sum(scores_validos) / len(scores_validos), 1)
+                resultado.seo_score_global = round(
+                    (float(resultado.score_tecnico or 0.0) * 0.4)
+                    + (float(resultado.score_contenido or 0.0) * 0.4)
+                    + (float(resultado.score_rendimiento or 0.0) * 0.2),
+                    1,
+                )
             hay_metricas_validas = any(
                 (
                     item.performance_score is not None
@@ -207,27 +220,58 @@ class AuditoriaService:
             else:
                 if "pagespeed" not in resultado.fuentes_fallidas:
                     resultado.fuentes_fallidas.append("pagespeed")
-        if (not a.noGSC) and c.gsc_enabled:
+        if argumentos.noGSC:
+            print("[3.5/6] Search Console omitido por argumento --noGSC.")
+        elif configuracion.gsc_enabled:
             try:
-                datos = self.adapters.cargar_datos_search_console(c)
+                datos = self.adapters.cargar_datos_search_console(configuracion)
                 resultado.search_console = datos
                 resultado.gestion_indexacion = self.adapters.generar_gestion_indexacion_inteligente(resultado.resultados, datos.paginas)
+                if datos.activo and (datos.paginas or datos.queries):
+                    if "search_console" not in resultado.fuentes_activas:
+                        resultado.fuentes_activas.append("search_console")
+                else:
+                    if "search_console" not in resultado.fuentes_fallidas:
+                        resultado.fuentes_fallidas.append("search_console")
             except Exception as exc:
+                if "search_console" not in resultado.fuentes_fallidas:
+                    resultado.fuentes_fallidas.append("search_console")
                 print(f"Aviso: fallo no bloqueante en Search Console: {exc}")
-        if c.ga_enabled:
+        if configuracion.ga_enabled:
             try:
-                resultado.analytics = self.adapters.cargar_datos_analytics(c)
+                resultado.analytics = self.adapters.cargar_datos_analytics(configuracion)
+                if resultado.analytics.activo and resultado.analytics.paginas:
+                    if "analytics" not in resultado.fuentes_activas:
+                        resultado.fuentes_activas.append("analytics")
+                else:
+                    if "analytics" not in resultado.fuentes_fallidas:
+                        resultado.fuentes_fallidas.append("analytics")
             except Exception as exc:
+                if "analytics" not in resultado.fuentes_fallidas:
+                    resultado.fuentes_fallidas.append("analytics")
                 print(f"Aviso: fallo no bloqueante en Analytics: {exc}")
-        if a.usar_ia:
+        if argumentos.usar_ia:
             try:
-                resultado.resumen_ia = self.adapters.generar_resumen_ia(resultado, c.gemini_api_key, request.modelo_ia, a.max_muestras_ia, a.modo if a.modo in {"completo", "resumen", "quickwins", "gsc", "roadmap"} else "completo", carpeta_cache / "ia", cache_ttl)
+                resultado.resumen_ia = self.adapters.generar_resumen_ia(
+                    resultado,
+                    configuracion.gemini_api_key,
+                    request.modelo_ia,
+                    argumentos.max_muestras_ia,
+                    argumentos.modo if argumentos.modo in {"completo", "resumen", "quickwins", "gsc", "roadmap"} else "completo",
+                    carpeta_cache / "ia",
+                    cache_ttl,
+                )
+                if "ia" not in resultado.fuentes_activas:
+                    resultado.fuentes_activas.append("ia")
             except Exception as exc:
                 resultado.resumen_ia = f"No se pudo generar el informe con IA: {exc}"
 
     def _exportar_entregables(self, request: AuditoriaRequest, resultado: Any, carpeta_salida: Path, fecha: str, perfil_generacion: str, entregables_perfil: list[str]) -> None:
-        a, c = request.argumentos, request.configuracion
+        argumentos, configuracion = request.argumentos, request.configuracion
         print("[5/6] Exportando entregables profesionales...")
+        archivos_generados: list[str] = []
+        archivos_omitidos: list[str] = []
+        errores_no_fatales: list[str] = []
         exportadores = {
             ENTREGABLE_JSON_TECNICO: lambda: self.adapters.exportar_json(resultado, carpeta_salida),
             ENTREGABLE_EXCEL_SEO: lambda: self.adapters.exportar_excel(resultado, carpeta_salida),
@@ -240,15 +284,39 @@ class AuditoriaService:
             if entregable in exportadores:
                 try:
                     exportadores[entregable]()
+                    archivos_generados.append(entregable)
                 except Exception as exc:
+                    errores_no_fatales.append(f"{entregable}: {exc}")
                     print(f"  - Aviso: no se pudo exportar {entregable}: {exc}")
                 continue
-            if entregable == ENTREGABLE_GA4_PREMIUM and c.ga_enabled:
+            if entregable == ENTREGABLE_GA4_PREMIUM:
+                if not configuracion.ga_enabled:
+                    archivos_omitidos.append(f"{entregable} (GA4 no habilitado)")
+                    continue
                 try:
-                    self.adapters.generar_informe_ga4_premium(c, Path(a.output) / "ga4_premium" / fecha, self.adapters.resolver_cliente_informe_ga4(a.cliente, a.sitemap), a.gestor, request.periodo_desde, request.periodo_hasta, a.comparar, a.provincia)
+                    salida_premium = self.adapters.generar_informe_ga4_premium(
+                        configuracion,
+                        Path(argumentos.output) / "ga4_premium" / fecha,
+                        self.adapters.resolver_cliente_informe_ga4(argumentos.cliente, argumentos.sitemap),
+                        argumentos.gestor,
+                        request.periodo_desde,
+                        request.periodo_hasta,
+                        argumentos.comparar,
+                        argumentos.provincia,
+                    )
+                    if salida_premium.get("activo", False):
+                        archivos_generados.append(entregable)
+                    else:
+                        archivos_omitidos.append(f"{entregable} ({salida_premium.get('error', 'sin detalle de error')})")
                 except Exception as exc:
+                    errores_no_fatales.append(f"{entregable}: {exc}")
                     print(f"  - Aviso: no se pudo exportar {entregable}: {exc}")
+                continue
+            archivos_omitidos.append(f"{entregable} (no reconocido)")
         print(f"[6/6] Auditoría completada. Ruta base de salida: {carpeta_salida.resolve()}")
+        print(f"[6/6] Generados: {archivos_generados or ['ninguno']}")
+        print(f"[6/6] Omitidos: {archivos_omitidos or ['ninguno']}")
+        print(f"[6/6] Errores no fatales: {errores_no_fatales or ['ninguno']}")
 
     def _resolver_urls_pagespeed(self, argumentos: Any, sitemap: str, urls_sitemap: list[str], max_urls: int) -> list[str]:
         if argumentos.pagepsi:
@@ -271,34 +339,6 @@ class AuditoriaService:
             if candidata and self.adapters.es_url_http_valida(candidata):
                 urls.append(candidata)
         return list(dict.fromkeys(urls))
-
-    def _ejecutar_pagespeed(self, urls: list[str], api_key: str, timeout: int, reintentos: int, cache_dir: Path | None = None, cache_ttl_segundos: int = 0) -> list[ResultadoRendimiento]:
-        resultados: list[ResultadoRendimiento] = []
-        for url in self.adapters.iterar_con_progreso(urls, "PageSpeed", "URL"):
-            for estrategia in ["mobile", "desktop"]:
-                resultados.append(self.adapters.analizar_pagespeed_url(url, api_key, estrategia, timeout, reintentos, cache_dir, cache_ttl_segundos))
-        return resultados
-
-    def _resolver_cliente_informe_ga4(self, cliente_cli: str | None, sitemap: str | None) -> str:
-        if (cliente_cli or "").strip():
-            return (cliente_cli or "").strip()
-        sitemap_normalizado = (sitemap or "").strip()
-        if sitemap_normalizado and self.adapters.es_url_http_valida(sitemap_normalizado):
-            return self.adapters.inferir_cliente_desde_slug(self.adapters.slug_dominio_desde_url(sitemap_normalizado))
-        if sitemap_normalizado:
-            nombre = Path(sitemap_normalizado).stem.strip()
-            if nombre:
-                return nombre.replace("_", " ").replace("-", " ").title()
-        return "Cliente GA4"
-
-    def _resolver_perfil_generacion(self, argumentos: Any) -> str:
-        if argumentos.generar_todo:
-            return "todo"
-        if argumentos.modo == "informe-ga4":
-            return "solo-ga4-premium"
-        if argumentos.modo == "entrega-completa":
-            return "todo"
-        return "auditoria-seo-completa"
 
 
 def ejecutar_auditoria(urls: list[str], timeout: int, max_workers: int):

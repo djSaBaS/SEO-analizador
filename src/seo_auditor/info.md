@@ -28,6 +28,7 @@ Agrupar la lógica de dominio del auditor SEO: análisis, integraciones, orquest
 4. Se generan exportables y resultados finales.
 
 ## Notas de mantenimiento
+- Verificar en cada refactor de orquestación que se preserven métricas consolidadas (PageSpeed), fuentes activas/fallidas y reporting de entregables para evitar regresiones funcionales.
 - Mantener `cli.py` delgado (parseo, validaciones básicas y dispatch) y centralizar decisiones de flujo en `services/auditoria_service.py`.
 - Mantener coherencia de contratos entre submódulos y capas legacy.
 - Reflejar cambios estructurales en `src/info.md` y documentación de arquitectura.

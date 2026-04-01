@@ -1,3 +1,8 @@
+## 0.10.22 - 2026-04-01
+- Se corrigen regresiones en `AuditoriaService`: se recuperan `pagespeed_estado`, cálculo de `score_rendimiento`/`seo_score_global`, trazabilidad de fuentes activas/fallidas (GSC, GA4, IA) y resumen de entregables generados/omitidos/errores no fatales.
+- Se elimina duplicidad de resolución de perfil entre CLI y servicio pasando `perfil_generacion` dentro de `AuditoriaRequest`.
+- Se corrige validación de `--sitemap` para no exigir URL HTTP en modos sin crawl (`--test*` y `--modo informe-ga4`), manteniendo compatibilidad con rutas locales usadas como metadato.
+
 ## 0.10.21 - 2026-04-01
 - Se refactoriza la ejecución principal del CLI: `src/seo_auditor/cli.py` conserva parseo, validaciones básicas, construcción de request y dispatch, delegando la orquestación en `AuditoriaService`.
 - Se implementa `src/seo_auditor/services/auditoria_service.py` con `AuditoriaService.ejecutar(request)` para centralizar decisiones de flujo (`modo`, `--generar-todo`, activación de fuentes y degradación elegante).

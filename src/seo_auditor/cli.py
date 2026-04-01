@@ -1,5 +1,6 @@
 import argparse
 from datetime import date, timedelta
+from pathlib import Path
 
 from seo_auditor.analyzer import auditar_urls
 from seo_auditor.cache import invalidar_cache
@@ -58,8 +59,6 @@ def _resolver_cliente_informe_ga4(cliente_cli: str | None, sitemap: str | None) 
     if sitemap_normalizado and es_url_http_valida(sitemap_normalizado):
         return inferir_cliente_desde_slug(slug_dominio_desde_url(sitemap_normalizado))
     if sitemap_normalizado:
-        from pathlib import Path
-
         nombre = Path(sitemap_normalizado).stem.strip()
         if nombre:
             return nombre.replace("_", " ").replace("-", " ").title()
@@ -92,7 +91,6 @@ def _crear_adaptadores_temporales() -> AuditoriaAdapters:
         generar_resumen_ia=generar_resumen_ia,
         generar_informe_ga4_premium=generar_informe_ga4_premium,
         detectar_home=detectar_home,
-        analizar_pagespeed_url=analizar_pagespeed_url,
         invalidar_cache=invalidar_cache,
         exportar_json=exportar_json,
         exportar_excel=exportar_excel,
@@ -144,11 +142,13 @@ def main() -> int:
     parser = crear_parser()
     argumentos = parser.parse_args()
     configuracion = cargar_configuracion()
+    perfil_generacion = _resolver_perfil_generacion(argumentos)
+    requiere_sitemap_http = not (argumentos.testia or argumentos.testga or argumentos.testgsc or perfil_generacion == "solo-ga4-premium")
 
-    if not (argumentos.testia or argumentos.testga or argumentos.testgsc or _resolver_perfil_generacion(argumentos) == "solo-ga4-premium") and not argumentos.sitemap:
+    if requiere_sitemap_http and not argumentos.sitemap:
         print("Error: --sitemap es obligatorio salvo en modo --testia, --testga o --testgsc.")
         return 1
-    if argumentos.sitemap and not es_url_http_valida(argumentos.sitemap):
+    if requiere_sitemap_http and argumentos.sitemap and not es_url_http_valida(argumentos.sitemap):
         print("Error: el parámetro --sitemap debe ser una URL HTTP o HTTPS válida.")
         return 1
     if argumentos.pagepsi and not es_url_http_valida(argumentos.pagepsi):
@@ -190,6 +190,7 @@ def main() -> int:
         modelo_ia=modelo_ia,
         periodo_desde=periodo_desde,
         periodo_hasta=periodo_hasta,
+        perfil_generacion=perfil_generacion,
     )
     servicio = AuditoriaService(_crear_adaptadores_temporales())
     return servicio.ejecutar(request)
