@@ -1,3 +1,8 @@
+## 0.10.21 - 2026-04-01
+- Se refactoriza la ejecución principal del CLI: `src/seo_auditor/cli.py` conserva parseo, validaciones básicas, construcción de request y dispatch, delegando la orquestación en `AuditoriaService`.
+- Se implementa `src/seo_auditor/services/auditoria_service.py` con `AuditoriaService.ejecutar(request)` para centralizar decisiones de flujo (`modo`, `--generar-todo`, activación de fuentes y degradación elegante).
+- Se añaden adaptadores/fachadas temporales (`_crear_adaptadores_temporales`, `_resolver_cliente_informe_ga4`, `_ejecutar_pagespeed`) para preservar imports y pruebas legacy durante la migración.
+
 ## 0.10.20 - 2026-03-31
 - Se corrige `docs/info.md` para reflejar el estado real post Fase 1: la modularización principal de exportadores reside en `src/seo_auditor/documentacion/exportadores/`, manteniendo `src/seo_auditor/reporters/` como compatibilidad temporal.
 - Se completa la plantilla mínima de `info.md` en `docs/ejemplos/` y `docs/integraciones/` incorporando objetivo, responsabilidades, dependencias internas, flujo de uso, notas de mantenimiento y mejoras futuras.
