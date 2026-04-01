@@ -1,3 +1,9 @@
+## 0.10.27 - 2026-04-01
+- Se atienden comentarios de revisión centralizando expectativas de entregables en tests mediante imports de `ENTREGABLES_BASE_AUDITORIA` y `PERFILES_GENERACION` desde `services/entregables_service.py`, evitando duplicidad con lógica productiva.
+- Se actualiza `README.md` con comando exacto para generar el informe completo del último mes (marzo 2026), más ejemplo con cálculo automático de fechas en Linux/macOS.
+- Se añade `docs/ejemplos/ejecucion_servicios.md` con ejemplos de ejecución por CLI (recomendada) y alternativa programática con `AuditoriaService`.
+- Se actualiza `docs/ejemplos/info.md` para incluir el nuevo documento de referencia.
+
 ## 0.10.26 - 2026-04-01
 - Se añaden pruebas unitarias de contrato para `AuditoriaRequest`, `AuditoriaResult` y servicios principales (`indexacion_service`, `rendimiento_service`, construcción de request por perfil).
 - Se incorpora escenario de equivalencia estructural en integración comparando flujo CLI histórico y `AuditoriaService` sobre el mismo set de adaptadores.

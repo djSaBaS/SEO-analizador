@@ -13,6 +13,7 @@ from seo_auditor.models import (
     ResultadoEntregables,
 )
 from seo_auditor.services.auditoria_service import construir_request_desde_cli
+from seo_auditor.services.entregables_service import PERFILES_GENERACION
 from seo_auditor.services.indexacion_service import ejecutar_indexacion
 from seo_auditor.services.rendimiento_service import ejecutar_pagespeed_batch
 
@@ -106,12 +107,7 @@ def test_construir_request_valida_entregables_por_perfil() -> None:
     )
     config = SimpleNamespace(gsc_enabled=True, ga_enabled=True, pagespeed_api_key="")
 
-    perfiles = {
-        "auditoria-seo-completa": {"json_tecnico", "excel_seo", "word_seo", "pdf_seo", "html_seo", "markdown_ia"},
-        "todo": {"json_tecnico", "excel_seo", "word_seo", "pdf_seo", "html_seo", "markdown_ia", "ga4_premium"},
-        "solo-ga4-premium": {"ga4_premium"},
-    }
-
-    for perfil, esperados in perfiles.items():
+    for perfil, entregables in PERFILES_GENERACION.items():
+        esperados = set(entregables)
         request = construir_request_desde_cli(args, config, "gemini-2.5-flash", "2026-03-01", "2026-03-31", perfil)
         assert set(request.informe.entregables_solicitados) == esperados

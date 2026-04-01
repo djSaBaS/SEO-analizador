@@ -205,6 +205,30 @@ Comportamiento del orquestador:
 - Informa en logs: perfil activo, fuentes, entregables planificados, generados, omitidos y errores no fatales.
 - Si GA4 premium no está disponible (por configuración o error), se omite sin romper el resto de entregables.
 
+## Ejemplo: informe completo del último mes
+
+> Referencia temporal: hoy es **2026-04-01**. El último mes completo es **2026-03-01 a 2026-03-31**.
+
+```bash
+python src/main.py \
+  --sitemap https://www.ejemplo.com/sitemap.xml \
+  --output ./salidas \
+  --usar-ia \
+  --modo entrega-completa \
+  --date-from 2026-03-01 \
+  --date-to 2026-03-31
+```
+
+Si prefieres calcular fechas automáticamente en Linux/macOS:
+
+```bash
+FROM=$(date -u -d "$(date -u +%Y-%m-01) -1 month" +%F)
+TO=$(date -u -d "$(date -u +%Y-%m-01) -1 day" +%F)
+python src/main.py --sitemap https://www.ejemplo.com/sitemap.xml --output ./salidas --usar-ia --modo entrega-completa --date-from "$FROM" --date-to "$TO"
+```
+
+Para ejecución programática con `AuditoriaService`, revisa `docs/ejemplos/ejecucion_servicios.md`.
+
 ## Ejemplos de generación compuesta
 ```bash
 python src/main.py --sitemap https://www.colegiolegamar.com/sitemap_index.xml --output ./salidas --usar-ia --date-from 2026-02-01 --date-to 2026-02-28 --generar-todo

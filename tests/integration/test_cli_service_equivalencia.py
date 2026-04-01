@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from seo_auditor import cli
 from seo_auditor.models import ResultadoAuditoria, ResultadoUrl
 from seo_auditor.services.auditoria_service import AuditoriaService, construir_request_desde_cli
+from seo_auditor.services.entregables_service import ENTREGABLES_BASE_AUDITORIA
 
 
 class _Cfg:
@@ -128,4 +129,4 @@ def test_equivalencia_estructural_cli_vs_servicio(monkeypatch, tmp_path) -> None
     assert contrato.resumen_ejecucion.codigo_salida == 0
     assert capturado["cli"].sitemap == contrato.auditoria.sitemap
     assert len(capturado["cli"].resultados) == len(contrato.auditoria.resultados)
-    assert set(contrato.entregables.generados) == {"json_tecnico", "excel_seo", "word_seo", "pdf_seo", "html_seo", "markdown_ia"}
+    assert set(contrato.entregables.generados) == set(ENTREGABLES_BASE_AUDITORIA)
