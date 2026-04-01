@@ -80,7 +80,7 @@ class AuditoriaService:
             return self._resultado_solo_codigo(self._ejecutar_testgsc(configuracion))
         if argumentos and argumentos.testga:
             return self._resultado_solo_codigo(self._ejecutar_testga(configuracion))
-        if request.integraciones.usar_ga4_premium and request.informe.perfil_generacion == "solo-ga4-premium":
+        if request.informe.perfil_generacion == "solo-ga4-premium":
             return self._resultado_solo_codigo(self._ejecutar_modo_ga4_premium(request))
         return self._ejecutar_auditoria_completa(request)
 

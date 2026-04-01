@@ -1,3 +1,8 @@
+## 0.10.25 - 2026-04-01
+- Se corrige el enrutado de `AuditoriaService.ejecutar_contrato` para que el perfil `solo-ga4-premium` active siempre el flujo premium sin depender del flag `usar_ga4_premium`.
+- Se recupera compatibilidad legacy en `priorizacion_service.py` aceptando cualquier iterable de hallazgos (tupla/generador/lista), no solo `list`.
+- Se añaden pruebas unitarias de regresión para ambos casos en `tests/unit/test_auditoria_service_contratos.py` y `tests/unit/test_priorizacion_service.py`.
+
 ## 0.10.24 - 2026-04-01
 - Se atienden observaciones de revisión en `auditoria_service.py`: se restaura `@dataclass(slots=True)` en `AuditoriaAdapters`, se elimina import local de `ResultadoAuditoria` y se consolida en imports de módulo.
 - Se mejora legibilidad descompactando líneas extensas de cálculo (`seo_score_global`) y validación de métricas (`hay_metricas_validas`) a formato multilínea.

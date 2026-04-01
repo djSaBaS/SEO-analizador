@@ -3,23 +3,24 @@
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Iterable
 
 from seo_auditor.models import AuditoriaResult
 
 
-def priorizar_hallazgos(auditoria_result: AuditoriaResult | list[object]) -> dict[str, object]:
+def priorizar_hallazgos(auditoria_result: AuditoriaResult | Iterable[object]) -> dict[str, object]:
     """Calcula una priorización explicable a partir de un resultado de auditoría consolidado."""
-    if isinstance(auditoria_result, list):
-        hallazgos = list(auditoria_result)
-        fuentes_activas = []
-        fuentes_fallidas = []
-        urls_analizadas = 0
-    else:
+    if isinstance(auditoria_result, AuditoriaResult):
         resultado = auditoria_result.auditoria
         hallazgos = [hallazgo for url in resultado.resultados for hallazgo in url.hallazgos]
         fuentes_activas = list(resultado.fuentes_activas)
         fuentes_fallidas = list(resultado.fuentes_fallidas)
         urls_analizadas = auditoria_result.resumen_ejecucion.total_urls_analizadas
+    else:
+        hallazgos = list(auditoria_result)
+        fuentes_activas = []
+        fuentes_fallidas = []
+        urls_analizadas = 0
     total_hallazgos = len(hallazgos)
 
     conteo_prioridad = Counter(getattr(h, "prioridad", "P4") for h in hallazgos)
