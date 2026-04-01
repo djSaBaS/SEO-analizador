@@ -1,3 +1,10 @@
+## 0.10.26 - 2026-04-01
+- Se añaden pruebas unitarias de contrato para `AuditoriaRequest`, `AuditoriaResult` y servicios principales (`indexacion_service`, `rendimiento_service`, construcción de request por perfil).
+- Se incorpora escenario de equivalencia estructural en integración comparando flujo CLI histórico y `AuditoriaService` sobre el mismo set de adaptadores.
+- Se añade cobertura de degradación elegante cuando integraciones externas no están disponibles (GSC, GA4, PageSpeed e IA) sin romper la ejecución global.
+- Se refuerza la validación de entregables por perfil (`auditoria-seo-completa`, `todo`, `solo-ga4-premium`) en pruebas automatizadas.
+- Se actualiza documentación de cierre de fases y criterios en `README.md` y `docs/arquitectura/changelog_migracion.md`.
+
 ## 0.10.25 - 2026-04-01
 - Se corrige el enrutado de `AuditoriaService.ejecutar_contrato` para que el perfil `solo-ga4-premium` active siempre el flujo premium sin depender del flag `usar_ga4_premium`.
 - Se recupera compatibilidad legacy en `priorizacion_service.py` aceptando cualquier iterable de hallazgos (tupla/generador/lista), no solo `list`.

@@ -44,6 +44,16 @@ Herramienta de auditoría SEO técnica y ejecutiva con exportación a JSON, Exce
   - Módulos funcionales divididos en `integrations`, `analyzers` y `services`.
   - CLI estable y mantenida sin ruptura de flags/flows públicos.
   - Tests reorganizados en `tests/unit` y `tests/integration` con compatibilidad de rutas legacy.
+- **Fase 3: cerrada (2026-04-01).**
+  - Contratos tipados estabilizados (`AuditoriaRequest`, `AuditoriaResult`) con pruebas dedicadas en `tests/unit`.
+  - Equivalencia estructural validada entre ejecución CLI histórica y `AuditoriaService`.
+  - Degradación elegante validada ante indisponibilidad de integraciones externas (GSC/GA4/PageSpeed/IA).
+  - Validación de entregables por perfil (`auditoria-seo-completa`, `todo`, `solo-ga4-premium`) cubierta en pruebas.
+
+### Criterios de cierre por fase
+- **Fase 1 (documentación/exportación):** paridad de artefactos (DOCX/PDF/HTML/Excel/JSON) + wrappers legacy activos + tests documentales verdes.
+- **Fase 2 (modularización funcional):** CLI sin ruptura de flags/modos + módulos separados (`integrations`, `analyzers`, `services`) + tests unit/integration reorganizados.
+- **Fase 3 (contratos/orquestación):** contratos `AuditoriaRequest/AuditoriaResult` estables + equivalencia CLI↔servicio + degradación elegante e invariantes de perfiles verificadas.
 
 ### Changelog de migración
 Se mantiene en `docs/arquitectura/changelog_migracion.md` con tres bloques fijos por iteración:
