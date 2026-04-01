@@ -1,15 +1,21 @@
-## 0.10.27 - 2026-04-01
+## 0.10.28 - 2026-04-01
 - Se atienden comentarios de revisión centralizando expectativas de entregables en tests mediante imports de `ENTREGABLES_BASE_AUDITORIA` y `PERFILES_GENERACION` desde `services/entregables_service.py`, evitando duplicidad con lógica productiva.
 - Se actualiza `README.md` con comando exacto para generar el informe completo del último mes (marzo 2026), más ejemplo con cálculo automático de fechas en Linux/macOS.
 - Se añade `docs/ejemplos/ejecucion_servicios.md` con ejemplos de ejecución por CLI (recomendada) y alternativa programática con `AuditoriaService`.
 - Se actualiza `docs/ejemplos/info.md` para incluir el nuevo documento de referencia.
 
-## 0.10.26 - 2026-04-01
+## 0.10.27 - 2026-04-01
 - Se añaden pruebas unitarias de contrato para `AuditoriaRequest`, `AuditoriaResult` y servicios principales (`indexacion_service`, `rendimiento_service`, construcción de request por perfil).
 - Se incorpora escenario de equivalencia estructural en integración comparando flujo CLI histórico y `AuditoriaService` sobre el mismo set de adaptadores.
 - Se añade cobertura de degradación elegante cuando integraciones externas no están disponibles (GSC, GA4, PageSpeed e IA) sin romper la ejecución global.
 - Se refuerza la validación de entregables por perfil (`auditoria-seo-completa`, `todo`, `solo-ga4-premium`) en pruebas automatizadas.
 - Se actualiza documentación de cierre de fases y criterios en `README.md` y `docs/arquitectura/changelog_migracion.md`.
+
+## 0.10.26 - 2026-04-01
+- Se incorpora `src/seo_auditor/services/informe_service.py` con los métodos `construir_modelo_documental` y `preparar_informe` para centralizar composición semántica, orden de secciones y reglas condicionales por fuentes (GSC/GA4/IA).
+- Se actualizan exportadores Word/PDF/HTML para consumir el modelo semántico preparado por `InformeService`, manteniendo a Markdown IA como salida auxiliar.
+- Se amplían pruebas unitarias para validar el nuevo servicio de informe y el consumo del servicio desde los exportadores.
+- Se corrige `InformeService` para manejar `configuracion=None` sin errores, preservar secciones de fallback no-IA y recomponer secciones con portada/anexos por tipo de bloque explícito.
 
 ## 0.10.25 - 2026-04-01
 - Se corrige el enrutado de `AuditoriaService.ejecutar_contrato` para que el perfil `solo-ga4-premium` active siempre el flujo premium sin depender del flag `usar_ga4_premium`.
