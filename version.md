@@ -1,3 +1,49 @@
+## 0.10.28 - 2026-04-01
+- Se atienden comentarios de revisión centralizando expectativas de entregables en tests mediante imports de `ENTREGABLES_BASE_AUDITORIA` y `PERFILES_GENERACION` desde `services/entregables_service.py`, evitando duplicidad con lógica productiva.
+- Se actualiza `README.md` con comando exacto para generar el informe completo del último mes (marzo 2026), más ejemplo con cálculo automático de fechas en Linux/macOS.
+- Se añade `docs/ejemplos/ejecucion_servicios.md` con ejemplos de ejecución por CLI (recomendada) y alternativa programática con `AuditoriaService`.
+- Se actualiza `docs/ejemplos/info.md` para incluir el nuevo documento de referencia.
+
+## 0.10.27 - 2026-04-01
+- Se añaden pruebas unitarias de contrato para `AuditoriaRequest`, `AuditoriaResult` y servicios principales (`indexacion_service`, `rendimiento_service`, construcción de request por perfil).
+- Se incorpora escenario de equivalencia estructural en integración comparando flujo CLI histórico y `AuditoriaService` sobre el mismo set de adaptadores.
+- Se añade cobertura de degradación elegante cuando integraciones externas no están disponibles (GSC, GA4, PageSpeed e IA) sin romper la ejecución global.
+- Se refuerza la validación de entregables por perfil (`auditoria-seo-completa`, `todo`, `solo-ga4-premium`) en pruebas automatizadas.
+- Se actualiza documentación de cierre de fases y criterios en `README.md` y `docs/arquitectura/changelog_migracion.md`.
+
+## 0.10.26 - 2026-04-01
+- Se incorpora `src/seo_auditor/services/informe_service.py` con los métodos `construir_modelo_documental` y `preparar_informe` para centralizar composición semántica, orden de secciones y reglas condicionales por fuentes (GSC/GA4/IA).
+- Se actualizan exportadores Word/PDF/HTML para consumir el modelo semántico preparado por `InformeService`, manteniendo a Markdown IA como salida auxiliar.
+- Se amplían pruebas unitarias para validar el nuevo servicio de informe y el consumo del servicio desde los exportadores.
+- Se corrige `InformeService` para manejar `configuracion=None` sin errores, preservar secciones de fallback no-IA y recomponer secciones con portada/anexos por tipo de bloque explícito.
+
+## 0.10.25 - 2026-04-01
+- Se corrige el enrutado de `AuditoriaService.ejecutar_contrato` para que el perfil `solo-ga4-premium` active siempre el flujo premium sin depender del flag `usar_ga4_premium`.
+- Se recupera compatibilidad legacy en `priorizacion_service.py` aceptando cualquier iterable de hallazgos (tupla/generador/lista), no solo `list`.
+- Se añaden pruebas unitarias de regresión para ambos casos en `tests/unit/test_auditoria_service_contratos.py` y `tests/unit/test_priorizacion_service.py`.
+
+## 0.10.24 - 2026-04-01
+- Se atienden observaciones de revisión en `auditoria_service.py`: se restaura `@dataclass(slots=True)` en `AuditoriaAdapters`, se elimina import local de `ResultadoAuditoria` y se consolida en imports de módulo.
+- Se mejora legibilidad descompactando líneas extensas de cálculo (`seo_score_global`) y validación de métricas (`hay_metricas_validas`) a formato multilínea.
+- Se simplifica la llamada de generación GA4 premium extrayendo variables locales (`carpeta_premium`, `cliente_premium`, `comparacion`, `provincia`) para facilitar mantenimiento y depuración.
+
+## 0.10.23 - 2026-04-01
+- Se formalizan contratos estables en `models.py` con `AuditoriaRequest` y `AuditoriaResult`, incorporando campos explícitos de sitemap, periodo, flags de integración, caché y configuración documental.
+- Se añaden modelos auxiliares `ResultadoEntregables`, `ConfiguracionInforme` y `ResumenEjecucion` para estabilizar intercambio entre servicios.
+- Se reescribe `auditoria_service.py` para coordinar flujo completo mediante contrato tipado (`construir_request_desde_cli`, `ejecutar_contrato`) y reducir dependencia de argumentos sueltos.
+- Se reescribe `priorizacion_service.py` para producir priorización explicable (`score`, `motivos`, `componentes`) consumiendo `AuditoriaResult`.
+- Se actualiza documentación contractual en `src/seo_auditor/info.md` y `src/seo_auditor/services/info.md`.
+
+## 0.10.22 - 2026-04-01
+- Se corrigen regresiones en `AuditoriaService`: se recuperan `pagespeed_estado`, cálculo de `score_rendimiento`/`seo_score_global`, trazabilidad de fuentes activas/fallidas (GSC, GA4, IA) y resumen de entregables generados/omitidos/errores no fatales.
+- Se elimina duplicidad de resolución de perfil entre CLI y servicio pasando `perfil_generacion` dentro de `AuditoriaRequest`.
+- Se corrige validación de `--sitemap` para no exigir URL HTTP en modos sin crawl (`--test*` y `--modo informe-ga4`), manteniendo compatibilidad con rutas locales usadas como metadato.
+
+## 0.10.21 - 2026-04-01
+- Se refactoriza la ejecución principal del CLI: `src/seo_auditor/cli.py` conserva parseo, validaciones básicas, construcción de request y dispatch, delegando la orquestación en `AuditoriaService`.
+- Se implementa `src/seo_auditor/services/auditoria_service.py` con `AuditoriaService.ejecutar(request)` para centralizar decisiones de flujo (`modo`, `--generar-todo`, activación de fuentes y degradación elegante).
+- Se añaden adaptadores/fachadas temporales (`_crear_adaptadores_temporales`, `_resolver_cliente_informe_ga4`, `_ejecutar_pagespeed`) para preservar imports y pruebas legacy durante la migración.
+
 ## 0.10.20 - 2026-03-31
 - Se corrige `docs/info.md` para reflejar el estado real post Fase 1: la modularización principal de exportadores reside en `src/seo_auditor/documentacion/exportadores/`, manteniendo `src/seo_auditor/reporters/` como compatibilidad temporal.
 - Se completa la plantilla mínima de `info.md` en `docs/ejemplos/` y `docs/integraciones/` incorporando objetivo, responsabilidades, dependencias internas, flujo de uso, notas de mantenimiento y mejoras futuras.

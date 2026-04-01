@@ -44,6 +44,16 @@ Herramienta de auditoría SEO técnica y ejecutiva con exportación a JSON, Exce
   - Módulos funcionales divididos en `integrations`, `analyzers` y `services`.
   - CLI estable y mantenida sin ruptura de flags/flows públicos.
   - Tests reorganizados en `tests/unit` y `tests/integration` con compatibilidad de rutas legacy.
+- **Fase 3: cerrada (2026-04-01).**
+  - Contratos tipados estabilizados (`AuditoriaRequest`, `AuditoriaResult`) con pruebas dedicadas en `tests/unit`.
+  - Equivalencia estructural validada entre ejecución CLI histórica y `AuditoriaService`.
+  - Degradación elegante validada ante indisponibilidad de integraciones externas (GSC/GA4/PageSpeed/IA).
+  - Validación de entregables por perfil (`auditoria-seo-completa`, `todo`, `solo-ga4-premium`) cubierta en pruebas.
+
+### Criterios de cierre por fase
+- **Fase 1 (documentación/exportación):** paridad de artefactos (DOCX/PDF/HTML/Excel/JSON) + wrappers legacy activos + tests documentales verdes.
+- **Fase 2 (modularización funcional):** CLI sin ruptura de flags/modos + módulos separados (`integrations`, `analyzers`, `services`) + tests unit/integration reorganizados.
+- **Fase 3 (contratos/orquestación):** contratos `AuditoriaRequest/AuditoriaResult` estables + equivalencia CLI↔servicio + degradación elegante e invariantes de perfiles verificadas.
 
 ### Changelog de migración
 Se mantiene en `docs/arquitectura/changelog_migracion.md` con tres bloques fijos por iteración:
@@ -194,6 +204,30 @@ Comportamiento del orquestador:
 - Intenta exportar cada entregable de forma aislada (degradación elegante).
 - Informa en logs: perfil activo, fuentes, entregables planificados, generados, omitidos y errores no fatales.
 - Si GA4 premium no está disponible (por configuración o error), se omite sin romper el resto de entregables.
+
+## Ejemplo: informe completo del último mes
+
+> Referencia temporal: hoy es **2026-04-01**. El último mes completo es **2026-03-01 a 2026-03-31**.
+
+```bash
+python src/main.py \
+  --sitemap https://www.ejemplo.com/sitemap.xml \
+  --output ./salidas \
+  --usar-ia \
+  --modo entrega-completa \
+  --date-from 2026-03-01 \
+  --date-to 2026-03-31
+```
+
+Si prefieres calcular fechas automáticamente en Linux/macOS:
+
+```bash
+FROM=$(date -u -d "$(date -u +%Y-%m-01) -1 month" +%F)
+TO=$(date -u -d "$(date -u +%Y-%m-01) -1 day" +%F)
+python src/main.py --sitemap https://www.ejemplo.com/sitemap.xml --output ./salidas --usar-ia --modo entrega-completa --date-from "$FROM" --date-to "$TO"
+```
+
+Para ejecución programática con `AuditoriaService`, revisa `docs/ejemplos/ejecucion_servicios.md`.
 
 ## Ejemplos de generación compuesta
 ```bash
