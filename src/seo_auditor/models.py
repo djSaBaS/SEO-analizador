@@ -1,5 +1,6 @@
 # Importa utilidades para crear modelos de datos simples y seguros.
 from dataclasses import dataclass, field
+from enum import Enum
 
 # Importa tipos estándar para mejorar legibilidad y validación estática.
 from typing import Any, List, Optional
@@ -597,6 +598,31 @@ class AuditoriaRequest:
 
 # Define el resumen de artefactos documentales producidos por la auditoría.
 @dataclass(slots=True)
+class RegistroEntregable:
+    """Describe el estado final de un entregable individual."""
+
+    # Identificador del entregable procesado.
+    entregable: str
+
+    # Estado final del entregable: generado, omitido o error_no_fatal.
+    estado: "EstadoEntregable"
+
+    # Ruta final del artefacto cuando aplique.
+    ruta_final: str = ""
+
+    # Motivo adicional en caso de omisión o error no fatal.
+    detalle: str = ""
+
+
+class EstadoEntregable(str, Enum):
+    """Define los estados válidos para el ciclo de vida de entregables."""
+
+    GENERADO = "generado"
+    OMITIDO = "omitido"
+    ERROR_NO_FATAL = "error_no_fatal"
+
+
+@dataclass(slots=True)
 class ResultadoEntregables:
     """
     Resume archivos generados, omitidos y errores no fatales de exportación.
@@ -610,6 +636,9 @@ class ResultadoEntregables:
 
     # Lista de errores no fatales detectados en exportación.
     errores_no_fatales: List[str] = field(default_factory=list)
+
+    # Registro estructurado por entregable para consumo de CLI/web.
+    registros: List[RegistroEntregable] = field(default_factory=list)
 
 
 # Define un resumen ejecutivo de la ejecución para trazabilidad operativa.
