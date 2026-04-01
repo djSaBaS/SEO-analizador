@@ -597,6 +597,23 @@ class AuditoriaRequest:
 
 # Define el resumen de artefactos documentales producidos por la auditoría.
 @dataclass(slots=True)
+class RegistroEntregable:
+    """Describe el estado final de un entregable individual."""
+
+    # Identificador del entregable procesado.
+    entregable: str
+
+    # Estado final del entregable: generado, omitido o error_no_fatal.
+    estado: str
+
+    # Ruta final del artefacto cuando aplique.
+    ruta_final: str = ""
+
+    # Motivo adicional en caso de omisión o error no fatal.
+    detalle: str = ""
+
+
+@dataclass(slots=True)
 class ResultadoEntregables:
     """
     Resume archivos generados, omitidos y errores no fatales de exportación.
@@ -610,6 +627,9 @@ class ResultadoEntregables:
 
     # Lista de errores no fatales detectados en exportación.
     errores_no_fatales: List[str] = field(default_factory=list)
+
+    # Registro estructurado por entregable para consumo de CLI/web.
+    registros: List[RegistroEntregable] = field(default_factory=list)
 
 
 # Define un resumen ejecutivo de la ejecución para trazabilidad operativa.

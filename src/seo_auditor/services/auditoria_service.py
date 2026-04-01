@@ -19,13 +19,9 @@ from seo_auditor.models import (
 )
 from seo_auditor.services.entregables_service import (
     ENTREGABLES_BASE_AUDITORIA,
-    ENTREGABLE_EXCEL_SEO,
-    ENTREGABLE_GA4_PREMIUM,
-    ENTREGABLE_HTML_SEO,
-    ENTREGABLE_JSON_TECNICO,
-    ENTREGABLE_MARKDOWN_IA,
-    ENTREGABLE_PDF_SEO,
-    ENTREGABLE_WORD_SEO,
+    EntregablesAdapters,
+    EntregablesService,
+    ModeloEntregables,
     PERFILES_GENERACION,
 )
 
@@ -63,6 +59,18 @@ class AuditoriaService:
 
     def __init__(self, adapters: AuditoriaAdapters) -> None:
         self.adapters = adapters
+        self.entregables_service = EntregablesService(
+            EntregablesAdapters(
+                exportar_json=adapters.exportar_json,
+                exportar_excel=adapters.exportar_excel,
+                exportar_word=adapters.exportar_word,
+                exportar_pdf=adapters.exportar_pdf,
+                exportar_html=adapters.exportar_html,
+                exportar_markdown_ia=adapters.exportar_markdown_ia,
+                generar_informe_ga4_premium=adapters.generar_informe_ga4_premium,
+                iterar_con_progreso=adapters.iterar_con_progreso,
+            )
+        )
 
     def ejecutar(self, request: AuditoriaRequest) -> int:
         """Ejecuta la auditoría y devuelve el código de salida para la CLI."""
@@ -282,55 +290,20 @@ class AuditoriaService:
                 resultado.resumen_ia = f"No se pudo generar el informe con IA: {exc}"
 
     def _exportar_entregables(self, request: AuditoriaRequest, resultado: Any, carpeta_salida: Path, fecha: str, entregables_perfil: list[str]) -> ResultadoEntregables:
-        configuracion = request.configuracion
-
         print("[5/6] Exportando entregables profesionales...")
-        resumen = ResultadoEntregables()
-        exportadores = {
-            ENTREGABLE_JSON_TECNICO: lambda: self.adapters.exportar_json(resultado, carpeta_salida),
-            ENTREGABLE_EXCEL_SEO: lambda: self.adapters.exportar_excel(resultado, carpeta_salida),
-            ENTREGABLE_WORD_SEO: lambda: self.adapters.exportar_word(resultado, carpeta_salida),
-            ENTREGABLE_PDF_SEO: lambda: self.adapters.exportar_pdf(resultado, carpeta_salida),
-            ENTREGABLE_HTML_SEO: lambda: self.adapters.exportar_html(resultado, carpeta_salida),
-            ENTREGABLE_MARKDOWN_IA: lambda: self.adapters.exportar_markdown_ia(resultado, carpeta_salida),
-        }
-        for entregable in self.adapters.iterar_con_progreso(entregables_perfil, "Exportación", "archivo"):
-            if entregable in exportadores:
-                try:
-                    exportadores[entregable]()
-                    resumen.generados.append(entregable)
-                except Exception as exc:
-                    resumen.errores_no_fatales.append(f"{entregable}: {exc}")
-                    print(f"  - Aviso: no se pudo exportar {entregable}: {exc}")
-                continue
-            if entregable == ENTREGABLE_GA4_PREMIUM:
-                if not configuracion.ga_enabled:
-                    resumen.omitidos.append(f"{entregable} (GA4 no habilitado)")
-                    continue
-                try:
-                    carpeta_premium = Path(request.informe.carpeta_salida) / "ga4_premium" / fecha
-                    cliente_premium = self.adapters.resolver_cliente_informe_ga4(request.cliente, request.sitemap)
-                    comparacion = request.argumentos.comparar if request.argumentos else "periodo-anterior"
-                    provincia = request.argumentos.provincia if request.argumentos else ""
-                    salida_premium = self.adapters.generar_informe_ga4_premium(
-                        configuracion,
-                        carpeta_premium,
-                        cliente_premium,
-                        request.gestor,
-                        request.periodo_desde,
-                        request.periodo_hasta,
-                        comparacion,
-                        provincia,
-                    )
-                    if salida_premium.get("activo", False):
-                        resumen.generados.append(entregable)
-                    else:
-                        resumen.omitidos.append(f"{entregable} ({salida_premium.get('error', 'sin detalle de error')})")
-                except Exception as exc:
-                    resumen.errores_no_fatales.append(f"{entregable}: {exc}")
-                    print(f"  - Aviso: no se pudo exportar {entregable}: {exc}")
-                continue
-            resumen.omitidos.append(f"{entregable} (no reconocido)")
+        cliente_premium = self.adapters.resolver_cliente_informe_ga4(request.cliente, request.sitemap)
+        modelo_documental = ModeloEntregables(
+            carpeta_salida=carpeta_salida,
+            fecha_ejecucion=fecha,
+            entregables_solicitados=entregables_perfil,
+            cliente=cliente_premium,
+            gestor=request.gestor,
+            periodo_desde=request.periodo_desde,
+            periodo_hasta=request.periodo_hasta,
+            comparacion_ga4=request.argumentos.comparar if request.argumentos else "periodo-anterior",
+            provincia_ga4=request.argumentos.provincia if request.argumentos else "",
+        )
+        resumen = self.entregables_service.generar_entregables(resultado, modelo_documental, request.configuracion)
         print(f"[6/6] Auditoría completada. Ruta base de salida: {carpeta_salida.resolve()}")
         print(f"[6/6] Generados: {resumen.generados or ['ninguno']}")
         print(f"[6/6] Omitidos: {resumen.omitidos or ['ninguno']}")
