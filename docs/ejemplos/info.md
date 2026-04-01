@@ -7,6 +7,7 @@ Ejemplos prácticos de uso del CLI y flujos operativos.
 
 ## Archivos
 - `comandos_cli.md`: catálogo de comandos por escenario de ejecución.
+- `ejecucion_servicios.md`: ejemplos de ejecución recomendada por CLI y alternativa programática con `AuditoriaService`.
 
 ## Responsabilidades
 - Mantener ejemplos alineados con los flags y modos vigentes del CLI.

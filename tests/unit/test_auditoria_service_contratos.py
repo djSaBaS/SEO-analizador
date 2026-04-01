@@ -64,3 +64,83 @@ def test_ejecutar_contrato_rutea_perfil_solo_ga4_premium_sin_flag() -> None:
     resultado = servicio.ejecutar_contrato(request)
 
     assert resultado.resumen_ejecucion.codigo_salida == 0
+
+
+def test_ejecutar_contrato_degradacion_integraciones_no_disponibles() -> None:
+    """Verifica degradación elegante cuando GSC/GA4/PageSpeed/IA no están disponibles."""
+
+    def _auditoria_minima(*_args, **_kwargs):
+        from seo_auditor.models import ResultadoAuditoria
+
+        return ResultadoAuditoria(
+            sitemap="https://ejemplo.com/sitemap.xml",
+            total_urls=1,
+            resultados=[],
+            cliente="Cliente",
+            fecha_ejecucion="2026-04-01",
+            gestor="Gestor",
+        )
+
+    adapters_base = _adaptadores_minimos()
+    adapters = AuditoriaAdapters(
+        extraer_urls_sitemap=lambda *_a, **_k: ["https://ejemplo.com/"],
+        auditar_urls=_auditoria_minima,
+        analizar_indexacion_rastreo=adapters_base.analizar_indexacion_rastreo,
+        generar_gestion_indexacion_inteligente=adapters_base.generar_gestion_indexacion_inteligente,
+        cargar_datos_search_console=lambda *_a, **_k: (_ for _ in ()).throw(RuntimeError("gsc off")),
+        cargar_datos_analytics=lambda *_a, **_k: (_ for _ in ()).throw(RuntimeError("ga4 off")),
+        generar_resumen_ia=lambda *_a, **_k: (_ for _ in ()).throw(RuntimeError("ia off")),
+        generar_informe_ga4_premium=adapters_base.generar_informe_ga4_premium,
+        detectar_home=adapters_base.detectar_home,
+        invalidar_cache=adapters_base.invalidar_cache,
+        exportar_json=adapters_base.exportar_json,
+        exportar_excel=adapters_base.exportar_excel,
+        exportar_word=adapters_base.exportar_word,
+        exportar_pdf=adapters_base.exportar_pdf,
+        exportar_html=adapters_base.exportar_html,
+        exportar_markdown_ia=adapters_base.exportar_markdown_ia,
+        iterar_con_progreso=adapters_base.iterar_con_progreso,
+        es_url_http_valida=adapters_base.es_url_http_valida,
+        fecha_ejecucion_iso=adapters_base.fecha_ejecucion_iso,
+        slug_dominio_desde_url=adapters_base.slug_dominio_desde_url,
+        inferir_cliente_desde_slug=adapters_base.inferir_cliente_desde_slug,
+        ejecutar_pagespeed=lambda *_a, **_k: [],
+        resolver_cliente_informe_ga4=adapters_base.resolver_cliente_informe_ga4,
+    )
+
+    servicio = AuditoriaService(adapters)
+    request = AuditoriaRequest(
+        sitemap="https://ejemplo.com/sitemap.xml",
+        periodo_desde="2026-03-01",
+        periodo_hasta="2026-03-31",
+        gestor="Gestor",
+        integraciones=FlagsIntegracionesAuditoria(
+            usar_search_console=True,
+            usar_analytics=True,
+            usar_pagespeed=True,
+            usar_ia=True,
+        ),
+        cache=ConfiguracionCacheAuditoria(),
+        informe=ConfiguracionInforme(carpeta_salida="./salidas"),
+        configuracion=SimpleNamespace(
+            http_timeout=10,
+            max_urls=10,
+            pagespeed_api_key="dummy",
+            max_pagepsi_urls=5,
+            pagespeed_timeout=20,
+            pagespeed_reintentos=1,
+            cache_ttl_segundos=0,
+            gemini_api_key="",
+            ga_enabled=True,
+            gsc_enabled=True,
+        ),
+        argumentos=SimpleNamespace(comparar="periodo-anterior", provincia="", testia=False, testgsc=False, testga=False),
+    )
+
+    resultado = servicio.ejecutar_contrato(request)
+
+    assert resultado.resumen_ejecucion.codigo_salida == 0
+    assert "search_console" in resultado.auditoria.fuentes_fallidas
+    assert "analytics" in resultado.auditoria.fuentes_fallidas
+    assert "pagespeed" in resultado.auditoria.fuentes_fallidas
+    assert "No se pudo generar el informe con IA" in resultado.auditoria.resumen_ia
