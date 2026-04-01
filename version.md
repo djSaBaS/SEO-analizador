@@ -1,3 +1,10 @@
+## 0.10.23 - 2026-04-01
+- Se formalizan contratos estables en `models.py` con `AuditoriaRequest` y `AuditoriaResult`, incorporando campos explícitos de sitemap, periodo, flags de integración, caché y configuración documental.
+- Se añaden modelos auxiliares `ResultadoEntregables`, `ConfiguracionInforme` y `ResumenEjecucion` para estabilizar intercambio entre servicios.
+- Se reescribe `auditoria_service.py` para coordinar flujo completo mediante contrato tipado (`construir_request_desde_cli`, `ejecutar_contrato`) y reducir dependencia de argumentos sueltos.
+- Se reescribe `priorizacion_service.py` para producir priorización explicable (`score`, `motivos`, `componentes`) consumiendo `AuditoriaResult`.
+- Se actualiza documentación contractual en `src/seo_auditor/info.md` y `src/seo_auditor/services/info.md`.
+
 ## 0.10.22 - 2026-04-01
 - Se corrigen regresiones en `AuditoriaService`: se recuperan `pagespeed_estado`, cálculo de `score_rendimiento`/`seo_score_global`, trazabilidad de fuentes activas/fallidas (GSC, GA4, IA) y resumen de entregables generados/omitidos/errores no fatales.
 - Se elimina duplicidad de resolución de perfil entre CLI y servicio pasando `perfil_generacion` dentro de `AuditoriaRequest`.

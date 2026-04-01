@@ -2,7 +2,7 @@
 from dataclasses import dataclass, field
 
 # Importa tipos estándar para mejorar legibilidad y validación estática.
-from typing import List, Optional
+from typing import Any, List, Optional
 
 
 # Define la estructura de una incidencia SEO detectada durante la auditoría.
@@ -471,3 +471,182 @@ class ResultadoAuditoria:
 
     # Guarda fecha final global del periodo analizado.
     periodo_date_to: str = ""
+
+
+# Define los flags de integraciones habilitadas para una ejecución.
+@dataclass(slots=True)
+class FlagsIntegracionesAuditoria:
+    """
+    Centraliza qué integraciones externas participan en la auditoría.
+    """
+
+    # Indica si Search Console está habilitado en la ejecución.
+    usar_search_console: bool = False
+
+    # Indica si Google Analytics 4 está habilitado en la ejecución.
+    usar_analytics: bool = False
+
+    # Indica si PageSpeed está habilitado en la ejecución.
+    usar_pagespeed: bool = False
+
+    # Indica si la generación de resumen con IA está habilitada.
+    usar_ia: bool = False
+
+    # Indica si se debe generar el informe GA4 Premium.
+    usar_ga4_premium: bool = False
+
+
+# Define la configuración de caché para integraciones costosas.
+@dataclass(slots=True)
+class ConfiguracionCacheAuditoria:
+    """
+    Representa la estrategia de caché usada durante la ejecución.
+    """
+
+    # Guarda la ruta base de caché local.
+    ruta_cache: str = ""
+
+    # Guarda el TTL de caché en segundos.
+    ttl_segundos: int = 0
+
+    # Indica si se invalida la caché antes de ejecutar.
+    invalidar_antes_de_ejecutar: bool = False
+
+
+# Define las opciones documentales y de formato de entregables.
+@dataclass(slots=True)
+class ConfiguracionInforme:
+    """
+    Agrupa preferencias de generación documental del informe.
+    """
+
+    # Guarda el perfil de generación activo.
+    perfil_generacion: str = "auditoria-seo-completa"
+
+    # Guarda el modo operativo del CLI para contexto documental.
+    modo: str = "completo"
+
+    # Guarda la ruta base donde se exportarán entregables.
+    carpeta_salida: str = "./salidas"
+
+    # Lista de entregables solicitados por el perfil.
+    entregables_solicitados: List[str] = field(default_factory=list)
+
+
+# Define el contrato normalizado de entrada de una auditoría.
+@dataclass(slots=True)
+class AuditoriaRequest:
+    """
+    Modelo de entrada para coordinar auditoría e integraciones sin argumentos sueltos.
+    """
+
+    # Guarda el sitemap objetivo de análisis.
+    sitemap: str
+
+    # Guarda fecha inicial efectiva del periodo analizado.
+    periodo_desde: str
+
+    # Guarda fecha final efectiva del periodo analizado.
+    periodo_hasta: str
+
+    # Guarda nombre del gestor responsable del informe.
+    gestor: str
+
+    # Guarda nombre del cliente cuando venga definido por CLI.
+    cliente: str = ""
+
+    # Guarda el modelo IA a usar para generación narrativa.
+    modelo_ia: str = ""
+
+    # Guarda si se aplica un muestreo rápido de URLs.
+    modo_rapido: bool = False
+
+    # Guarda máximo de muestras que se enviarán al motor IA.
+    max_muestras_ia: int = 15
+
+    # Guarda URL única de PageSpeed cuando aplique.
+    pagepsi_url: str = ""
+
+    # Guarda ruta de archivo de URLs para PageSpeed cuando aplique.
+    pagepsi_list_path: str = ""
+
+    # Guarda límite máximo de URLs en flujo PageSpeed.
+    max_pagepsi_urls: int = 0
+
+    # Guarda timeout para llamadas PageSpeed.
+    pagepsi_timeout: int = 0
+
+    # Guarda reintentos para llamadas PageSpeed.
+    pagepsi_reintentos: int = -1
+
+    # Guarda flags de integración activos para la ejecución.
+    integraciones: FlagsIntegracionesAuditoria = field(default_factory=FlagsIntegracionesAuditoria)
+
+    # Guarda configuración de caché aplicada.
+    cache: ConfiguracionCacheAuditoria = field(default_factory=ConfiguracionCacheAuditoria)
+
+    # Guarda opciones documentales del informe.
+    informe: ConfiguracionInforme = field(default_factory=ConfiguracionInforme)
+
+    # Guarda configuración global legado para adaptadores existentes.
+    configuracion: Any = None
+
+    # Guarda argumentos legado para mantener compatibilidad gradual.
+    argumentos: Any = None
+
+
+# Define el resumen de artefactos documentales producidos por la auditoría.
+@dataclass(slots=True)
+class ResultadoEntregables:
+    """
+    Resume archivos generados, omitidos y errores no fatales de exportación.
+    """
+
+    # Lista de identificadores de entregables exportados.
+    generados: List[str] = field(default_factory=list)
+
+    # Lista de entregables omitidos con motivo.
+    omitidos: List[str] = field(default_factory=list)
+
+    # Lista de errores no fatales detectados en exportación.
+    errores_no_fatales: List[str] = field(default_factory=list)
+
+
+# Define un resumen ejecutivo de la ejecución para trazabilidad operativa.
+@dataclass(slots=True)
+class ResumenEjecucion:
+    """
+    Consolida estado operativo de la corrida de auditoría.
+    """
+
+    # Indica código de retorno final del proceso.
+    codigo_salida: int = 0
+
+    # Guarda total de URLs incluidas en el análisis.
+    total_urls_analizadas: int = 0
+
+    # Guarda fuentes activas efectivas en la ejecución.
+    fuentes_activas: List[str] = field(default_factory=list)
+
+    # Guarda fuentes que fallaron durante la ejecución.
+    fuentes_fallidas: List[str] = field(default_factory=list)
+
+    # Indica si se aplicó invalidación de caché.
+    cache_invalidada: bool = False
+
+
+# Define el contrato estable de salida entre servicios de dominio.
+@dataclass(slots=True)
+class AuditoriaResult:
+    """
+    Encapsula el resultado completo de auditoría para intercambio entre servicios.
+    """
+
+    # Guarda el detalle técnico consolidado de la auditoría.
+    auditoria: ResultadoAuditoria
+
+    # Guarda el resumen de entregables documentales.
+    entregables: ResultadoEntregables = field(default_factory=ResultadoEntregables)
+
+    # Guarda el resumen operativo de ejecución.
+    resumen_ejecucion: ResumenEjecucion = field(default_factory=ResumenEjecucion)

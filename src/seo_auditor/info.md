@@ -32,6 +32,10 @@ Agrupar la lógica de dominio del auditor SEO: análisis, integraciones, orquest
 - Mantener `cli.py` delgado (parseo, validaciones básicas y dispatch) y centralizar decisiones de flujo en `services/auditoria_service.py`.
 - Mantener coherencia de contratos entre submódulos y capas legacy.
 - Reflejar cambios estructurales en `src/info.md` y documentación de arquitectura.
+- Contratos vigentes (2026-04-01):
+  - `AuditoriaRequest`: entrada explícita con `sitemap`, `periodo_desde/hasta`, `integraciones`, `cache` y `informe`.
+  - `AuditoriaResult`: salida estable con `auditoria`, `entregables` y `resumen_ejecucion`.
+  - Modelos auxiliares: `ConfiguracionInforme`, `ResultadoEntregables`, `ResumenEjecucion`, `FlagsIntegracionesAuditoria`, `ConfiguracionCacheAuditoria`.
 
 ## Mejoras futuras
 - Reducir gradualmente acoplamientos legacy.

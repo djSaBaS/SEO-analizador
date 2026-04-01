@@ -13,7 +13,7 @@ from seo_auditor.integrations.gemini.service import generar_resumen_ia
 from seo_auditor.integrations.gsc.service import cargar_datos_search_console
 from seo_auditor.integrations.pagespeed.service import analizar_pagespeed_url, detectar_home
 from seo_auditor.reporters import exportar_excel, exportar_html, exportar_json, exportar_markdown_ia, exportar_pdf, exportar_word
-from seo_auditor.services.auditoria_service import AuditoriaAdapters, AuditoriaRequest, AuditoriaService
+from seo_auditor.services.auditoria_service import AuditoriaAdapters, AuditoriaService, construir_request_desde_cli
 from seo_auditor.utils import es_url_http_valida, fecha_ejecucion_iso, inferir_cliente_desde_slug, iterar_con_progreso, slug_dominio_desde_url
 
 GESTOR_POR_DEFECTO = "Juan Antonio Sánchez Plaza"
@@ -184,13 +184,6 @@ def main() -> int:
     modelo_ia = argumentos.modelo_ia.strip() or configuracion.gemini_model
     print(f"[cli] Modo={argumentos.modo} | generar_todo={'sí' if argumentos.generar_todo else 'no'}")
 
-    request = AuditoriaRequest(
-        argumentos=argumentos,
-        configuracion=configuracion,
-        modelo_ia=modelo_ia,
-        periodo_desde=periodo_desde,
-        periodo_hasta=periodo_hasta,
-        perfil_generacion=perfil_generacion,
-    )
+    request = construir_request_desde_cli(argumentos, configuracion, modelo_ia, periodo_desde, periodo_hasta, perfil_generacion)
     servicio = AuditoriaService(_crear_adaptadores_temporales())
     return servicio.ejecutar(request)
