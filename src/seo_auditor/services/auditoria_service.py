@@ -68,6 +68,7 @@ class AuditoriaService:
                 exportar_html=adapters.exportar_html,
                 exportar_markdown_ia=adapters.exportar_markdown_ia,
                 generar_informe_ga4_premium=adapters.generar_informe_ga4_premium,
+                resolver_cliente_informe_ga4=adapters.resolver_cliente_informe_ga4,
                 iterar_con_progreso=adapters.iterar_con_progreso,
             )
         )
@@ -291,12 +292,13 @@ class AuditoriaService:
 
     def _exportar_entregables(self, request: AuditoriaRequest, resultado: Any, carpeta_salida: Path, fecha: str, entregables_perfil: list[str]) -> ResultadoEntregables:
         print("[5/6] Exportando entregables profesionales...")
-        cliente_premium = self.adapters.resolver_cliente_informe_ga4(request.cliente, request.sitemap)
         modelo_documental = ModeloEntregables(
+            carpeta_base_salida=Path(request.informe.carpeta_salida or "./salidas"),
             carpeta_salida=carpeta_salida,
             fecha_ejecucion=fecha,
             entregables_solicitados=entregables_perfil,
-            cliente=cliente_premium,
+            cliente_preferido=request.cliente,
+            sitemap=request.sitemap,
             gestor=request.gestor,
             periodo_desde=request.periodo_desde,
             periodo_hasta=request.periodo_hasta,

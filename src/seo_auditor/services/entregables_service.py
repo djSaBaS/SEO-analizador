@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import logging
 from pathlib import Path
 from typing import Any, Callable
 
-from seo_auditor.models import RegistroEntregable, ResultadoEntregables
+from seo_auditor.models import EstadoEntregable, RegistroEntregable, ResultadoEntregables
 
 ENTREGABLE_JSON_TECNICO = "json_tecnico"
 ENTREGABLE_EXCEL_SEO = "excel_seo"
@@ -36,10 +37,12 @@ PERFILES_GENERACION: dict[str, list[str]] = {
 class ModeloEntregables:
     """Datos de entrada ya preparados para exportadores documentales."""
 
+    carpeta_base_salida: Path
     carpeta_salida: Path
     fecha_ejecucion: str
     entregables_solicitados: list[str]
-    cliente: str
+    cliente_preferido: str
+    sitemap: str
     gestor: str
     periodo_desde: str
     periodo_hasta: str
@@ -58,6 +61,7 @@ class EntregablesAdapters:
     exportar_html: Callable[..., Path]
     exportar_markdown_ia: Callable[..., Path | None]
     generar_informe_ga4_premium: Callable[..., dict[str, Any]]
+    resolver_cliente_informe_ga4: Callable[[str | None, str | None], str]
     iterar_con_progreso: Callable[..., Any]
 
 
@@ -66,6 +70,7 @@ class EntregablesService:
 
     def __init__(self, adapters: EntregablesAdapters) -> None:
         self.adapters = adapters
+        self.logger = logging.getLogger(__name__)
 
     def generar_entregables(self, resultado: Any, modelo_documental: ModeloEntregables, configuracion: Any) -> ResultadoEntregables:
         """Orquesta la exportación y devuelve un resumen estructurado consumible por CLI/web."""
@@ -112,12 +117,20 @@ class EntregablesService:
             self._registrar_omitido(resumen, ENTREGABLE_GA4_PREMIUM, "GA4 no habilitado")
             return
 
-        carpeta_premium = modelo_documental.carpeta_salida.parent.parent / "ga4_premium" / modelo_documental.fecha_ejecucion
+        carpeta_premium = modelo_documental.carpeta_base_salida / "ga4_premium" / modelo_documental.fecha_ejecucion
+        try:
+            cliente = self.adapters.resolver_cliente_informe_ga4(
+                modelo_documental.cliente_preferido,
+                modelo_documental.sitemap,
+            )
+        except Exception as exc:
+            self._registrar_error(resumen, ENTREGABLE_GA4_PREMIUM, exc)
+            return
         try:
             salida = self.adapters.generar_informe_ga4_premium(
                 configuracion,
                 carpeta_premium,
-                modelo_documental.cliente,
+                cliente,
                 modelo_documental.gestor,
                 modelo_documental.periodo_desde,
                 modelo_documental.periodo_hasta,
@@ -139,15 +152,19 @@ class EntregablesService:
     def _registrar_generado(self, resumen: ResultadoEntregables, entregable: str, ruta: Path | str | None) -> None:
         ruta_final = str(ruta or "")
         resumen.generados.append(entregable)
-        resumen.registros.append(RegistroEntregable(entregable=entregable, estado="generado", ruta_final=ruta_final))
+        resumen.registros.append(
+            RegistroEntregable(entregable=entregable, estado=EstadoEntregable.GENERADO, ruta_final=ruta_final)
+        )
 
     def _registrar_omitido(self, resumen: ResultadoEntregables, entregable: str, detalle: str) -> None:
         mensaje = f"{entregable} ({detalle})"
         resumen.omitidos.append(mensaje)
-        resumen.registros.append(RegistroEntregable(entregable=entregable, estado="omitido", detalle=detalle))
+        resumen.registros.append(RegistroEntregable(entregable=entregable, estado=EstadoEntregable.OMITIDO, detalle=detalle))
 
     def _registrar_error(self, resumen: ResultadoEntregables, entregable: str, exc: Exception) -> None:
         detalle = str(exc)
         resumen.errores_no_fatales.append(f"{entregable}: {detalle}")
-        resumen.registros.append(RegistroEntregable(entregable=entregable, estado="error_no_fatal", detalle=detalle))
-        print(f"  - Aviso: no se pudo exportar {entregable}: {detalle}")
+        resumen.registros.append(
+            RegistroEntregable(entregable=entregable, estado=EstadoEntregable.ERROR_NO_FATAL, detalle=detalle)
+        )
+        self.logger.warning("No se pudo exportar %s: %s", entregable, detalle)

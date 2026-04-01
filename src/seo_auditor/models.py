@@ -1,5 +1,6 @@
 # Importa utilidades para crear modelos de datos simples y seguros.
 from dataclasses import dataclass, field
+from enum import Enum
 
 # Importa tipos estándar para mejorar legibilidad y validación estática.
 from typing import Any, List, Optional
@@ -604,13 +605,21 @@ class RegistroEntregable:
     entregable: str
 
     # Estado final del entregable: generado, omitido o error_no_fatal.
-    estado: str
+    estado: "EstadoEntregable"
 
     # Ruta final del artefacto cuando aplique.
     ruta_final: str = ""
 
     # Motivo adicional en caso de omisión o error no fatal.
     detalle: str = ""
+
+
+class EstadoEntregable(str, Enum):
+    """Define los estados válidos para el ciclo de vida de entregables."""
+
+    GENERADO = "generado"
+    OMITIDO = "omitido"
+    ERROR_NO_FATAL = "error_no_fatal"
 
 
 @dataclass(slots=True)
