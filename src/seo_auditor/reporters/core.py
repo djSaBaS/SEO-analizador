@@ -3776,7 +3776,7 @@ def _resolver_bloque_render(seccion: dict[str, Any], clave_nueva: str, clave_leg
     return items_legacy if isinstance(items_legacy, list) else []
 
 
-def exportar_word(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
+def exportar_word(resultado: ResultadoAuditoria, path_salida: Path, modelo_semantico: dict[str, Any] | None = None) -> Path:
     """Genera un DOCX corporativo usando estructura semántica intermedia."""
 
     # Garantiza carpeta de salida.
@@ -3789,7 +3789,7 @@ def exportar_word(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     documento = Document()
 
     # Construye modelo semántico único para reutilizar metadatos editoriales.
-    modelo = construir_modelo_semantico_informe(resultado)
+    modelo = modelo_semantico or construir_modelo_semantico_informe(resultado)
 
     # Configura estilo base de documento.
     documento.styles["Normal"].font.name = "Calibri"
@@ -3860,7 +3860,7 @@ def exportar_word(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
 
 
 # Exporta un PDF con estructura similar a Word.
-def exportar_pdf(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
+def exportar_pdf(resultado: ResultadoAuditoria, path_salida: Path, modelo_semantico: dict[str, Any] | None = None) -> Path:
     """Genera un PDF profesional respetando la misma jerarquía documental."""
 
     # Garantiza carpeta de salida.
@@ -3876,7 +3876,7 @@ def exportar_pdf(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     elementos = []
 
     # Construye modelo semántico único para render documental.
-    modelo = construir_modelo_semantico_informe(resultado)
+    modelo = modelo_semantico or construir_modelo_semantico_informe(resultado)
 
     # Resuelve contrato semántico de portada compartido.
     portada = _resolver_portada_semantica(modelo, resultado)
@@ -3999,7 +3999,7 @@ def exportar_markdown_ia(resultado: ResultadoAuditoria, path_salida: Path) -> Pa
 
 
 # Exporta un informe HTML reutilizable para visualización web.
-def exportar_html(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
+def exportar_html(resultado: ResultadoAuditoria, path_salida: Path, modelo_semantico: dict[str, Any] | None = None) -> Path:
     """Genera una versión HTML limpia con KPIs e incidencias principales."""
 
     # Garantiza que la carpeta de salida exista.
@@ -4012,7 +4012,7 @@ def exportar_html(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     metricas = calcular_metricas(resultado)
 
     # Construye modelo semántico único para render web.
-    modelo = construir_modelo_semantico_informe(resultado)
+    modelo = modelo_semantico or construir_modelo_semantico_informe(resultado)
 
     # Resuelve contrato semántico de portada compartido.
     portada = _resolver_portada_semantica(modelo, resultado)
