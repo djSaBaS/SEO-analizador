@@ -19,9 +19,11 @@ def test_informe_service_filtra_secciones_por_fuentes() -> None:
     servicio = InformeService()
     modelo = servicio.construir_modelo_documental(resultado, configuracion=SimpleNamespace(ga_enabled=False, gemini_api_key=""))
     titulos = [seccion.get("titulo") for seccion in modelo["secciones"]]
+    assert titulos[0] == "Portada"
     assert "Visibilidad orgánica real" not in titulos
     assert "Comportamiento y conversión" not in titulos
-    assert "Resumen ejecutivo" not in titulos
+    assert "Resumen ejecutivo" in titulos
+    assert titulos[-1] == "Anexo técnico"
 
 
 def test_informe_service_preparar_informe_mantiene_markdown_auxiliar() -> None:

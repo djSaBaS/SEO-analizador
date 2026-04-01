@@ -12,10 +12,6 @@ from seo_auditor.documentacion.builders.secciones import construir_jerarquia_vis
 # Importa contrato principal de resultados de auditoría.
 from seo_auditor.models import ResultadoAuditoria
 
-# Define secciones cuya narrativa depende principalmente de IA.
-SECCIONES_DEPENDIENTES_IA = {"Resumen ejecutivo", "Roadmap"}
-
-
 # Centraliza la construcción del informe como única fuente semántica.
 class InformeService:
     """Compone el modelo semántico único para Word, PDF y HTML."""
@@ -30,17 +26,16 @@ class InformeService:
         # Construye modelo semántico base desde la capa documental.
         modelo = construir_modelo_semantico_informe(resultado)
 
-        # Resuelve flags de disponibilidad por integración.
+        # Resuelve flags de disponibilidad por integración manejando configuración opcional.
         gsc_activo = bool(getattr(resultado.search_console, "activo", False))
-        ga4_activo = bool(getattr(configuracion, "ga_enabled", getattr(resultado.analytics, "activo", False)))
-        ia_activa = bool(getattr(configuracion, "gemini_api_key", "")) or bool(resultado.resumen_ia)
+        ga4_activo = bool(getattr(resultado.analytics, "activo", False))
+        ia_activa = bool(resultado.resumen_ia)
+        if configuracion:
+            ga4_activo = bool(getattr(configuracion, "ga_enabled", ga4_activo))
+            ia_activa = bool(getattr(configuracion, "gemini_api_key", "")) or ia_activa
 
         # Resuelve orden visible de secciones usando builder especializado.
         orden_visible = construir_jerarquia_visible(resultado)
-
-        # Elimina bloques de IA cuando no esté disponible la fuente.
-        if not ia_activa:
-            orden_visible = [seccion for seccion in orden_visible if seccion not in SECCIONES_DEPENDIENTES_IA]
 
         # Elimina bloque de comportamiento cuando GA4 esté desactivado.
         if not ga4_activo:
@@ -49,7 +44,7 @@ class InformeService:
         # Construye mapa de secciones por título para ordenar de forma estable.
         mapa_secciones = {str(seccion.get("titulo", "")): seccion for seccion in modelo.get("secciones", [])}
 
-        # Conserva portada y anexos fuera del filtro de secciones visibles.
+        # Conserva bloques no narrativos fuera del filtro de secciones visibles.
         secciones_fijas = [
             seccion
             for seccion in modelo.get("secciones", [])
@@ -59,8 +54,10 @@ class InformeService:
         # Recompone orden de secciones según jerarquía editorial visible.
         secciones_ordenadas = [mapa_secciones[titulo] for titulo in orden_visible if titulo in mapa_secciones]
 
-        # Guarda la nueva lista en el modelo como fuente única de render.
-        modelo["secciones"] = secciones_fijas[:1] + secciones_ordenadas + secciones_fijas[1:]
+        # Recompone orden final garantizando portada inicial y anexos al cierre.
+        portada = [seccion for seccion in secciones_fijas if str(seccion.get("tipo_bloque", "")) == "portada"]
+        anexos = [seccion for seccion in secciones_fijas if str(seccion.get("tipo_bloque", "")) == "anexo"]
+        modelo["secciones"] = portada + secciones_ordenadas + anexos
 
         # Inserta metadatos editoriales centralizados para todos los exportadores.
         modelo["metadatos_editoriales"] = {

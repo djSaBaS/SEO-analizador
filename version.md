@@ -2,6 +2,7 @@
 - Se incorpora `src/seo_auditor/services/informe_service.py` con los métodos `construir_modelo_documental` y `preparar_informe` para centralizar composición semántica, orden de secciones y reglas condicionales por fuentes (GSC/GA4/IA).
 - Se actualizan exportadores Word/PDF/HTML para consumir el modelo semántico preparado por `InformeService`, manteniendo a Markdown IA como salida auxiliar.
 - Se amplían pruebas unitarias para validar el nuevo servicio de informe y el consumo del servicio desde los exportadores.
+- Se corrige `InformeService` para manejar `configuracion=None` sin errores, preservar secciones de fallback no-IA y recomponer secciones con portada/anexos por tipo de bloque explícito.
 
 ## 0.10.25 - 2026-04-01
 - Se corrige el enrutado de `AuditoriaService.ejecutar_contrato` para que el perfil `solo-ga4-premium` active siempre el flujo premium sin depender del flag `usar_ga4_premium`.
