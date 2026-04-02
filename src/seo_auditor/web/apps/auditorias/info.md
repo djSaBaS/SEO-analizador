@@ -14,3 +14,7 @@ Implementar pantallas y persistencia mínima de auditorías internas.
 ## Relación con otras carpetas
 - Consume `src/seo_auditor/services/` y `src/seo_auditor/models.py`.
 - Renderiza plantillas de `src/seo_auditor/web/templates/auditorias/`.
+
+## Notas de mantenimiento
+- La ejecución se lanza en segundo plano con `ThreadPoolExecutor`; si se evoluciona a producción, migrar a cola dedicada (Celery/RQ) manteniendo el mismo adaptador de servicios.
+- El dashboard excluye `.cache` para evitar sobrecoste de lectura de archivos.

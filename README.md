@@ -286,18 +286,22 @@ Esta fase incorpora una primera interfaz web **interna/local** que reutiliza los
 ```bash
 pip install -r requirements.txt
 ```
-2. Aplicar migraciones de la base local:
+2. Definir clave de Django (requerida cuando `DJANGO_DEBUG=false`; recomendada también en local):
+```bash
+export DJANGO_SECRET_KEY="cambia-esta-clave-local"
+```
+3. Aplicar migraciones de la base local:
 ```bash
 python src/seo_auditor/web/manage.py migrate
 ```
-3. Levantar servidor de desarrollo:
+4. Levantar servidor de desarrollo:
 ```bash
 python src/seo_auditor/web/manage.py runserver
 ```
-4. Abrir en navegador:
+5. Abrir en navegador:
 - `http://127.0.0.1:8000/`
 
 ### Limitaciones de esta fase
-- Ejecución síncrona (sin cola distribuida).
+- Ejecución en segundo plano con `ThreadPoolExecutor` local y refresco básico en pantalla de detalle (sin cola distribuida ni workers externos).
 - Interfaz orientada a uso interno técnico.
 - Persistencia ligera centrada en trazabilidad de ejecuciones, no en multiusuario avanzado.

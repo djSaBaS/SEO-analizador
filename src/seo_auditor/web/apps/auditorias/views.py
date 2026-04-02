@@ -1,13 +1,19 @@
 """Vistas Django para flujo interno de auditorías SEO."""
 
 # Importa datetime para mostrar fechas legibles en dashboard.
-from datetime import datetime
+from datetime import datetime, timezone
+
+# Importa utilidades de concurrencia para desacoplar ejecución larga.
+from concurrent.futures import ThreadPoolExecutor
 
 # Importa Path para resolver rutas de salida en disco.
 from pathlib import Path
 
 # Importa FileResponse para descargas seguras de entregables.
 from django.http import FileResponse, Http404, HttpRequest, HttpResponse
+
+# Importa utilidades de conexión para hilos de trabajo con ORM.
+from django.db import close_old_connections
 
 # Importa helpers de render y redirección de Django.
 from django.shortcuts import get_object_or_404, redirect, render
@@ -27,10 +33,95 @@ from seo_auditor.web.apps.auditorias.models import EjecucionAuditoria
 # Importa servicios adaptadores de ejecución web.
 from seo_auditor.web.apps.auditorias.services_web import construir_request_desde_formulario, ejecutar_auditoria_web
 
+# Define pool de hilos pequeño para ejecución interna en segundo plano.
+EJECUTOR_AUDITORIAS = ThreadPoolExecutor(max_workers=2, thread_name_prefix="seo_web")
+
+
+# Ejecuta una auditoría en segundo plano y actualiza su estado persistente.
+def _procesar_auditoria_en_segundo_plano(ejecucion_id: int, datos_formulario: dict) -> None:
+    """Ejecuta la auditoría fuera del request HTTP y persiste el resultado."""
+
+    # Aísla conexiones heredadas para evitar fugas en hilo de trabajo.
+    close_old_connections()
+
+    # Recupera ejecución en proceso para actualizar su estado final.
+    ejecucion = EjecucionAuditoria.objects.get(pk=ejecucion_id)
+
+    # Intenta construir request interno y ejecutar auditoría real.
+    try:
+        # Construye request de dominio reutilizando contratos existentes.
+        request_auditoria = construir_request_desde_formulario(datos_formulario)
+
+        # Ejecuta auditoría y obtiene resumen serializable para plantillas.
+        resultado = ejecutar_auditoria_web(request_auditoria)
+
+        # Obtiene lista de registros de entregables generados/omitidos.
+        registros_entregables = resultado["entregables"].get("registros", [])
+
+        # Busca primera ruta de salida disponible para mostrar acceso rápido.
+        ruta_salida = ""
+
+        # Recorre registros para encontrar una ruta física existente.
+        for registro in registros_entregables:
+            # Recupera ruta final reportada por el servicio.
+            ruta_registro = str(registro.get("ruta_final") or "").strip()
+
+            # Conserva la primera ruta no vacía como ruta base visible.
+            if ruta_registro:
+                # Guarda ruta candidata para ficha de ejecución.
+                ruta_salida = ruta_registro
+
+                # Finaliza recorrido al encontrar primer artefacto válido.
+                break
+
+        # Actualiza registro como finalizado con resultados serializados.
+        ejecucion.estado = EjecucionAuditoria.ESTADO_FINALIZADA
+
+        # Guarda ruta de salida para trazabilidad y descargas.
+        ejecucion.ruta_salida = ruta_salida
+
+        # Guarda fuentes activas para resumen operativo.
+        ejecucion.fuentes_activas = resultado["resumen"].get("fuentes_activas", [])
+
+        # Guarda fuentes fallidas para alertas no fatales.
+        ejecucion.fuentes_fallidas = resultado["resumen"].get("fuentes_fallidas", [])
+
+        # Guarda resumen detallado serializado para la vista de resultado.
+        ejecucion.resumen_resultado = resultado
+
+        # Guarda registros de entregables para sección de descargas.
+        ejecucion.entregables = registros_entregables
+
+        # Limpia errores previos si el resultado finaliza correctamente.
+        ejecucion.mensaje_error = ""
+
+        # Persiste cambios finales de ejecución satisfactoria.
+        ejecucion.save(update_fields=["estado", "ruta_salida", "fuentes_activas", "fuentes_fallidas", "resumen_resultado", "entregables", "mensaje_error", "fecha_actualizacion"])
+    except Exception as exc:
+        # Marca ejecución como error controlado ante cualquier excepción.
+        ejecucion.estado = EjecucionAuditoria.ESTADO_ERROR
+
+        # Guarda detalle de error para diagnóstico en UI.
+        ejecucion.mensaje_error = str(exc)
+
+        # Persiste estado de error para trazabilidad.
+        ejecucion.save(update_fields=["estado", "mensaje_error", "fecha_actualizacion"])
+    finally:
+        # Cierra conexiones del hilo al terminar para evitar fugas.
+        close_old_connections()
+
+
+# Lanza auditoría en segundo plano y devuelve el objeto future asociado.
+def _lanzar_auditoria_en_segundo_plano(ejecucion_id: int, datos_formulario: dict):
+    """Encapsula el envío al pool para facilitar pruebas y mantenimiento."""
+
+    # Envía trabajo de auditoría al pool de hilos interno.
+    return EJECUTOR_AUDITORIAS.submit(_procesar_auditoria_en_segundo_plano, ejecucion_id, datos_formulario)
+
 
 # Obtiene listado reciente de archivos generados en carpeta de salidas.
 def _listar_archivos_recientes(limite: int = 10) -> list[dict[str, str]]:
-    """Recorre la carpeta `salidas` para exponer artefactos recientes en dashboard."""
+    """Recorre la carpeta `salidas` excluyendo caché para evitar costes altos."""
 
     # Define raíz de salidas usada por el núcleo actual.
     raiz_salidas = Path("./salidas")
@@ -39,8 +130,21 @@ def _listar_archivos_recientes(limite: int = 10) -> list[dict[str, str]]:
     if not raiz_salidas.exists():
         return []
 
-    # Recolecta archivos candidatos de forma no recursiva costosa.
-    archivos = [ruta for ruta in raiz_salidas.rglob("*") if ruta.is_file()]
+    # Inicializa colección de archivos candidatos para dashboard.
+    archivos: list[Path] = []
+
+    # Recorre de forma recursiva para soportar estructura por cliente/fecha.
+    for ruta in raiz_salidas.rglob("*"):
+        # Omite entradas que no sean archivos.
+        if not ruta.is_file():
+            continue
+
+        # Omite archivos de caché para evitar degradación de rendimiento.
+        if ".cache" in ruta.parts:
+            continue
+
+        # Agrega archivo válido a la colección temporal.
+        archivos.append(ruta)
 
     # Ordena por fecha de modificación descendente para mostrar recientes.
     archivos_ordenados = sorted(archivos, key=lambda ruta: ruta.stat().st_mtime, reverse=True)
@@ -50,7 +154,7 @@ def _listar_archivos_recientes(limite: int = 10) -> list[dict[str, str]]:
         {
             "nombre": archivo.name,
             "ruta": str(archivo),
-            "fecha": datetime.utcfromtimestamp(archivo.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S UTC"),
+            "fecha": datetime.fromtimestamp(archivo.stat().st_mtime, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
         }
         for archivo in archivos_ordenados[:limite]
     ]
@@ -109,61 +213,18 @@ def nueva_auditoria(request: HttpRequest) -> HttpResponse:
         estado=EjecucionAuditoria.ESTADO_EN_PROCESO,
     )
 
-    # Intenta construir request interno y ejecutar auditoría real.
+    # Intenta lanzar ejecución en segundo plano para no bloquear el request.
     try:
-        # Construye request de dominio reutilizando contratos existentes.
-        request_auditoria = construir_request_desde_formulario(form.cleaned_data)
-
-        # Ejecuta auditoría y obtiene resumen serializable para plantillas.
-        resultado = ejecutar_auditoria_web(request_auditoria)
-
-        # Obtiene lista de registros de entregables generados/omitidos.
-        registros_entregables = resultado["entregables"].get("registros", [])
-
-        # Busca primera ruta de salida disponible para mostrar acceso rápido.
-        ruta_salida = ""
-
-        # Recorre registros para encontrar una ruta física existente.
-        for registro in registros_entregables:
-            # Recupera ruta final reportada por el servicio.
-            ruta_registro = str(registro.get("ruta_final") or "").strip()
-
-            # Conserva la primera ruta no vacía como ruta base visible.
-            if ruta_registro:
-                # Guarda ruta candidata para ficha de ejecución.
-                ruta_salida = ruta_registro
-
-                # Finaliza recorrido al encontrar primer artefacto válido.
-                break
-
-        # Actualiza registro como finalizado con resultados serializados.
-        ejecucion.estado = EjecucionAuditoria.ESTADO_FINALIZADA
-
-        # Guarda ruta de salida para trazabilidad y descargas.
-        ejecucion.ruta_salida = ruta_salida
-
-        # Guarda fuentes activas para resumen operativo.
-        ejecucion.fuentes_activas = resultado["resumen"].get("fuentes_activas", [])
-
-        # Guarda fuentes fallidas para alertas no fatales.
-        ejecucion.fuentes_fallidas = resultado["resumen"].get("fuentes_fallidas", [])
-
-        # Guarda resumen detallado serializado para la vista de resultado.
-        ejecucion.resumen_resultado = resultado
-
-        # Guarda registros de entregables para sección de descargas.
-        ejecucion.entregables = registros_entregables
-
-        # Persiste cambios finales de ejecución satisfactoria.
-        ejecucion.save(update_fields=["estado", "ruta_salida", "fuentes_activas", "fuentes_fallidas", "resumen_resultado", "entregables", "fecha_actualizacion"])
+        # Lanza auditoría asíncrona con datos validados del formulario.
+        _lanzar_auditoria_en_segundo_plano(ejecucion.pk, form.cleaned_data)
     except Exception as exc:
-        # Marca ejecución como error controlado ante cualquier excepción.
+        # Marca error cuando no se puede encolar la ejecución.
         ejecucion.estado = EjecucionAuditoria.ESTADO_ERROR
 
-        # Guarda detalle de error para diagnóstico en UI.
-        ejecucion.mensaje_error = str(exc)
+        # Registra detalle del error de arranque en la ejecución.
+        ejecucion.mensaje_error = f"No se pudo iniciar la ejecución en segundo plano: {exc}"
 
-        # Persiste estado de error para trazabilidad.
+        # Persiste fallo de arranque para mostrarlo en detalle.
         ejecucion.save(update_fields=["estado", "mensaje_error", "fecha_actualizacion"])
 
     # Redirige a vista de detalle para estado y resultados.

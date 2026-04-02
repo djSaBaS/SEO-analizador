@@ -1,3 +1,11 @@
+## 0.11.1 - 2026-04-02
+- Se corrige la restricción de dependencia a `Django>=5.1.0,<6.0.0` para evitar fallos de instalación por versión no publicada.
+- Se ajusta `manage.py` para inyectar la ruta `src` en `sys.path`, garantizando que los comandos `python src/seo_auditor/web/manage.py ...` funcionen en checkout limpio.
+- Se elimina la `SECRET_KEY` hardcodeada en settings: ahora se usa variable de entorno y fallback efímero solo en `DEBUG=true`; en `DEBUG=false` se exige clave explícita.
+- Se mejora rendimiento del dashboard excluyendo `.cache` del listado de documentos recientes y se actualiza API de fechas a `datetime.fromtimestamp(..., tz=timezone.utc)`.
+- Se desacopla la ejecución de auditoría del request web mediante `ThreadPoolExecutor` en segundo plano para evitar timeouts de petición.
+- Se amplían pruebas web con cobertura de exclusión de caché en documentos recientes y validación del envío asíncrono.
+
 ## 0.11.0 - 2026-04-02
 - Se implementa la primera capa web interna con Django en `src/seo_auditor/web/` con dashboard, formulario de nueva auditoría, detalle de ejecución y descargas de entregables.
 - Se añade persistencia mínima en Django (`EjecucionAuditoria`) para registrar metadatos de ejecución, estado, fuentes activas/fallidas y rutas de salida sin sobredimensionar la plataforma.

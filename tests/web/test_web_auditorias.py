@@ -166,20 +166,19 @@ def test_vista_nueva_auditoria_ejecuta_y_redirige():
     # Simula display de estado para plantilla de detalle.
     ejecucion_mock.get_estado_display.return_value = "Finalizada"
 
-    # Simula respuesta del núcleo para evitar ejecución pesada real.
+    # Simula encolado asíncrono para evitar ejecución pesada real.
     with patch("seo_auditor.web.apps.auditorias.views.EjecucionAuditoria.objects") as objetos_mock, patch(
-        "seo_auditor.web.apps.auditorias.views.ejecutar_auditoria_web",
-        return_value={
-            "auditoria": {"fecha_ejecucion": hoy.isoformat(), "paginas_prioritarias": [], "quick_wins": []},
-            "resumen": {"fuentes_activas": ["pagespeed"], "fuentes_fallidas": [], "codigo_salida": 0},
-            "entregables": {"registros": [{"entregable": "json_tecnico", "estado": "generado", "ruta_final": __file__, "detalle": ""}]},
-        },
-    ):
+        "seo_auditor.web.apps.auditorias.views._lanzar_auditoria_en_segundo_plano",
+        return_value=MagicMock(),
+    ) as lanzar_mock:
         # Configura creación de ejecución en POST.
         objetos_mock.create.return_value = ejecucion_mock
 
         # Ejecuta POST del formulario para crear auditoría.
         respuesta = cliente.post("/auditorias/nueva/", data=payload)
+
+        # Verifica que el flujo envía la ejecución al hilo de trabajo.
+        lanzar_mock.assert_called_once()
 
         # Configura recuperación por id para vista de detalle.
         objetos_mock.get.return_value = ejecucion_mock
@@ -195,3 +194,44 @@ def test_vista_nueva_auditoria_ejecuta_y_redirige():
 
     # Verifica que el enlace de descarga esté presente en HTML.
     assert "Descargar" in detalle.content.decode("utf-8")
+
+
+# Verifica que el listado de dashboard ignora archivos de caché.
+def test_listado_recientes_excluye_cache(tmp_path, monkeypatch):
+    """Comprueba que `_listar_archivos_recientes` no devuelve artefactos de `.cache`."""
+
+    # Importa helper de listado desde vistas web.
+    from seo_auditor.web.apps.auditorias.views import _listar_archivos_recientes
+
+    # Crea carpeta raíz de salidas de prueba.
+    carpeta_salidas = tmp_path / "salidas"
+
+    # Crea carpeta de caché simulada del núcleo.
+    carpeta_cache = carpeta_salidas / ".cache" / "pagespeed"
+
+    # Crea carpeta de cliente con archivo visible.
+    carpeta_cliente = carpeta_salidas / "cliente" / "2026-04-02"
+
+    # Crea estructura de directorios necesaria.
+    carpeta_cache.mkdir(parents=True)
+
+    # Crea estructura de directorios visible en dashboard.
+    carpeta_cliente.mkdir(parents=True)
+
+    # Escribe archivo de caché que no debe listarse.
+    (carpeta_cache / "cache.json").write_text("{}", encoding="utf-8")
+
+    # Escribe archivo de informe que sí debe listarse.
+    (carpeta_cliente / "informe.html").write_text("ok", encoding="utf-8")
+
+    # Cambia directorio de trabajo para usar la ruta relativa `./salidas`.
+    monkeypatch.chdir(tmp_path)
+
+    # Ejecuta listado de archivos recientes del dashboard.
+    recientes = _listar_archivos_recientes(limite=10)
+
+    # Verifica que solo aparece el archivo visible y no el de caché.
+    assert any(item["nombre"] == "informe.html" for item in recientes)
+
+    # Verifica que no se expone archivo dentro de `.cache`.
+    assert all(".cache" not in item["ruta"] for item in recientes)

@@ -3,6 +3,9 @@
 # Importa utilidades de entorno para leer variables opcionales.
 import os
 
+# Importa utilidades criptográficas para clave local efímera en debug.
+import secrets
+
 # Importa Path para construir rutas de forma portable.
 from pathlib import Path
 
@@ -10,11 +13,21 @@ from pathlib import Path
 # Calcula la raíz del repositorio desde el archivo actual.
 BASE_DIR = Path(__file__).resolve().parents[4]
 
-# Define una clave de desarrollo local para entorno interno.
-SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "django-interno-seo-auditor-dev")
-
 # Mantiene modo debug activo para uso local interno.
 DEBUG = os.getenv("DJANGO_DEBUG", "true").lower() == "true"
+
+# Lee la clave secreta desde variables de entorno.
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "").strip()
+
+# Crea una clave efímera solo cuando debug local está activo.
+if not SECRET_KEY and DEBUG:
+    # Genera clave temporal para evitar hardcode estático inseguro.
+    SECRET_KEY = secrets.token_urlsafe(50)
+
+# Impide arrancar en modo no debug sin clave secreta explícita.
+if not SECRET_KEY and not DEBUG:
+    # Lanza error claro para forzar configuración segura en despliegues.
+    raise RuntimeError("Debes definir DJANGO_SECRET_KEY cuando DJANGO_DEBUG=false.")
 
 # Permite hosts locales habituales para desarrollo interno.
 ALLOWED_HOSTS = ["127.0.0.1", "localhost"]

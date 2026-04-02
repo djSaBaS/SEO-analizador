@@ -10,3 +10,6 @@ Centralizar configuración Django de la web interna.
 
 ## Notas
 - Configuración pensada para entorno local interno.
+
+## Notas de seguridad
+- `DJANGO_SECRET_KEY` debe definirse explícitamente cuando `DJANGO_DEBUG=false`; en debug local se usa clave efímera no persistida.
