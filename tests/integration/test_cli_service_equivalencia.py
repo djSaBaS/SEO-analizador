@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 from seo_auditor import cli
 from seo_auditor.models import ResultadoAuditoria, ResultadoUrl
-from seo_auditor.services.auditoria_service import AuditoriaService, construir_request_desde_cli
+from seo_auditor.services.auditoria_service import AuditoriaAdapters, AuditoriaService, construir_request_desde_cli
 from seo_auditor.services.entregables_service import ENTREGABLES_BASE_AUDITORIA
 
 
@@ -93,10 +93,6 @@ def test_equivalencia_estructural_cli_vs_servicio(monkeypatch, tmp_path) -> None
 
     monkeypatch.setattr(cli, "crear_parser", lambda: _ParserFalso())
     monkeypatch.setattr(cli, "cargar_configuracion", lambda: _Cfg())
-    monkeypatch.setattr(cli, "extraer_urls_sitemap", lambda *_a, **_k: ["https://ejemplo.com/"])
-    monkeypatch.setattr(cli, "auditar_urls", lambda *_a, **_k: _resultado_base())
-    monkeypatch.setattr(cli, "analizar_indexacion_rastreo", lambda *_a, **_k: {})
-    monkeypatch.setattr(cli, "generar_gestion_indexacion_inteligente", lambda *_a, **_k: [])
 
     capturado = {}
 
@@ -104,12 +100,33 @@ def test_equivalencia_estructural_cli_vs_servicio(monkeypatch, tmp_path) -> None
         capturado["cli"] = resultado
         return _path
 
-    monkeypatch.setattr(cli, "exportar_json", _capturar_json)
-    monkeypatch.setattr(cli, "exportar_excel", lambda *_a, **_k: None)
-    monkeypatch.setattr(cli, "exportar_word", lambda *_a, **_k: None)
-    monkeypatch.setattr(cli, "exportar_pdf", lambda *_a, **_k: None)
-    monkeypatch.setattr(cli, "exportar_html", lambda *_a, **_k: None)
-    monkeypatch.setattr(cli, "exportar_markdown_ia", lambda *_a, **_k: None)
+    adaptadores = AuditoriaAdapters(
+        extraer_urls_sitemap=lambda *_a, **_k: ["https://ejemplo.com/"],
+        auditar_urls=lambda *_a, **_k: _resultado_base(),
+        analizar_indexacion_rastreo=lambda *_a, **_k: {},
+        generar_gestion_indexacion_inteligente=lambda *_a, **_k: [],
+        cargar_datos_search_console=lambda *_a, **_k: None,
+        cargar_datos_analytics=lambda *_a, **_k: None,
+        generar_resumen_ia=lambda *_a, **_k: "",
+        generar_informe_ga4_premium=lambda *_a, **_k: "",
+        detectar_home=lambda *_a, **_k: "https://ejemplo.com/",
+        invalidar_cache=lambda *_a, **_k: None,
+        exportar_json=_capturar_json,
+        exportar_excel=lambda *_a, **_k: None,
+        exportar_word=lambda *_a, **_k: None,
+        exportar_pdf=lambda *_a, **_k: None,
+        exportar_html=lambda *_a, **_k: None,
+        exportar_markdown_ia=lambda *_a, **_k: None,
+        iterar_con_progreso=lambda seq, *_a, **_k: seq,
+        es_url_http_valida=lambda *_a, **_k: True,
+        fecha_ejecucion_iso=lambda: "2026-04-01",
+        slug_dominio_desde_url=lambda *_a, **_k: "ejemplo-com",
+        inferir_cliente_desde_slug=lambda *_a, **_k: "Ejemplo",
+        ejecutar_pagespeed=lambda *_a, **_k: [],
+        resolver_cliente_informe_ga4=lambda *_a, **_k: "Ejemplo",
+    )
+
+    monkeypatch.setattr(cli, "_crear_adaptadores_temporales", lambda: adaptadores)
 
     codigo_cli = cli.main()
 
@@ -122,7 +139,7 @@ def test_equivalencia_estructural_cli_vs_servicio(monkeypatch, tmp_path) -> None
         periodo_hasta="2026-03-31",
         perfil_generacion="auditoria-seo-completa",
     )
-    servicio = AuditoriaService(cli._crear_adaptadores_temporales())
+    servicio = AuditoriaService(adaptadores)
     contrato = servicio.ejecutar_contrato(request)
 
     assert codigo_cli == 0

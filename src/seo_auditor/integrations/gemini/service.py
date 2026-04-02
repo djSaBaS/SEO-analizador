@@ -7,9 +7,6 @@ from collections import Counter
 # Importa Path para caché local opcional y lectura de plantilla de prompt.
 from pathlib import Path
 
-# Importa el cliente oficial actual de Google Gemini.
-from google import genai
-
 # Importa utilidades de caché local reutilizable.
 from seo_auditor.cache import construir_clave_cache, escribir_cache, leer_cache
 
@@ -63,6 +60,42 @@ METRICAS_PAGESPEED_VALIDAS = (
     "tbt",
     "speed_index",
 )
+
+
+# Cachea el módulo Gemini una vez resuelto para evitar import dinámico repetitivo.
+_MODULO_GENAI = None
+
+
+# Resuelve el módulo de Gemini de forma perezosa para evitar fallos en import global.
+def _obtener_modulo_gemini():
+    """Devuelve el módulo de Gemini con carga opcional y caché local de proceso."""
+
+    global _MODULO_GENAI
+
+    # Reutiliza módulo previamente resuelto en este proceso.
+    if _MODULO_GENAI is not None:
+        return _MODULO_GENAI
+
+    try:
+        # Usa import local idiomático para dependencias opcionales.
+        from google import genai as modulo_genai
+    except ModuleNotFoundError as exc:
+        # Solo transforma ausencia del paquete objetivo; conserva errores transitivos reales.
+        if exc.name not in {"google", "google.genai"}:
+            raise
+        raise RuntimeError(
+            "Dependencia opcional no disponible: instala `google-genai` para habilitar la integración Gemini."
+        ) from exc
+
+    _MODULO_GENAI = modulo_genai
+    return _MODULO_GENAI
+
+
+# Resuelve el cliente de Google Gemini de forma perezosa para evitar fallos en import global.
+def _crear_cliente_gemini(api_key: str):
+    """Crea un cliente de Gemini resolviendo la dependencia en tiempo de uso."""
+
+    return _obtener_modulo_gemini().Client(api_key=api_key)
 
 
 # Define fallback interno alineado 1:1 con el archivo editable del repositorio.
@@ -448,7 +481,7 @@ def probar_conexion_ia(api_key: str, model_name: str) -> str:
         raise ValueError("No se ha configurado GEMINI_API_KEY.")
 
     # Crea cliente de Gemini con la clave indicada.
-    cliente = genai.Client(api_key=api_key)
+    cliente = _crear_cliente_gemini(api_key)
 
     # Lanza una petición mínima para validar credenciales y modelo.
     respuesta = cliente.models.generate_content(model=model_name, contents="Responde solo con: OK")
@@ -480,7 +513,7 @@ def generar_resumen_ia(
         raise ValueError("No se ha configurado GEMINI_API_KEY.")
 
     # Instancia el cliente del SDK con la clave indicada por entorno.
-    cliente = genai.Client(api_key=api_key)
+    cliente = _crear_cliente_gemini(api_key)
 
     # Construye el contexto resumido de IA con límite de muestras.
     datos = construir_contexto_ia(resultado, max_muestras)
