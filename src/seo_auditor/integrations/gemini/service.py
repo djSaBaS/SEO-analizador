@@ -80,6 +80,9 @@ def _obtener_modulo_gemini():
         # Usa import local idiomático para dependencias opcionales.
         from google import genai as modulo_genai
     except ModuleNotFoundError as exc:
+        # Solo transforma ausencia del paquete objetivo; conserva errores transitivos reales.
+        if exc.name not in {"google", "google.genai"}:
+            raise
         raise RuntimeError(
             "Dependencia opcional no disponible: instala `google-genai` para habilitar la integración Gemini."
         ) from exc

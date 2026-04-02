@@ -273,10 +273,35 @@ def test_crear_cliente_gemini_falla_con_error_claro_si_falta_sdk(monkeypatch) ->
 
     def _import_falso(nombre: str, *args, **kwargs):
         if nombre == "google":
-            raise ModuleNotFoundError("google")
+            error = ModuleNotFoundError("No module named 'google'")
+            error.name = "google"
+            raise error
         return import_original(nombre, *args, **kwargs)
 
     monkeypatch.setattr("builtins.__import__", _import_falso)
 
     with pytest.raises(RuntimeError, match="google-genai"):
+        gemini_client._obtener_modulo_gemini()
+
+
+# Verifica que errores transitivos del SDK no se enmascaren como dependencia principal faltante.
+def test_obtener_modulo_gemini_relanza_error_transitivo(monkeypatch) -> None:
+    """Debe preservar ModuleNotFoundError de dependencias internas de google-genai."""
+
+    import builtins
+
+    monkeypatch.setattr(gemini_client, "_MODULO_GENAI", None)
+
+    import_original = builtins.__import__
+
+    def _import_falso(nombre: str, *args, **kwargs):
+        if nombre == "google":
+            error = ModuleNotFoundError("No module named 'urllib3'")
+            error.name = "urllib3"
+            raise error
+        return import_original(nombre, *args, **kwargs)
+
+    monkeypatch.setattr("builtins.__import__", _import_falso)
+
+    with pytest.raises(ModuleNotFoundError, match="urllib3"):
         gemini_client._obtener_modulo_gemini()
