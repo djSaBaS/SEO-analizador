@@ -2,19 +2,10 @@ import argparse
 from datetime import date, timedelta
 from pathlib import Path
 
-from seo_auditor.analyzer import auditar_urls
-from seo_auditor.cache import invalidar_cache
 from seo_auditor.config import cargar_configuracion
-from seo_auditor.fetcher import extraer_urls_sitemap
-from seo_auditor.indexacion import analizar_indexacion_rastreo, generar_gestion_indexacion_inteligente
-from seo_auditor.integrations.ga4.premium_service import generar_informe_ga4_premium
-from seo_auditor.integrations.ga4.service import cargar_datos_analytics
-from seo_auditor.integrations.gemini.service import generar_resumen_ia
-from seo_auditor.integrations.gsc.service import cargar_datos_search_console
-from seo_auditor.integrations.pagespeed.service import analizar_pagespeed_url, detectar_home
-from seo_auditor.reporters import exportar_excel, exportar_html, exportar_json, exportar_markdown_ia, exportar_pdf, exportar_word
-from seo_auditor.services.auditoria_service import AuditoriaAdapters, AuditoriaService, construir_request_desde_cli
-from seo_auditor.utils import es_url_http_valida, fecha_ejecucion_iso, inferir_cliente_desde_slug, iterar_con_progreso, slug_dominio_desde_url
+from seo_auditor.services.adapters_factory import crear_adaptadores_auditoria
+from seo_auditor.services.auditoria_service import AuditoriaService, construir_request_desde_cli
+from seo_auditor.utils import es_url_http_valida
 
 GESTOR_POR_DEFECTO = "Juan Antonio Sánchez Plaza"
 
@@ -50,62 +41,6 @@ def _resolver_perfil_generacion(argumentos: argparse.Namespace) -> str:
     if argumentos.modo == "entrega-completa":
         return "todo"
     return "auditoria-seo-completa"
-
-
-def _resolver_cliente_informe_ga4(cliente_cli: str | None, sitemap: str | None) -> str:
-    if (cliente_cli or "").strip():
-        return (cliente_cli or "").strip()
-    sitemap_normalizado = (sitemap or "").strip()
-    if sitemap_normalizado and es_url_http_valida(sitemap_normalizado):
-        return inferir_cliente_desde_slug(slug_dominio_desde_url(sitemap_normalizado))
-    if sitemap_normalizado:
-        nombre = Path(sitemap_normalizado).stem.strip()
-        if nombre:
-            return nombre.replace("_", " ").replace("-", " ").title()
-    return "Cliente GA4"
-
-
-def _ejecutar_pagespeed(
-    urls: list[str],
-    api_key: str,
-    timeout: int,
-    reintentos: int,
-    cache_dir=None,
-    cache_ttl_segundos: int = 0,
-):
-    resultados = []
-    for url in iterar_con_progreso(urls, "PageSpeed", "URL"):
-        for estrategia in ["mobile", "desktop"]:
-            resultados.append(analizar_pagespeed_url(url, api_key, estrategia, timeout, reintentos, cache_dir, cache_ttl_segundos))
-    return resultados
-
-
-def _crear_adaptadores_temporales() -> AuditoriaAdapters:
-    return AuditoriaAdapters(
-        extraer_urls_sitemap=extraer_urls_sitemap,
-        auditar_urls=auditar_urls,
-        analizar_indexacion_rastreo=analizar_indexacion_rastreo,
-        generar_gestion_indexacion_inteligente=generar_gestion_indexacion_inteligente,
-        cargar_datos_search_console=cargar_datos_search_console,
-        cargar_datos_analytics=cargar_datos_analytics,
-        generar_resumen_ia=generar_resumen_ia,
-        generar_informe_ga4_premium=generar_informe_ga4_premium,
-        detectar_home=detectar_home,
-        invalidar_cache=invalidar_cache,
-        exportar_json=exportar_json,
-        exportar_excel=exportar_excel,
-        exportar_word=exportar_word,
-        exportar_pdf=exportar_pdf,
-        exportar_html=exportar_html,
-        exportar_markdown_ia=exportar_markdown_ia,
-        iterar_con_progreso=iterar_con_progreso,
-        es_url_http_valida=es_url_http_valida,
-        fecha_ejecucion_iso=fecha_ejecucion_iso,
-        slug_dominio_desde_url=slug_dominio_desde_url,
-        inferir_cliente_desde_slug=inferir_cliente_desde_slug,
-        ejecutar_pagespeed=_ejecutar_pagespeed,
-        resolver_cliente_informe_ga4=_resolver_cliente_informe_ga4,
-    )
 
 
 def crear_parser() -> argparse.ArgumentParser:
@@ -185,5 +120,5 @@ def main() -> int:
     print(f"[cli] Modo={argumentos.modo} | generar_todo={'sí' if argumentos.generar_todo else 'no'}")
 
     request = construir_request_desde_cli(argumentos, configuracion, modelo_ia, periodo_desde, periodo_hasta, perfil_generacion)
-    servicio = AuditoriaService(_crear_adaptadores_temporales())
+    servicio = AuditoriaService(crear_adaptadores_auditoria())
     return servicio.ejecutar(request)

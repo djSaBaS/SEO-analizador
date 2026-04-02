@@ -1,0 +1,34 @@
+<!-- Define la plantilla base compartida por toda la capa web interna. -->
+<!DOCTYPE html>
+<!-- Declara idioma principal de la interfaz en español. -->
+<html lang="es">
+<head>
+    <!-- Define codificación UTF-8 para caracteres españoles. -->
+    <meta charset="UTF-8">
+    <!-- Configura viewport responsive para navegación local. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Define título por defecto reutilizable en páginas hijas. -->
+    <title>{% block title %}SEO Auditor Interno{% endblock %}</title>
+    <!-- Carga módulo de archivos estáticos de Django. -->
+    {% load static %}
+    <!-- Enlaza hoja de estilos base para diseño limpio y profesional. -->
+    <link rel="stylesheet" href="{% static 'web/estilos.css' %}">
+</head>
+<body>
+    <!-- Renderiza cabecera principal de la herramienta interna. -->
+    <header class="encabezado">
+        <!-- Muestra nombre del sistema en navegación superior. -->
+        <h1>SEO Auditor · Web interna</h1>
+        <!-- Muestra enlaces rápidos de navegación funcional. -->
+        <nav>
+            <a href="{% url 'auditorias:dashboard' %}">Inicio</a>
+            <a href="{% url 'auditorias:nueva' %}">Nueva auditoría</a>
+        </nav>
+    </header>
+    <!-- Envuelve contenido principal de cada vista hija. -->
+    <main class="contenedor">
+        <!-- Inserta bloque de contenido específico por plantilla. -->
+        {% block content %}{% endblock %}
+    </main>
+</body>
+</html>

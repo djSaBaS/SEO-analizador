@@ -1,0 +1,197 @@
+# Importa sistema para configurar settings de Django en pruebas.
+import os
+
+# Importa fechas para construir payload de formulario.
+from datetime import date, timedelta
+
+# Importa utilidades de mock para aislar llamadas al núcleo real.
+from unittest.mock import MagicMock, patch
+
+# Importa bootstrap de Django para pruebas de vistas.
+import django
+
+# Importa cliente de pruebas HTTP de Django.
+from django.test import Client
+
+
+# Define módulo de configuración Django para esta suite.
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "seo_auditor.web.config.settings")
+
+# Inicializa Django para habilitar URLs y formularios.
+django.setup()
+
+# Importa formulario para validaciones unitarias.
+from seo_auditor.web.apps.auditorias.forms import NuevaAuditoriaForm
+
+# Importa adaptador de request para probar contrato web->núcleo.
+from seo_auditor.web.apps.auditorias.services_web import construir_request_desde_formulario
+
+
+# Verifica que el dashboard responde correctamente en GET.
+def test_dashboard_carga_correctamente():
+    """Comprueba que la vista dashboard responde HTTP 200."""
+
+    # Crea cliente de pruebas para peticiones locales.
+    cliente = Client()
+
+    # Simula que no existen ejecuciones para evitar acceso real a BD.
+    with patch("seo_auditor.web.apps.auditorias.views.EjecucionAuditoria.objects") as objetos_mock:
+        # Devuelve lista vacía en slicing de queryset simulado.
+        objetos_mock.all.return_value.__getitem__.return_value = []
+
+        # Ejecuta petición GET sobre la raíz del sitio web.
+        respuesta = cliente.get("/")
+
+    # Verifica código de respuesta exitoso.
+    assert respuesta.status_code == 200
+
+
+# Verifica validación de fechas incorrectas en el formulario.
+def test_formulario_rechaza_periodo_invertido():
+    """Comprueba que el formulario rechaza fecha fin anterior o igual."""
+
+    # Define hoy para construir fechas deterministas.
+    hoy = date.today()
+
+    # Construye formulario con periodo invertido inválido.
+    formulario = NuevaAuditoriaForm(
+        data={
+            "sitemap": "https://ejemplo.com/sitemap.xml",
+            "cliente": "Cliente Demo",
+            "gestor": "Gestor Demo",
+            "fecha_inicio": hoy.isoformat(),
+            "fecha_fin": hoy.isoformat(),
+            "modo_informe": "completo",
+        }
+    )
+
+    # Verifica que la validación global marque el formulario inválido.
+    assert not formulario.is_valid()
+
+    # Verifica que el error se asigne al campo esperado.
+    assert "fecha_fin" in formulario.errors
+
+
+# Verifica construcción de request interno desde formulario validado.
+def test_construccion_request_web_reutiliza_contrato_nucleo():
+    """Comprueba que el adaptador web genera un `AuditoriaRequest` coherente."""
+
+    # Define fecha actual para construir ventana válida.
+    hoy = date.today()
+
+    # Define fecha inicial separada un día para regla de negocio.
+    ayer = hoy - timedelta(days=1)
+
+    # Construye request a partir de datos limpios simulados.
+    request = construir_request_desde_formulario(
+        {
+            "sitemap": "https://ejemplo.com/sitemap.xml",
+            "cliente": "Cliente Demo",
+            "gestor": "Gestor Demo",
+            "fecha_inicio": ayer,
+            "fecha_fin": hoy,
+            "usar_ia": True,
+            "modo_informe": "resumen",
+            "pagepsi_url": "",
+            "generar_todo": True,
+            "modo_rapido": False,
+            "cache_ttl": 60,
+        }
+    )
+
+    # Verifica que el request respeta sitemap ingresado.
+    assert request.sitemap == "https://ejemplo.com/sitemap.xml"
+
+    # Verifica que el modo de informe se transfiera correctamente.
+    assert request.informe.modo == "resumen"
+
+    # Verifica que el perfil de generación completo quede activo.
+    assert request.informe.perfil_generacion == "todo"
+
+
+# Verifica flujo de creación y render de detalle con ejecución simulada.
+def test_vista_nueva_auditoria_ejecuta_y_redirige():
+    """Comprueba que POST válido crea ejecución y redirige a detalle."""
+
+    # Crea cliente de pruebas para enviar formulario.
+    cliente = Client()
+
+    # Define fechas válidas para ejecución de prueba.
+    hoy = date.today()
+
+    # Define fecha inicial coherente con regla de periodo.
+    ayer = hoy - timedelta(days=1)
+
+    # Define payload mínimo del formulario web.
+    payload = {
+        "sitemap": "https://ejemplo.com/sitemap.xml",
+        "cliente": "Cliente Demo",
+        "gestor": "Gestor Demo",
+        "fecha_inicio": ayer.isoformat(),
+        "fecha_fin": hoy.isoformat(),
+        "usar_ia": "on",
+        "modo_informe": "completo",
+        "pagepsi_url": "",
+        "generar_todo": "on",
+        "modo_rapido": "",
+        "cache_ttl": "0",
+    }
+
+    # Crea stub de ejecución para simular persistencia sin base de datos.
+    ejecucion_mock = MagicMock()
+
+    # Define identificador usado en redirección y detalle.
+    ejecucion_mock.pk = 7
+
+    # Define id para interpolación de ruta de detalle.
+    ejecucion_mock.id = 7
+
+    # Define lista de entregables serializados para render de detalle.
+    ejecucion_mock.entregables = [{"entregable": "json_tecnico", "estado": "generado", "ruta_final": __file__, "detalle": ""}]
+
+    # Define estructura mínima de resumen para plantilla de detalle.
+    ejecucion_mock.resumen_resultado = {"auditoria": {"fecha_ejecucion": hoy.isoformat(), "paginas_prioritarias": [], "quick_wins": []}}
+
+    # Define metadatos básicos usados en detalle.
+    ejecucion_mock.cliente = "Cliente Demo"
+    ejecucion_mock.sitemap = "https://ejemplo.com/sitemap.xml"
+    ejecucion_mock.gestor = "Gestor Demo"
+    ejecucion_mock.fecha_inicio = ayer
+    ejecucion_mock.fecha_fin = hoy
+    ejecucion_mock.fuentes_activas = ["pagespeed"]
+    ejecucion_mock.fuentes_fallidas = []
+    ejecucion_mock.ruta_salida = __file__
+    ejecucion_mock.mensaje_error = ""
+
+    # Simula display de estado para plantilla de detalle.
+    ejecucion_mock.get_estado_display.return_value = "Finalizada"
+
+    # Simula respuesta del núcleo para evitar ejecución pesada real.
+    with patch("seo_auditor.web.apps.auditorias.views.EjecucionAuditoria.objects") as objetos_mock, patch(
+        "seo_auditor.web.apps.auditorias.views.ejecutar_auditoria_web",
+        return_value={
+            "auditoria": {"fecha_ejecucion": hoy.isoformat(), "paginas_prioritarias": [], "quick_wins": []},
+            "resumen": {"fuentes_activas": ["pagespeed"], "fuentes_fallidas": [], "codigo_salida": 0},
+            "entregables": {"registros": [{"entregable": "json_tecnico", "estado": "generado", "ruta_final": __file__, "detalle": ""}]},
+        },
+    ):
+        # Configura creación de ejecución en POST.
+        objetos_mock.create.return_value = ejecucion_mock
+
+        # Ejecuta POST del formulario para crear auditoría.
+        respuesta = cliente.post("/auditorias/nueva/", data=payload)
+
+        # Configura recuperación por id para vista de detalle.
+        objetos_mock.get.return_value = ejecucion_mock
+
+        # Carga pantalla de detalle para validar render básico.
+        detalle = cliente.get("/auditorias/7/")
+
+    # Verifica redirección tras finalizar el flujo.
+    assert respuesta.status_code == 302
+
+    # Verifica respuesta exitosa de la vista de detalle.
+    assert detalle.status_code == 200
+
+    # Verifica que el enlace de descarga esté presente en HTML.
+    assert "Descargar" in detalle.content.decode("utf-8")

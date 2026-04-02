@@ -1,0 +1,39 @@
+<!-- Extiende la plantilla base compartida de la web interna. -->
+{% extends "base.html" %}
+<!-- Define título de la vista de creación de auditoría. -->
+{% block title %}Nueva auditoría · SEO Auditor{% endblock %}
+<!-- Inicia contenido principal del formulario de ejecución. -->
+{% block content %}
+<!-- Crea tarjeta principal del formulario de auditoría. -->
+<section class="tarjeta">
+    <!-- Muestra encabezado de la pantalla de alta. -->
+    <h2>Nueva auditoría</h2>
+    <!-- Explica propósito y alcance de esta fase web interna. -->
+    <p>Completa el formulario para ejecutar la auditoría reutilizando el núcleo de servicios existente.</p>
+    <!-- Inicia formulario POST protegido con CSRF. -->
+    <form method="post" novalidate>
+        <!-- Inserta token anti-CSRF para seguridad del formulario. -->
+        {% csrf_token %}
+        <!-- Renderiza errores globales del formulario si existen. -->
+        {{ form.non_field_errors }}
+        <!-- Itera sobre cada campo para render consistente. -->
+        {% for field in form %}
+            <!-- Crea bloque visual por campo del formulario. -->
+            <div class="campo">
+                <!-- Muestra etiqueta legible del campo. -->
+                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                <!-- Renderiza control HTML del campo actual. -->
+                {{ field }}
+                <!-- Renderiza ayuda contextual si existe. -->
+                {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+                <!-- Renderiza errores específicos del campo actual. -->
+                {% for error in field.errors %}
+                    <p class="error">{{ error }}</p>
+                {% endfor %}
+            </div>
+        {% endfor %}
+        <!-- Inserta botón de envío para lanzar auditoría. -->
+        <button class="boton" type="submit">Ejecutar auditoría</button>
+    </form>
+</section>
+{% endblock %}

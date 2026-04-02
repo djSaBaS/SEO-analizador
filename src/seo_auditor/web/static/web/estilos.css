@@ -1,0 +1,133 @@
+/* Aplica tipografía base y fondo neutro para toda la aplicación. */
+body {
+    /* Define tipografía legible para herramienta interna. */
+    font-family: Arial, sans-serif;
+    /* Elimina márgenes por defecto para layout consistente. */
+    margin: 0;
+    /* Define color de fondo suave para separar tarjetas. */
+    background: #f5f7fb;
+    /* Define color de texto principal. */
+    color: #1f2937;
+}
+
+/* Estiliza cabecera superior de navegación interna. */
+.encabezado {
+    /* Define fondo corporativo oscuro para jerarquía visual. */
+    background: #111827;
+    /* Define color de texto claro para contraste. */
+    color: #ffffff;
+    /* Añade espacio interno en cabecera. */
+    padding: 1rem 2rem;
+    /* Alinea elementos en fila con separación uniforme. */
+    display: flex;
+    /* Distribuye título y navegación de forma equilibrada. */
+    justify-content: space-between;
+    /* Centra verticalmente los elementos de cabecera. */
+    align-items: center;
+}
+
+/* Define estilo de enlaces de navegación en cabecera. */
+.encabezado a {
+    /* Usa color claro consistente con cabecera. */
+    color: #dbeafe;
+    /* Separa enlaces para facilitar clic. */
+    margin-left: 1rem;
+    /* Elimina subrayado para diseño limpio. */
+    text-decoration: none;
+}
+
+/* Define contenedor principal con ancho y márgenes legibles. */
+.contenedor {
+    /* Limita ancho para mejorar lectura en escritorio. */
+    max-width: 1100px;
+    /* Centra contenido horizontalmente. */
+    margin: 1.5rem auto;
+    /* Añade padding lateral en pantallas pequeñas. */
+    padding: 0 1rem;
+}
+
+/* Crea estilo de tarjeta reutilizable para bloques de contenido. */
+.tarjeta {
+    /* Define fondo blanco para bloques informativos. */
+    background: #ffffff;
+    /* Aplica bordes redondeados suaves. */
+    border-radius: 8px;
+    /* Añade espacio interno uniforme. */
+    padding: 1rem 1.2rem;
+    /* Añade separación vertical entre tarjetas. */
+    margin-bottom: 1rem;
+    /* Añade sombra ligera para profundidad visual. */
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+/* Define estilo básico para campos de formulario. */
+.campo {
+    /* Separa bloques de campo para legibilidad. */
+    margin-bottom: 0.8rem;
+}
+
+/* Fuerza etiquetas de campos en bloque para mejor alineación. */
+label {
+    /* Muestra etiqueta en línea independiente. */
+    display: block;
+    /* Añade margen inferior para separar del input. */
+    margin-bottom: 0.25rem;
+    /* Resalta peso tipográfico de la etiqueta. */
+    font-weight: 600;
+}
+
+/* Define estilo compartido de controles de formulario. */
+input, select {
+    /* Ocupa todo el ancho disponible del contenedor. */
+    width: 100%;
+    /* Añade espacio interno para facilitar interacción. */
+    padding: 0.45rem;
+    /* Define borde neutro de baja intensidad. */
+    border: 1px solid #d1d5db;
+    /* Aplica borde redondeado para estética moderna. */
+    border-radius: 4px;
+}
+
+/* Define estilo de botones de acción principal. */
+.boton {
+    /* Muestra botón como inline-block para enlaces y button. */
+    display: inline-block;
+    /* Define color de fondo de acción primaria. */
+    background: #2563eb;
+    /* Define color de texto del botón. */
+    color: #ffffff;
+    /* Añade espaciado interno del botón. */
+    padding: 0.5rem 0.8rem;
+    /* Elimina borde por defecto del botón HTML. */
+    border: none;
+    /* Aplica bordes redondeados suaves. */
+    border-radius: 4px;
+    /* Elimina subrayado cuando se usa como enlace. */
+    text-decoration: none;
+    /* Define cursor tipo mano para interacción. */
+    cursor: pointer;
+}
+
+/* Define estilo de tablas para resumen y descargas. */
+table {
+    /* Usa ancho completo disponible del bloque. */
+    width: 100%;
+    /* Colapsa bordes para apariencia limpia. */
+    border-collapse: collapse;
+}
+
+/* Estiliza celdas de cabecera y contenido. */
+th, td {
+    /* Define borde sutil para separar filas y columnas. */
+    border: 1px solid #e5e7eb;
+    /* Añade padding interno para lectura cómoda. */
+    padding: 0.45rem;
+    /* Alinea contenido al borde superior. */
+    vertical-align: top;
+}
+
+/* Destaca mensajes de error para feedback claro. */
+.error {
+    /* Define color rojo para enfatizar error. */
+    color: #b91c1c;
+}

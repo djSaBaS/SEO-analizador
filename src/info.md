@@ -28,3 +28,5 @@ Código fuente principal del proyecto.
 - El flujo admite degradación elegante: si una fuente externa falla, el proceso general continúa.
 - La salida separa capa ejecutiva y capa técnica para facilitar lectura por perfiles no técnicos y técnicos.
 - La priorización de páginas dispone de una función explicable (`calcular_score_prioridad_pagina`) preparada para evolucionar a un motor SEO multi-componente.
+
+- `seo_auditor/web/`: primera capa web interna con Django (dashboard, formulario, estado y descargas) conectada al núcleo de servicios.

@@ -269,3 +269,35 @@ pytest -q
 
 ## Versionado
 Consulta el historial de cambios en [`version.md`](./version.md).
+
+
+## Capa web interna (Django)
+Esta fase incorpora una primera interfaz web **interna/local** que reutiliza los servicios ya consolidados (`AuditoriaService`, `EntregablesService`, contratos `AuditoriaRequest/AuditoriaResult`) sin duplicar lógica de negocio.
+
+### Qué incluye en esta fase
+- Dashboard interno con ejecuciones recientes y documentos detectados en `./salidas`.
+- Formulario web para lanzar auditorías con parámetros clave (sitemap, cliente, gestor, periodo, IA, modo, PageSpeed, perfil de entregables).
+- Vista de estado/resultado con resumen operativo, fuentes activas/fallidas, KPIs básicos y bloques de páginas prioritarias/quick wins.
+- Descarga de entregables generados cuando el archivo existe en disco.
+- Persistencia mínima en Django (`EjecucionAuditoria`) para registrar metadatos de ejecución sin sobredimensionar la plataforma.
+
+### Ejecución local de la web
+1. Instalar dependencias (incluye Django):
+```bash
+pip install -r requirements.txt
+```
+2. Aplicar migraciones de la base local:
+```bash
+python src/seo_auditor/web/manage.py migrate
+```
+3. Levantar servidor de desarrollo:
+```bash
+python src/seo_auditor/web/manage.py runserver
+```
+4. Abrir en navegador:
+- `http://127.0.0.1:8000/`
+
+### Limitaciones de esta fase
+- Ejecución síncrona (sin cola distribuida).
+- Interfaz orientada a uso interno técnico.
+- Persistencia ligera centrada en trazabilidad de ejecuciones, no en multiusuario avanzado.

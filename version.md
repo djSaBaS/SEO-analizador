@@ -1,3 +1,10 @@
+## 0.11.0 - 2026-04-02
+- Se implementa la primera capa web interna con Django en `src/seo_auditor/web/` con dashboard, formulario de nueva auditoría, detalle de ejecución y descargas de entregables.
+- Se añade persistencia mínima en Django (`EjecucionAuditoria`) para registrar metadatos de ejecución, estado, fuentes activas/fallidas y rutas de salida sin sobredimensionar la plataforma.
+- Se incorpora `services/adapters_factory.py` para que CLI y web compartan el mismo cableado de `AuditoriaService`, evitando duplicidad de lógica de integración.
+- Se amplía documentación (`README.md`, `src/info.md`, `src/seo_auditor/info.md`, `src/seo_auditor/services/info.md`) y se añade `info.md` en carpetas web y de pruebas creadas.
+- Se añaden pruebas base en `tests/web/test_web_auditorias.py` para vistas, validación de formulario y construcción del request interno web.
+
 ## 0.10.28 - 2026-04-01
 - Se atienden comentarios de revisión centralizando expectativas de entregables en tests mediante imports de `ENTREGABLES_BASE_AUDITORIA` y `PERFILES_GENERACION` desde `services/entregables_service.py`, evitando duplicidad con lógica productiva.
 - Se actualiza `README.md` con comando exacto para generar el informe completo del último mes (marzo 2026), más ejemplo con cálculo automático de fechas en Linux/macOS.
