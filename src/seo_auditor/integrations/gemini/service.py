@@ -3,7 +3,6 @@ import json
 
 # Importa contador para resumir hallazgos por frecuencia.
 from collections import Counter
-from importlib import import_module
 
 # Importa Path para caché local opcional y lectura de plantilla de prompt.
 from pathlib import Path
@@ -63,19 +62,37 @@ METRICAS_PAGESPEED_VALIDAS = (
 )
 
 
+# Cachea el módulo Gemini una vez resuelto para evitar import dinámico repetitivo.
+_MODULO_GENAI = None
+
+
+# Resuelve el módulo de Gemini de forma perezosa para evitar fallos en import global.
+def _obtener_modulo_gemini():
+    """Devuelve el módulo de Gemini con carga opcional y caché local de proceso."""
+
+    global _MODULO_GENAI
+
+    # Reutiliza módulo previamente resuelto en este proceso.
+    if _MODULO_GENAI is not None:
+        return _MODULO_GENAI
+
+    try:
+        # Usa import local idiomático para dependencias opcionales.
+        from google import genai as modulo_genai
+    except ModuleNotFoundError as exc:
+        raise RuntimeError(
+            "Dependencia opcional no disponible: instala `google-genai` para habilitar la integración Gemini."
+        ) from exc
+
+    _MODULO_GENAI = modulo_genai
+    return _MODULO_GENAI
+
+
 # Resuelve el cliente de Google Gemini de forma perezosa para evitar fallos en import global.
 def _crear_cliente_gemini(api_key: str):
     """Crea un cliente de Gemini resolviendo la dependencia en tiempo de uso."""
 
-    try:
-        modulo_genai = import_module("google.genai")
-    except ModuleNotFoundError as exc:
-        raise RuntimeError(
-            "Dependencia opcional no disponible: instala `google-genai` para usar --usar-ia o --testia."
-        ) from exc
-
-    return modulo_genai.Client(api_key=api_key)
-
+    return _obtener_modulo_gemini().Client(api_key=api_key)
 
 
 # Define fallback interno alineado 1:1 con el archivo editable del repositorio.

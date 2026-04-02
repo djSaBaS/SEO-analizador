@@ -263,11 +263,20 @@ def test_resolver_ruta_prompt_ia_prioriza_consulta_legacy_si_no_hay_modulares(mo
 def test_crear_cliente_gemini_falla_con_error_claro_si_falta_sdk(monkeypatch) -> None:
     """Debe informar dependencia opcional sin romper import global del módulo."""
 
-    # Simula ausencia del SDK oficial en tiempo de uso.
-    def _import_falso(_nombre: str):
-        raise ModuleNotFoundError("google.genai")
+    import builtins
 
-    monkeypatch.setattr(gemini_client, "import_module", _import_falso)
+    # Garantiza estado limpio de caché para forzar resolución del módulo.
+    monkeypatch.setattr(gemini_client, "_MODULO_GENAI", None)
+
+    # Simula ausencia del paquete base `google` durante el import local.
+    import_original = builtins.__import__
+
+    def _import_falso(nombre: str, *args, **kwargs):
+        if nombre == "google":
+            raise ModuleNotFoundError("google")
+        return import_original(nombre, *args, **kwargs)
+
+    monkeypatch.setattr("builtins.__import__", _import_falso)
 
     with pytest.raises(RuntimeError, match="google-genai"):
-        gemini_client._crear_cliente_gemini("clave")
+        gemini_client._obtener_modulo_gemini()
