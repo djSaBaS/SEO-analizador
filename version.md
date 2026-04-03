@@ -1,3 +1,10 @@
+## 0.11.2 - 2026-04-03
+- Se corrige definitivamente el bootstrap de `src/seo_auditor/web/manage.py` resolviendo de forma robusta la ruta `src` para evitar `ModuleNotFoundError: No module named 'seo_auditor'` al arrancar Django.
+- Se añaden funciones internas `_resolver_ruta_src` y `_asegurar_src_en_syspath` con validación explícita de estructura para mejorar mantenibilidad y diagnóstico.
+- Se amplía `README.md` con guía práctica completa de puesta en marcha web desde cero (CMD, PowerShell y Linux), incluyendo entorno virtual, dependencias, variables Django, arranque y troubleshooting.
+- Se añaden pruebas en `tests/web/test_manage_bootstrap.py` para cubrir el bootstrap de `manage.py` y evitar regresiones de importación.
+- Se actualizan `info.md` de carpetas afectadas de la capa web para reflejar reglas de seguridad/arranque y mantenimiento.
+
 ## 0.11.1 - 2026-04-02
 - Se corrige la restricción de dependencia a `Django>=5.1.0,<6.0.0` para evitar fallos de instalación por versión no publicada.
 - Se ajusta `manage.py` para inyectar la ruta `src` en `sys.path`, garantizando que los comandos `python src/seo_auditor/web/manage.py ...` funcionen en checkout limpio.

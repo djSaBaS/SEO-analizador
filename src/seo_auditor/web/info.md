@@ -17,3 +17,5 @@ Alojar la primera capa web interna (Django) del producto SEO reutilizando el nú
 ## Notas de mantenimiento
 - Mantener esta capa como adaptador de entrada (sin duplicar negocio).
 - Priorizar compatibilidad con CLI y contratos `AuditoriaRequest/AuditoriaResult`.
+
+- El arranque web depende de `manage.py` con bootstrap robusto de ruta `src` para garantizar imports de `seo_auditor` desde la raíz del repositorio.

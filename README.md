@@ -281,27 +281,115 @@ Esta fase incorpora una primera interfaz web **interna/local** que reutiliza los
 - Descarga de entregables generados cuando el archivo existe en disco.
 - Persistencia mínima en Django (`EjecucionAuditoria`) para registrar metadatos de ejecución sin sobredimensionar la plataforma.
 
-### Ejecución local de la web
-1. Instalar dependencias (incluye Django):
+### Guía completa de puesta en marcha web (desde cero)
+
+#### 1) Requisitos previos
+- Python **3.11 o superior**.
+- Estar situado en la **raíz del repositorio** (carpeta que contiene `README.md`, `requirements.txt` y `src/`).
+- Tener `.env` preparado si quieres activar integraciones (GSC/GA4/PageSpeed/IA).
+
+Comando para comprobar versión de Python:
+```bash
+python --version
+```
+
+#### 2) Crear y activar entorno virtual
+
+##### Windows CMD
+```bat
+cd C:\ruta\a\SEO-analizador
+python -m venv .venv
+.venv\Scripts\activate.bat
+```
+
+##### Windows PowerShell
+```powershell
+cd C:\ruta\a\SEO-analizador
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+```
+
+##### Linux / macOS
+```bash
+cd /ruta/a/SEO-analizador
+python -m venv .venv
+source .venv/bin/activate
+```
+
+#### 3) Instalar dependencias
 ```bash
 pip install -r requirements.txt
 ```
-2. Definir clave de Django (requerida cuando `DJANGO_DEBUG=false`; recomendada también en local):
+
+#### 4) Configurar variables de entorno Django
+
+Variables recomendadas en desarrollo local:
+- `DJANGO_DEBUG=true`
+- `DJANGO_SECRET_KEY=<valor_largo_aleatorio>`
+
+Generar una clave segura desde Python:
 ```bash
-export DJANGO_SECRET_KEY="cambia-esta-clave-local"
+python -c "import secrets; print(secrets.token_urlsafe(50))"
 ```
-3. Aplicar migraciones de la base local:
+
+Ejemplo en Linux/macOS:
+```bash
+export DJANGO_DEBUG=true
+export DJANGO_SECRET_KEY="pega_aqui_la_clave_generada"
+```
+
+Ejemplo en Windows CMD:
+```bat
+set DJANGO_DEBUG=true
+set DJANGO_SECRET_KEY=pega_aqui_la_clave_generada
+```
+
+Ejemplo en Windows PowerShell:
+```powershell
+$env:DJANGO_DEBUG = "true"
+$env:DJANGO_SECRET_KEY = "pega_aqui_la_clave_generada"
+```
+
+> El proyecto carga `.env` mediante `python-dotenv`, así que también puedes guardar estas variables en un archivo `.env` en la raíz.
+
+#### 5) Aplicar migraciones
+Desde la **raíz del repositorio**:
 ```bash
 python src/seo_auditor/web/manage.py migrate
 ```
-4. Levantar servidor de desarrollo:
+
+#### 6) Arrancar servidor de desarrollo
+Desde la **raíz del repositorio**:
 ```bash
 python src/seo_auditor/web/manage.py runserver
 ```
-5. Abrir en navegador:
+
+URL esperada:
 - `http://127.0.0.1:8000/`
 
-### Limitaciones de esta fase
+> Alternativa si estás dentro de `src/seo_auditor/web/`: `python manage.py runserver`.
+
+### Solución de problemas comunes (web)
+
+#### Error: `ModuleNotFoundError: No module named 'seo_auditor'`
+- Causa habitual: ejecutar fuera de la raíz o sin bootstrap correcto.
+- Solución recomendada:
+  1. Sitúate en la raíz del repositorio.
+  2. Activa el entorno virtual.
+  3. Ejecuta `python src/seo_auditor/web/manage.py runserver`.
+
+#### Error por `DJANGO_SECRET_KEY` no definida
+- Si `DJANGO_DEBUG=false`, la clave es obligatoria.
+- Define `DJANGO_SECRET_KEY` en entorno o `.env` y vuelve a ejecutar.
+
+#### Entorno virtual no activo
+- Verifica que el prompt muestre `(.venv)`.
+- Repite el comando de activación según tu sistema (CMD/PowerShell/Linux).
+
+#### Dependencias no encontradas
+- Ejecuta nuevamente `pip install -r requirements.txt` dentro del entorno virtual activo.
+
+### Limitaciones actuales de esta fase
 - Ejecución en segundo plano con `ThreadPoolExecutor` local y refresco básico en pantalla de detalle (sin cola distribuida ni workers externos).
 - Interfaz orientada a uso interno técnico.
 - Persistencia ligera centrada en trazabilidad de ejecuciones, no en multiusuario avanzado.
