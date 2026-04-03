@@ -112,3 +112,9 @@ STATICFILES_DIRS = [BASE_DIR / "src" / "seo_auditor" / "web" / "static"]
 
 # Define tipo de campo primario por defecto en modelos.
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# Define carpeta absoluta para salidas del núcleo de auditoría.
+SALIDAS_DIR = BASE_DIR / "salidas"
+
+# Define carpeta absoluta de caché interna de auditorías.
+CACHE_DIR = SALIDAS_DIR / ".cache"

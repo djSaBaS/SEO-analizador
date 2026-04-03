@@ -62,15 +62,15 @@
 <!-- Crea tarjeta de descargas de entregables generados. -->
 <section class="tarjeta">
     <h2>Descargas</h2>
-    {% if ejecucion.entregables %}
+    {% if entregables_presentacion %}
         <table>
             <thead><tr><th>Entregable</th><th>Estado</th><th>Detalle</th><th>Acción</th></tr></thead>
             <tbody>
-                {% for entregable in ejecucion.entregables %}
+                {% for entregable in entregables_presentacion %}
                     <tr>
-                        <td>{{ entregable.entregable }}</td>
-                        <td>{{ entregable.estado }}</td>
-                        <td>{{ entregable.detalle|default:"-" }}</td>
+                        <td>{{ entregable.nombre_amigable|default:entregable.entregable }}</td>
+                        <td>{{ entregable.estado_legible|default:entregable.estado }}</td>
+                        <td>{{ entregable.detalle_mostrable|default:entregable.detalle|default:"-" }}</td>
                         <td>
                             {% if entregable.ruta_final %}
                                 <a href="{% url 'auditorias:descargar' ejecucion.id forloop.counter0 %}">Descargar</a>

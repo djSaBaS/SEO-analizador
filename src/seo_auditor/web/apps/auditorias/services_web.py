@@ -9,6 +9,9 @@ from types import SimpleNamespace
 # Importa typing para contratos explícitos en el adaptador web.
 from typing import Any
 
+# Importa settings Django para rutas absolutas robustas en capa web.
+from django.conf import settings
+
 # Importa configuración global del núcleo para reusar integraciones.
 from seo_auditor.config import cargar_configuracion
 
@@ -67,7 +70,7 @@ def construir_request_desde_formulario(datos: dict[str, Any]) -> AuditoriaReques
 
     # Define configuración de caché para ejecución web.
     cache = ConfiguracionCacheAuditoria(
-        ruta_cache="./salidas/.cache",
+        ruta_cache=str(settings.CACHE_DIR),
         ttl_segundos=int(datos.get("cache_ttl") or 0),
         invalidar_antes_de_ejecutar=False,
     )
@@ -76,7 +79,7 @@ def construir_request_desde_formulario(datos: dict[str, Any]) -> AuditoriaReques
     informe = ConfiguracionInforme(
         perfil_generacion=perfil_generacion,
         modo=str(datos.get("modo_informe") or "completo"),
-        carpeta_salida="./salidas",
+        carpeta_salida=str(settings.SALIDAS_DIR),
         entregables_solicitados=list(PERFILES_GENERACION.get(perfil_generacion, ENTREGABLES_BASE_AUDITORIA)),
     )
 

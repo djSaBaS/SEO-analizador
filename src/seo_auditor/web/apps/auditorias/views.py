@@ -15,6 +15,9 @@ from pathlib import Path
 # Importa FileResponse para descargas seguras de entregables.
 from django.http import FileResponse, Http404, HttpRequest, HttpResponse
 
+# Importa configuración Django para rutas absolutas robustas.
+from django.conf import settings
+
 # Importa utilidades de conexión para hilos de trabajo con ORM.
 from django.db import close_old_connections
 
@@ -35,6 +38,9 @@ from seo_auditor.web.apps.auditorias.models import EjecucionAuditoria
 
 # Importa servicios adaptadores de ejecución web.
 from seo_auditor.web.apps.auditorias.services_web import construir_request_desde_formulario, ejecutar_auditoria_web
+
+# Importa utilidades de presentación legible para entregables de UI.
+from seo_auditor.web.apps.auditorias.presentacion_entregables import enriquecer_registros_entregables
 
 # Define pool de hilos pequeño para ejecución interna en segundo plano.
 EJECUTOR_AUDITORIAS = ThreadPoolExecutor(max_workers=2, thread_name_prefix="seo_web")
@@ -143,7 +149,7 @@ def _listar_archivos_recientes(limite: int = 10) -> list[dict[str, str]]:
     """Recorre la carpeta `salidas` excluyendo caché para evitar costes altos."""
 
     # Define raíz de salidas usada por el núcleo actual.
-    raiz_salidas = Path("./salidas")
+    raiz_salidas = Path(settings.SALIDAS_DIR)
 
     # Devuelve lista vacía cuando la carpeta no existe aún.
     if not raiz_salidas.exists():
@@ -276,8 +282,18 @@ def detalle_auditoria(request: HttpRequest, ejecucion_id: int) -> HttpResponse:
     # Recupera ejecución por ID o devuelve 404 si no existe.
     ejecucion = get_object_or_404(EjecucionAuditoria, pk=ejecucion_id)
 
+    # Enriquecer entregables para mostrar nombres y estados legibles en plantilla.
+    entregables_presentacion = enriquecer_registros_entregables(list(ejecucion.entregables or []))
+
     # Renderiza plantilla de detalle con datos persistidos.
-    return render(request, "auditorias/detalle_auditoria.html", {"ejecucion": ejecucion})
+    return render(
+        request,
+        "auditorias/detalle_auditoria.html",
+        {
+            "ejecucion": ejecucion,
+            "entregables_presentacion": entregables_presentacion,
+        },
+    )
 
 
 # Descarga un archivo generado en una ejecución concreta.
@@ -303,7 +319,7 @@ def descargar_entregable(request: HttpRequest, ejecucion_id: int, indice: int) -
     ruta = Path(str(registro.get("ruta_final") or "").strip()).resolve()
 
     # Resuelve raíz permitida de salidas para evitar path traversal.
-    raiz_salidas = Path("./salidas").resolve()
+    raiz_salidas = Path(settings.SALIDAS_DIR).resolve()
 
     # Valida que la ruta sea descendiente de la carpeta permitida.
     ruta_en_salidas = ruta == raiz_salidas or ruta.is_relative_to(raiz_salidas)
@@ -313,5 +329,9 @@ def descargar_entregable(request: HttpRequest, ejecucion_id: int, indice: int) -
         # Lanza 404 cuando el archivo ya no está disponible en disco.
         raise Http404("El archivo solicitado no está disponible.")
 
-    # Devuelve archivo en modo binario como descarga adjunta.
-    return FileResponse(ruta.open("rb"), as_attachment=True, filename=ruta.name)
+    # Intenta abrir el archivo en modo binario como descarga adjunta.
+    try:
+        return FileResponse(ruta.open("rb"), as_attachment=True, filename=ruta.name)
+    except OSError as exc:
+        # Convierte errores de acceso concurrente/permisos en 404 controlado.
+        raise Http404("El archivo solicitado no está disponible.") from exc
