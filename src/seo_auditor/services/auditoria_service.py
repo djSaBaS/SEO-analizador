@@ -24,6 +24,10 @@ from seo_auditor.services.entregables_service import (
     ModeloEntregables,
     PERFILES_GENERACION,
 )
+from seo_auditor.services.coherencia_fuentes_service import (
+    construir_detalle_incompatibilidad,
+    dominios_coherentes,
+)
 
 
 @dataclass(slots=True)
@@ -200,6 +204,7 @@ class AuditoriaService:
             total_urls_analizadas=len(urls),
             fuentes_activas=list(resultado.fuentes_activas),
             fuentes_fallidas=list(resultado.fuentes_fallidas),
+            fuentes_incompatibles=list(resultado.fuentes_incompatibles),
             cache_invalidada=cache.invalidar_antes_de_ejecutar,
         )
         return AuditoriaResult(auditoria=resultado, entregables=resultado_entregables, resumen_ejecucion=resumen)
@@ -207,6 +212,7 @@ class AuditoriaService:
     def _ejecutar_fuentes(self, request: AuditoriaRequest, resultado: Any, urls: list[str], carpeta_cache: Path) -> None:
         integraciones = request.integraciones
         configuracion = request.configuracion
+        dominio_auditado = request.sitemap
 
         max_urls = request.max_pagepsi_urls if request.max_pagepsi_urls > 0 else configuracion.max_pagepsi_urls
         timeout = request.pagepsi_timeout if request.pagepsi_timeout > 0 else configuracion.pagespeed_timeout
@@ -214,74 +220,93 @@ class AuditoriaService:
         cache_ttl = request.cache.ttl_segundos if request.cache.ttl_segundos > 0 else configuracion.cache_ttl_segundos
 
         if integraciones.usar_pagespeed and configuracion.pagespeed_api_key:
-            urls_ps = self._resolver_urls_pagespeed(request, urls, max_urls)
-            resultado.rendimiento = self.adapters.ejecutar_pagespeed(urls_ps, configuracion.pagespeed_api_key, timeout, reintentos, carpeta_cache / "pagespeed", cache_ttl)
-            estado_pagespeed: dict[str, dict[str, str]] = {}
-            for item in resultado.rendimiento:
-                estado_pagespeed.setdefault(item.url, {})
-                estado_pagespeed[item.url][item.estrategia] = item.error or "ok"
-            resultado.pagespeed_estado = estado_pagespeed
-            scores_validos = [item.performance_score for item in resultado.rendimiento if isinstance(item.performance_score, (int, float))]
-            if scores_validos:
-                resultado.score_rendimiento = round(sum(scores_validos) / len(scores_validos), 1)
-                resultado.seo_score_global = round(
-                    (float(resultado.score_tecnico or 0.0) * 0.4)
-                    + (float(resultado.score_contenido or 0.0) * 0.4)
-                    + (float(resultado.score_rendimiento or 0.0) * 0.2),
-                    1,
+            if request.pagepsi_url and not dominios_coherentes(dominio_auditado, request.pagepsi_url):
+                detalle_pagespeed = construir_detalle_incompatibilidad("pagespeed", request.pagepsi_url, dominio_auditado)
+                if detalle_pagespeed not in resultado.fuentes_incompatibles:
+                    resultado.fuentes_incompatibles.append(detalle_pagespeed)
+                print(f"Aviso: {detalle_pagespeed}")
+            else:
+                urls_ps = self._resolver_urls_pagespeed(request, urls, max_urls)
+                resultado.rendimiento = self.adapters.ejecutar_pagespeed(urls_ps, configuracion.pagespeed_api_key, timeout, reintentos, carpeta_cache / "pagespeed", cache_ttl)
+                estado_pagespeed: dict[str, dict[str, str]] = {}
+                for item in resultado.rendimiento:
+                    estado_pagespeed.setdefault(item.url, {})
+                    estado_pagespeed[item.url][item.estrategia] = item.error or "ok"
+                resultado.pagespeed_estado = estado_pagespeed
+                scores_validos = [item.performance_score for item in resultado.rendimiento if isinstance(item.performance_score, (int, float))]
+                if scores_validos:
+                    resultado.score_rendimiento = round(sum(scores_validos) / len(scores_validos), 1)
+                    resultado.seo_score_global = round(
+                        (float(resultado.score_tecnico or 0.0) * 0.4)
+                        + (float(resultado.score_contenido or 0.0) * 0.4)
+                        + (float(resultado.score_rendimiento or 0.0) * 0.2),
+                        1,
+                    )
+                hay_metricas_validas = any(
+                    (
+                        item.performance_score is not None
+                        or item.accessibility_score is not None
+                        or item.best_practices_score is not None
+                        or item.seo_score is not None
+                        or item.lcp is not None
+                        or item.cls is not None
+                        or item.inp is not None
+                        or item.fcp is not None
+                        or item.tbt is not None
+                        or item.speed_index is not None
+                    )
+                    and not item.error
+                    for item in resultado.rendimiento
                 )
-            hay_metricas_validas = any(
-                (
-                    item.performance_score is not None
-                    or item.accessibility_score is not None
-                    or item.best_practices_score is not None
-                    or item.seo_score is not None
-                    or item.lcp is not None
-                    or item.cls is not None
-                    or item.inp is not None
-                    or item.fcp is not None
-                    or item.tbt is not None
-                    or item.speed_index is not None
-                )
-                and not item.error
-                for item in resultado.rendimiento
-            )
-            if hay_metricas_validas:
-                if "pagespeed" not in resultado.fuentes_activas:
-                    resultado.fuentes_activas.append("pagespeed")
-            elif "pagespeed" not in resultado.fuentes_fallidas:
-                resultado.fuentes_fallidas.append("pagespeed")
+                if hay_metricas_validas:
+                    if "pagespeed" not in resultado.fuentes_activas:
+                        resultado.fuentes_activas.append("pagespeed")
+                elif "pagespeed" not in resultado.fuentes_fallidas:
+                    resultado.fuentes_fallidas.append("pagespeed")
 
         if integraciones.usar_search_console:
-            try:
-                datos = self.adapters.cargar_datos_search_console(configuracion)
-                resultado.search_console = datos
-                resultado.gestion_indexacion = self.adapters.generar_gestion_indexacion_inteligente(resultado.resultados, datos.paginas)
-                if datos.activo and (datos.paginas or datos.queries):
-                    if "search_console" not in resultado.fuentes_activas:
-                        resultado.fuentes_activas.append("search_console")
-                elif "search_console" not in resultado.fuentes_fallidas:
-                    resultado.fuentes_fallidas.append("search_console")
-            except Exception as exc:
-                if "search_console" not in resultado.fuentes_fallidas:
-                    resultado.fuentes_fallidas.append("search_console")
-                print(f"Aviso: fallo no bloqueante en Search Console: {exc}")
+            site_url_gsc = getattr(configuracion, "gsc_site_url", "")
+            if site_url_gsc and not dominios_coherentes(dominio_auditado, site_url_gsc):
+                detalle_gsc = construir_detalle_incompatibilidad("search_console", site_url_gsc, dominio_auditado)
+                if detalle_gsc not in resultado.fuentes_incompatibles:
+                    resultado.fuentes_incompatibles.append(detalle_gsc)
+                print(f"Aviso: {detalle_gsc}")
+            else:
+                try:
+                    datos = self.adapters.cargar_datos_search_console(configuracion)
+                    resultado.search_console = datos
+                    resultado.gestion_indexacion = self.adapters.generar_gestion_indexacion_inteligente(resultado.resultados, datos.paginas)
+                    if datos.activo and (datos.paginas or datos.queries):
+                        if "search_console" not in resultado.fuentes_activas:
+                            resultado.fuentes_activas.append("search_console")
+                    elif "search_console" not in resultado.fuentes_fallidas:
+                        resultado.fuentes_fallidas.append("search_console")
+                except Exception as exc:
+                    if "search_console" not in resultado.fuentes_fallidas:
+                        resultado.fuentes_fallidas.append("search_console")
+                    print(f"Aviso: fallo no bloqueante en Search Console: {exc}")
         else:
             print("[3.5/6] Search Console omitido por contrato de ejecución.")
 
         if integraciones.usar_analytics:
-            try:
-                resultado.analytics = self.adapters.cargar_datos_analytics(configuracion)
-                if resultado.analytics.activo and resultado.analytics.paginas:
-                    if "analytics" not in resultado.fuentes_activas:
-                        resultado.fuentes_activas.append("analytics")
-                elif "analytics" not in resultado.fuentes_fallidas:
-                    resultado.fuentes_fallidas.append("analytics")
-            except Exception as exc:
-                if "analytics" not in resultado.fuentes_fallidas:
-                    resultado.fuentes_fallidas.append("analytics")
-                print(f"Aviso: fallo no bloqueante en Analytics: {exc}")
-
+            dominio_ga4_configurado = getattr(configuracion, "ga_site_url", "")
+            if dominio_ga4_configurado and not dominios_coherentes(dominio_auditado, dominio_ga4_configurado):
+                detalle_ga4 = construir_detalle_incompatibilidad("analytics", dominio_ga4_configurado, dominio_auditado)
+                if detalle_ga4 not in resultado.fuentes_incompatibles:
+                    resultado.fuentes_incompatibles.append(detalle_ga4)
+                print(f"Aviso: {detalle_ga4}")
+            else:
+                try:
+                    resultado.analytics = self.adapters.cargar_datos_analytics(configuracion)
+                    if resultado.analytics.activo and resultado.analytics.paginas:
+                        if "analytics" not in resultado.fuentes_activas:
+                            resultado.fuentes_activas.append("analytics")
+                    elif "analytics" not in resultado.fuentes_fallidas:
+                        resultado.fuentes_fallidas.append("analytics")
+                except Exception as exc:
+                    if "analytics" not in resultado.fuentes_fallidas:
+                        resultado.fuentes_fallidas.append("analytics")
+                    print(f"Aviso: fallo no bloqueante en Analytics: {exc}")
         if integraciones.usar_ia:
             try:
                 resultado.resumen_ia = self.adapters.generar_resumen_ia(resultado, configuracion.gemini_api_key, request.modelo_ia, request.max_muestras_ia, request.informe.modo if request.informe.modo in {"completo", "resumen", "quickwins", "gsc", "roadmap"} else "completo", carpeta_cache / "ia", cache_ttl)

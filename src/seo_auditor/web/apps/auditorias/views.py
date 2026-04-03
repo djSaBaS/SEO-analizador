@@ -86,6 +86,9 @@ def _procesar_auditoria_en_segundo_plano(ejecucion_id: int, datos_formulario: di
         # Guarda fuentes fallidas para alertas no fatales.
         ejecucion.fuentes_fallidas = resultado["resumen"].get("fuentes_fallidas", [])
 
+        # Guarda fuentes incompatibles para trazabilidad de coherencia.
+        ejecucion.fuentes_incompatibles = resultado["resumen"].get("fuentes_incompatibles", [])
+
         # Guarda resumen detallado serializado para la vista de resultado.
         ejecucion.resumen_resultado = resultado
 
@@ -96,7 +99,7 @@ def _procesar_auditoria_en_segundo_plano(ejecucion_id: int, datos_formulario: di
         ejecucion.mensaje_error = ""
 
         # Persiste cambios finales de ejecución satisfactoria.
-        ejecucion.save(update_fields=["estado", "ruta_salida", "fuentes_activas", "fuentes_fallidas", "resumen_resultado", "entregables", "mensaje_error", "fecha_actualizacion"])
+        ejecucion.save(update_fields=["estado", "ruta_salida", "fuentes_activas", "fuentes_fallidas", "fuentes_incompatibles", "resumen_resultado", "entregables", "mensaje_error", "fecha_actualizacion"])
     except Exception as exc:
         # Marca ejecución como error controlado ante cualquier excepción.
         ejecucion.estado = EjecucionAuditoria.ESTADO_ERROR

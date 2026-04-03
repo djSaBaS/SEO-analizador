@@ -24,6 +24,9 @@ from seo_auditor.services.auditoria_service import AuditoriaService
 # Importa catálogo de perfiles contractuales de entregables.
 from seo_auditor.services.entregables_service import ENTREGABLES_BASE_AUDITORIA, PERFILES_GENERACION
 
+# Importa cálculos de priorización usados también por exportadores.
+from seo_auditor.reporters.core import construir_paginas_prioritarias, construir_quick_wins
+
 
 # Construye request de dominio desde datos validados del formulario web.
 def construir_request_desde_formulario(datos: dict[str, Any]) -> AuditoriaRequest:
@@ -115,6 +118,12 @@ def ejecutar_auditoria_web(request_auditoria: AuditoriaRequest) -> dict[str, Any
 
     # Serializa resultado de auditoría para consumo en plantillas.
     auditoria_dict = asdict(resultado.auditoria)
+
+    # Calcula páginas prioritarias con la misma lógica usada en informes.
+    auditoria_dict["paginas_prioritarias"] = construir_paginas_prioritarias(resultado.auditoria, limite=10)
+
+    # Calcula quick wins con el mismo motor usado por exportadores.
+    auditoria_dict["quick_wins"] = construir_quick_wins(resultado.auditoria, limite=10)
 
     # Serializa resumen de ejecución para estado y trazabilidad.
     resumen_dict = asdict(resultado.resumen_ejecucion)

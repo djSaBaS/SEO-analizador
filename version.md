@@ -1,3 +1,11 @@
+## 0.11.3 - 2026-04-03
+- Se corrige la visualización web de `Páginas prioritarias` y `Quick wins` en detalle de auditoría para consumir datos reales del motor (misma base de cálculo que exportadores).
+- Se incorpora servicio reutilizable `coherencia_fuentes_service.py` con normalización robusta de dominios (`https`, `www`, `sc-domain:`) y validación de coherencia sitemap↔fuentes.
+- `AuditoriaService` excluye fuentes incompatibles por dominio en GSC, GA4 (cuando `GA_SITE_URL` está definido) y PageSpeed con URL manual externa al dominio auditado.
+- Se añade trazabilidad de incompatibilidades en contratos de salida (`ResultadoAuditoria` y `ResumenEjecucion`) y persistencia web (`fuentes_incompatibles`).
+- Se actualiza la vista web de detalle para mostrar fuentes incompatibles de forma explícita.
+- Se amplían pruebas unitarias y web para cubrir: normalización/coherencia de dominios, exclusión de fuentes incompatibles y render de prioridades/quick wins con datos reales.
+
 ## 0.11.2 - 2026-04-03
 - Se corrige definitivamente el bootstrap de `src/seo_auditor/web/manage.py` resolviendo de forma robusta la ruta `src` para evitar `ModuleNotFoundError: No module named 'seo_auditor'` al arrancar Django.
 - Se añaden funciones internas `_resolver_ruta_src` y `_asegurar_src_en_syspath` con validación explícita de estructura para mejorar mantenibilidad y diagnóstico.

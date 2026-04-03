@@ -196,6 +196,79 @@ def test_vista_nueva_auditoria_ejecuta_y_redirige():
     assert "Descargar" in detalle.content.decode("utf-8")
 
 
+# Verifica que la vista detalle muestre prioridades y quick wins cuando existen.
+def test_detalle_muestra_prioridades_y_quick_wins_reales():
+    """Comprueba que la plantilla no use fallback si hay datos reales disponibles."""
+
+    # Crea cliente de pruebas para consultar vista de detalle.
+    cliente = Client()
+
+    # Construye ejecución simulada con datos reales de priorización.
+    ejecucion_mock = MagicMock()
+
+    # Define identificador de la ejecución simulada.
+    ejecucion_mock.id = 11
+
+    # Define datos básicos de cabecera de ejecución.
+    ejecucion_mock.cliente = "Cliente Demo"
+    ejecucion_mock.sitemap = "https://ejemplo.com/sitemap.xml"
+    ejecucion_mock.gestor = "Gestor Demo"
+    ejecucion_mock.fecha_inicio = date.today() - timedelta(days=1)
+    ejecucion_mock.fecha_fin = date.today()
+    ejecucion_mock.fuentes_activas = ["sitemap"]
+    ejecucion_mock.fuentes_fallidas = []
+    ejecucion_mock.fuentes_incompatibles = []
+    ejecucion_mock.ruta_salida = ""
+    ejecucion_mock.mensaje_error = ""
+    ejecucion_mock.entregables = []
+
+    # Define estado legible para plantilla.
+    ejecucion_mock.get_estado_display.return_value = "Finalizada"
+
+    # Define resumen con prioridades y quick wins poblados.
+    ejecucion_mock.resumen_resultado = {
+        "auditoria": {
+            "fecha_ejecucion": "2026-04-03",
+            "seo_score_global": 73.2,
+            "score_tecnico": 70.1,
+            "score_contenido": 75.9,
+            "resumen_ia": "Resumen de prueba.",
+            "paginas_prioritarias": [
+                {"url": "https://ejemplo.com/landing", "prioridad_score": 85.0, "motivos": ["CTR bajo", "alto potencial"]},
+            ],
+            "quick_wins": [
+                {"url": "https://ejemplo.com/landing", "problemas": ["Meta description corta"], "recomendaciones": ["Ampliar a 140-160 caracteres"]},
+            ],
+        }
+    }
+
+    # Simula acceso al ORM para devolver la ejecución preparada.
+    with patch("seo_auditor.web.apps.auditorias.views.EjecucionAuditoria.objects") as objetos_mock:
+        # Configura recuperación por id para la vista detalle.
+        objetos_mock.get.return_value = ejecucion_mock
+
+        # Ejecuta petición de detalle sobre la ejecución simulada.
+        respuesta = cliente.get("/auditorias/11/")
+
+    # Decodifica HTML para realizar aserciones legibles.
+    contenido = respuesta.content.decode("utf-8")
+
+    # Verifica estado de respuesta correcto.
+    assert respuesta.status_code == 200
+
+    # Verifica que se muestre URL prioritaria real.
+    assert "https://ejemplo.com/landing" in contenido
+
+    # Verifica que se muestre recomendación de quick win real.
+    assert "Ampliar a 140-160 caracteres" in contenido
+
+    # Verifica que no se renderice fallback vacío de prioridades.
+    assert "No se han detectado páginas prioritarias." not in contenido
+
+    # Verifica que no se renderice fallback vacío de quick wins.
+    assert "No se han detectado quick wins." not in contenido
+
+
 # Verifica que el listado de dashboard ignora archivos de caché.
 def test_listado_recientes_excluye_cache(tmp_path, monkeypatch):
     """Comprueba que `_listar_archivos_recientes` no devuelve artefactos de `.cache`."""

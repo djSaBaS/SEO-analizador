@@ -16,3 +16,5 @@ Espacio modular para servicios de orquestación funcional en **seo_auditor**.
 - `ResultadoEntregables` consolida exportaciones generadas/omitidas/errores no fatales para desacoplar reporting documental.
 
 - `adapters_factory.py`: fábrica compartida de adaptadores para que CLI y web reutilicen el mismo cableado del núcleo.
+
+- `coherencia_fuentes_service.py`: normaliza y valida coherencia de dominio entre sitemap auditado y fuentes externas (GSC/GA4/PageSpeed).

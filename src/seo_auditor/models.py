@@ -434,6 +434,9 @@ class ResultadoAuditoria:
     # Guarda fuentes que se intentaron usar pero fallaron en ejecución.
     fuentes_fallidas: List[str] = field(default_factory=list)
 
+    # Guarda fuentes omitidas por incompatibilidad de dominio.
+    fuentes_incompatibles: List[str] = field(default_factory=list)
+
     # Guarda los resultados de rendimiento obtenidos desde PageSpeed.
     rendimiento: List[ResultadoRendimiento] = field(default_factory=list)
 
@@ -659,6 +662,9 @@ class ResumenEjecucion:
 
     # Guarda fuentes que fallaron durante la ejecución.
     fuentes_fallidas: List[str] = field(default_factory=list)
+
+    # Guarda fuentes omitidas por incompatibilidad de dominio.
+    fuentes_incompatibles: List[str] = field(default_factory=list)
 
     # Indica si se aplicó invalidación de caché.
     cache_invalidada: bool = False

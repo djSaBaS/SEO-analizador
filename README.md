@@ -280,6 +280,8 @@ Esta fase incorpora una primera interfaz web **interna/local** que reutiliza los
 - Vista de estado/resultado con resumen operativo, fuentes activas/fallidas, KPIs básicos y bloques de páginas prioritarias/quick wins.
 - Descarga de entregables generados cuando el archivo existe en disco.
 - Persistencia mínima en Django (`EjecucionAuditoria`) para registrar metadatos de ejecución sin sobredimensionar la plataforma.
+- La vista web de detalle consume ahora prioridades reales del motor (`páginas prioritarias` y `quick wins`) usando la misma lógica de construcción que los exportadores.
+- Se valida coherencia de dominio entre sitemap auditado y fuentes (GSC/GA4/PageSpeed URL manual): las fuentes incompatibles se excluyen y quedan trazadas en ejecución.
 
 ### Guía completa de puesta en marcha web (desde cero)
 

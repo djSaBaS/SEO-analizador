@@ -61,6 +61,9 @@ class EjecucionAuditoria(models.Model):
     # Guarda fuentes fallidas detectadas por la auditoría.
     fuentes_fallidas = models.JSONField(default=list, blank=True)
 
+    # Guarda fuentes incompatibles por dominio durante la ejecución.
+    fuentes_incompatibles = models.JSONField(default=list, blank=True)
+
     # Guarda resumen serializado útil para mostrar resultados en web.
     resumen_resultado = models.JSONField(default=dict, blank=True)
 

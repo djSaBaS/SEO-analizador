@@ -14,6 +14,7 @@
     <p><strong>Periodo:</strong> {{ ejecucion.fecha_inicio }} → {{ ejecucion.fecha_fin }}</p>
     <p><strong>Fuentes activas:</strong> {{ ejecucion.fuentes_activas|join:", "|default:"Sin fuentes activas" }}</p>
     <p><strong>Fuentes fallidas:</strong> {{ ejecucion.fuentes_fallidas|join:", "|default:"Sin fuentes fallidas" }}</p>
+    <p><strong>Fuentes incompatibles:</strong> {{ ejecucion.fuentes_incompatibles|join:" | "|default:"Sin incompatibilidades detectadas" }}</p>
     {% if ejecucion.ruta_salida %}<p><strong>Ruta salida:</strong> {{ ejecucion.ruta_salida }}</p>{% endif %}
     {% if ejecucion.mensaje_error %}<p class="error"><strong>Error:</strong> {{ ejecucion.mensaje_error }}</p>{% endif %}
     {% if ejecucion.estado == "en_proceso" %}
@@ -33,7 +34,10 @@
             <h3>Páginas prioritarias</h3>
             <ul>
                 {% for pagina in auditoria.paginas_prioritarias|slice:":5" %}
-                    <li>{{ pagina.url }} · score {{ pagina.score_prioridad|default:"-" }}</li>
+                    <li>
+                        {{ pagina.url }} · score {{ pagina.prioridad_score|default:"-" }}
+                        {% if pagina.motivos %}<br><small>Motivos: {{ pagina.motivos|join:", " }}</small>{% endif %}
+                    </li>
                 {% empty %}
                     <li>No se han detectado páginas prioritarias.</li>
                 {% endfor %}
@@ -41,7 +45,11 @@
             <h3>Quick wins</h3>
             <ul>
                 {% for quick in auditoria.quick_wins|slice:":5" %}
-                    <li>{{ quick.url }} · {{ quick.accion_recomendada|default:"Sin acción" }}</li>
+                    <li>
+                        {{ quick.url }}
+                        {% if quick.problemas %}<br><small>Problemas: {{ quick.problemas|join:" | " }}</small>{% endif %}
+                        {% if quick.recomendaciones %}<br><small>Acciones: {{ quick.recomendaciones|join:" | " }}</small>{% endif %}
+                    </li>
                 {% empty %}
                     <li>No se han detectado quick wins.</li>
                 {% endfor %}

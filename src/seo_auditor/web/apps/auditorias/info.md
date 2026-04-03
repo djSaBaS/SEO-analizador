@@ -18,3 +18,5 @@ Implementar pantallas y persistencia mínima de auditorías internas.
 ## Notas de mantenimiento
 - La ejecución se lanza en segundo plano con `ThreadPoolExecutor`; si se evoluciona a producción, migrar a cola dedicada (Celery/RQ) manteniendo el mismo adaptador de servicios.
 - El dashboard excluye `.cache` para evitar sobrecoste de lectura de archivos.
+
+- La vista de detalle muestra prioridades/quick wins reales derivados del motor y refleja fuentes incompatibles por dominio para trazabilidad.

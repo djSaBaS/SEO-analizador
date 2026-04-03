@@ -603,6 +603,17 @@ def construir_filas_quick_wins(resultado: ResultadoAuditoria) -> list[dict]:
     return filas
 
 
+# Construye quick wins accionables como función pública reutilizable.
+def construir_quick_wins(resultado: ResultadoAuditoria, limite: int = 7) -> list[dict[str, object]]:
+    """Calcula quick wins consolidados para consumo de web, CLI y exportadores."""
+
+    # Obtiene filas base combinadas para priorización.
+    filas = construir_filas_quick_wins(resultado)
+
+    # Devuelve quick wins ordenados aplicando el algoritmo canónico interno.
+    return _construir_quick_wins(filas, limite=limite)
+
+
 # Devuelve color de tarjeta según impacto para salida visual coherente.
 def _color_por_impacto(impacto: str) -> str:
     """Asigna un color sobrio por nivel de impacto."""
