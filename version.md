@@ -1,3 +1,9 @@
+## 0.11.4 - 2026-04-03
+- Se corrige vulnerabilidad de seguridad en descargas web (`path traversal`) validando que los archivos solicitados pertenezcan a `./salidas` antes de servirlos.
+- Se robustece el hilo de ejecución en background para manejar de forma segura la ausencia concurrente del registro (`EjecucionAuditoria`) sin excepciones no controladas.
+- Se optimiza el listado de documentos recientes en dashboard sustituyendo recorrido recursivo completo por `os.walk` con poda de `.cache`, límite de profundidad y tope de escaneo.
+- Se amplían pruebas web con escenario de bloqueo de descarga fuera de `./salidas`.
+
 ## 0.11.3 - 2026-04-03
 - Se corrige la visualización web de `Páginas prioritarias` y `Quick wins` en detalle de auditoría para consumir datos reales del motor (misma base de cálculo que exportadores).
 - Se incorpora servicio reutilizable `coherencia_fuentes_service.py` con normalización robusta de dominios (`https`, `www`, `sc-domain:`) y validación de coherencia sitemap↔fuentes.

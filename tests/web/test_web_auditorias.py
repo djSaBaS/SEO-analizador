@@ -308,3 +308,33 @@ def test_listado_recientes_excluye_cache(tmp_path, monkeypatch):
 
     # Verifica que no se expone archivo dentro de `.cache`.
     assert all(".cache" not in item["ruta"] for item in recientes)
+
+
+# Verifica que no se permitan descargas fuera de la carpeta de salidas.
+def test_descarga_bloquea_path_traversal(tmp_path, monkeypatch):
+    """Comprueba que la vista de descarga rechace rutas fuera de `./salidas`."""
+
+    # Crea cliente de pruebas para endpoint de descarga.
+    cliente = Client()
+
+    # Crea archivo fuera de `./salidas` que no debe poder descargarse.
+    archivo_externo = tmp_path / "secreto.txt"
+    archivo_externo.write_text("secreto", encoding="utf-8")
+
+    # Simula ejecución con registro de entregable apuntando fuera de salidas.
+    ejecucion_mock = MagicMock()
+    ejecucion_mock.entregables = [{"entregable": "json_tecnico", "estado": "generado", "ruta_final": str(archivo_externo), "detalle": ""}]
+
+    # Cambia directorio para que `./salidas` apunte al tmp de la prueba.
+    monkeypatch.chdir(tmp_path)
+
+    # Simula recuperación ORM de la ejecución objetivo.
+    with patch("seo_auditor.web.apps.auditorias.views.EjecucionAuditoria.objects") as objetos_mock:
+        # Devuelve ejecución simulada para la vista.
+        objetos_mock.get.return_value = ejecucion_mock
+
+        # Ejecuta petición de descarga sobre índice existente.
+        respuesta = cliente.get("/auditorias/1/descargar/0/")
+
+    # Verifica que la descarga sea rechazada por seguridad.
+    assert respuesta.status_code == 404

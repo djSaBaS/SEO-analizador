@@ -6,6 +6,9 @@ from datetime import datetime, timezone
 # Importa utilidades de concurrencia para desacoplar ejecución larga.
 from concurrent.futures import ThreadPoolExecutor
 
+# Importa utilidades del sistema de archivos para recorridos más eficientes.
+import os
+
 # Importa Path para resolver rutas de salida en disco.
 from pathlib import Path
 
@@ -36,6 +39,12 @@ from seo_auditor.web.apps.auditorias.services_web import construir_request_desde
 # Define pool de hilos pequeño para ejecución interna en segundo plano.
 EJECUTOR_AUDITORIAS = ThreadPoolExecutor(max_workers=2, thread_name_prefix="seo_web")
 
+# Define el máximo de archivos que se inspeccionan en dashboard para proteger rendimiento.
+MAX_ARCHIVOS_DASHBOARD = 400
+
+# Define profundidad máxima de búsqueda dentro de `salidas` para controlar coste.
+MAX_PROFUNDIDAD_SALIDAS = 4
+
 
 # Ejecuta una auditoría en segundo plano y actualiza su estado persistente.
 def _procesar_auditoria_en_segundo_plano(ejecucion_id: int, datos_formulario: dict) -> None:
@@ -44,11 +53,11 @@ def _procesar_auditoria_en_segundo_plano(ejecucion_id: int, datos_formulario: di
     # Aísla conexiones heredadas para evitar fugas en hilo de trabajo.
     close_old_connections()
 
-    # Recupera ejecución en proceso para actualizar su estado final.
-    ejecucion = EjecucionAuditoria.objects.get(pk=ejecucion_id)
-
     # Intenta construir request interno y ejecutar auditoría real.
     try:
+        # Recupera ejecución en proceso para actualizar su estado final.
+        ejecucion = EjecucionAuditoria.objects.get(pk=ejecucion_id)
+
         # Construye request de dominio reutilizando contratos existentes.
         request_auditoria = construir_request_desde_formulario(datos_formulario)
 
@@ -101,14 +110,21 @@ def _procesar_auditoria_en_segundo_plano(ejecucion_id: int, datos_formulario: di
         # Persiste cambios finales de ejecución satisfactoria.
         ejecucion.save(update_fields=["estado", "ruta_salida", "fuentes_activas", "fuentes_fallidas", "fuentes_incompatibles", "resumen_resultado", "entregables", "mensaje_error", "fecha_actualizacion"])
     except Exception as exc:
+        # Intenta recuperar ejecución para marcarla como error cuando aún exista.
+        ejecucion_error = EjecucionAuditoria.objects.filter(pk=ejecucion_id).first()
+
+        # Finaliza sin persistencia cuando la ejecución ya no existe en base de datos.
+        if ejecucion_error is None:
+            return
+
         # Marca ejecución como error controlado ante cualquier excepción.
-        ejecucion.estado = EjecucionAuditoria.ESTADO_ERROR
+        ejecucion_error.estado = EjecucionAuditoria.ESTADO_ERROR
 
         # Guarda detalle de error para diagnóstico en UI.
-        ejecucion.mensaje_error = str(exc)
+        ejecucion_error.mensaje_error = str(exc)
 
         # Persiste estado de error para trazabilidad.
-        ejecucion.save(update_fields=["estado", "mensaje_error", "fecha_actualizacion"])
+        ejecucion_error.save(update_fields=["estado", "mensaje_error", "fecha_actualizacion"])
     finally:
         # Cierra conexiones del hilo al terminar para evitar fugas.
         close_old_connections()
@@ -136,18 +152,36 @@ def _listar_archivos_recientes(limite: int = 10) -> list[dict[str, str]]:
     # Inicializa colección de archivos candidatos para dashboard.
     archivos: list[Path] = []
 
-    # Recorre de forma recursiva para soportar estructura por cliente/fecha.
-    for ruta in raiz_salidas.rglob("*"):
-        # Omite entradas que no sean archivos.
-        if not ruta.is_file():
-            continue
+    # Recorre árbol de `salidas` con control de profundidad y poda de caché.
+    for raiz_actual, carpetas, nombres_archivo in os.walk(raiz_salidas):
+        # Resuelve ruta actual como objeto Path para cálculos de profundidad.
+        ruta_actual = Path(raiz_actual)
 
-        # Omite archivos de caché para evitar degradación de rendimiento.
-        if ".cache" in ruta.parts:
-            continue
+        # Calcula profundidad relativa desde `salidas`.
+        profundidad = len(ruta_actual.relative_to(raiz_salidas).parts)
 
-        # Agrega archivo válido a la colección temporal.
-        archivos.append(ruta)
+        # Poda carpetas de caché y ramas que exceden profundidad permitida.
+        carpetas[:] = [carpeta for carpeta in carpetas if carpeta != ".cache" and profundidad < MAX_PROFUNDIDAD_SALIDAS]
+
+        # Recorre nombres de archivo disponibles en la carpeta actual.
+        for nombre in nombres_archivo:
+            # Construye ruta absoluta del archivo candidato.
+            ruta_archivo = ruta_actual / nombre
+
+            # Omite candidatos que no sean archivos regulares.
+            if not ruta_archivo.is_file():
+                continue
+
+            # Agrega archivo válido a la colección temporal.
+            archivos.append(ruta_archivo)
+
+            # Corta el recorrido cuando se alcanza el límite interno de escaneo.
+            if len(archivos) >= MAX_ARCHIVOS_DASHBOARD:
+                break
+
+        # Finaliza recorrido global cuando se alcanza límite interno de escaneo.
+        if len(archivos) >= MAX_ARCHIVOS_DASHBOARD:
+            break
 
     # Ordena por fecha de modificación descendente para mostrar recientes.
     archivos_ordenados = sorted(archivos, key=lambda ruta: ruta.stat().st_mtime, reverse=True)
@@ -265,11 +299,17 @@ def descargar_entregable(request: HttpRequest, ejecucion_id: int, indice: int) -
     # Recupera registro del entregable solicitado.
     registro = entregables[indice]
 
-    # Extrae ruta física del artefacto generado.
-    ruta = Path(str(registro.get("ruta_final") or "").strip())
+    # Extrae ruta física del artefacto generado normalizada a absoluta.
+    ruta = Path(str(registro.get("ruta_final") or "").strip()).resolve()
 
-    # Valida existencia del archivo antes de descargarlo.
-    if not ruta.exists() or not ruta.is_file():
+    # Resuelve raíz permitida de salidas para evitar path traversal.
+    raiz_salidas = Path("./salidas").resolve()
+
+    # Valida que la ruta sea descendiente de la carpeta permitida.
+    ruta_en_salidas = ruta == raiz_salidas or ruta.is_relative_to(raiz_salidas)
+
+    # Valida existencia, tipo de archivo y pertenencia a carpeta permitida.
+    if not ruta_en_salidas or not ruta.exists() or not ruta.is_file():
         # Lanza 404 cuando el archivo ya no está disponible en disco.
         raise Http404("El archivo solicitado no está disponible.")
 

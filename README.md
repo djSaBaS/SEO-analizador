@@ -391,6 +391,10 @@ URL esperada:
 #### Dependencias no encontradas
 - Ejecuta nuevamente `pip install -r requirements.txt` dentro del entorno virtual activo.
 
+#### Descarga rechazada de un entregable
+- La descarga de entregables solo permite archivos dentro de `./salidas` por seguridad.
+- Si el archivo fue movido fuera de esa carpeta, vuelve a generar la auditoría o restaura la estructura de salida.
+
 ### Limitaciones actuales de esta fase
 - Ejecución en segundo plano con `ThreadPoolExecutor` local y refresco básico en pantalla de detalle (sin cola distribuida ni workers externos).
 - Interfaz orientada a uso interno técnico.
