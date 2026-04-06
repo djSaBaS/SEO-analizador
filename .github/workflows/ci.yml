@@ -172,7 +172,7 @@ jobs:
           DJANGO_SETTINGS_MODULE: config.settings
         run: |
           echo "Ejecutando la comprobación general de Django..."
-          python manage.py check
+          python src/seo_auditor/web/manage.py check
           echo "Comprobación general completada correctamente."
 
       # Verificar que no existan migraciones pendientes de generar.
@@ -183,7 +183,7 @@ jobs:
           DJANGO_SETTINGS_MODULE: config.settings
         run: |
           echo "Comprobando si existen cambios en modelos sin migración..."
-          python manage.py makemigrations --check --dry-run
+          python src/seo_auditor/web/manage.py makemigrations --check --dry-run
           echo "No existen migraciones pendientes."
 
   # Trabajo principal para ejecutar tests y generar cobertura.
