@@ -1,0 +1,12 @@
+# Longitud máxima de línea permitida.
+line-length = 120
+
+# Versión objetivo de Python.
+target-version = "py310"
+
+[lint]
+# Reglas activas (errores, estilo, imports, buenas prácticas).
+select = ["E", "F", "I", "UP", "B"]
+
+# Reglas ignoradas (puedes ajustar después).
+ignore = []
