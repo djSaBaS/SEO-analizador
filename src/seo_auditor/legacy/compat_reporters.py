@@ -3,7 +3,14 @@
 Centraliza accesos legacy con una ruta de migración explícita.
 """
 
-from seo_auditor.reporters import exportar_excel, exportar_html, exportar_json, exportar_markdown_ia, exportar_pdf, exportar_word
+from seo_auditor.reporters import (
+    exportar_excel,
+    exportar_html,
+    exportar_json,
+    exportar_markdown_ia,
+    exportar_pdf,
+    exportar_word,
+)
 
 __all__ = [
     "exportar_json",

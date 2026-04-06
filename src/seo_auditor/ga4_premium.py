@@ -22,9 +22,16 @@ from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Tabl
 # Importa configuración global del proyecto.
 from seo_auditor.config import Configuracion
 
-
 # Define dimensiones y métricas base para consultas agregadas del informe.
-METRICAS_KPI = ["totalUsers", "newUsers", "activeUsers", "sessions", "eventCount", "conversions", "userEngagementDuration"]
+METRICAS_KPI = [
+    "totalUsers",
+    "newUsers",
+    "activeUsers",
+    "sessions",
+    "eventCount",
+    "conversions",
+    "userEngagementDuration",
+]
 
 # Define umbrales de insights para evitar números mágicos.
 INSIGHT_MIN_SESIONES_SIN_CONVERSION = 30.0
@@ -99,7 +106,15 @@ def _crear_cliente(ruta_credenciales: str) -> Any:
 
 
 # Ejecuta una consulta GA4 genérica devolviendo filas planas.
-def _consultar_ga4(cliente: Any, property_id: str, fecha_desde: str, fecha_hasta: str, dimensiones: list[str], metricas: list[str], limite: int = 1000) -> list[dict[str, Any]]:
+def _consultar_ga4(
+    cliente: Any,
+    property_id: str,
+    fecha_desde: str,
+    fecha_hasta: str,
+    dimensiones: list[str],
+    metricas: list[str],
+    limite: int = 1000,
+) -> list[dict[str, Any]]:
     """Consulta GA4 y mapea filas a diccionarios serializables."""
 
     # Importa tipos de request de la librería oficial de GA4.
@@ -175,20 +190,27 @@ def _construir_insights(landings: list[dict[str, Any]]) -> list[str]:
     # Añade insight si existe al menos una página candidata.
     if sin_conversion:
         # Construye muestra compacta de URLs con mayor impacto potencial.
-        muestra = ", ".join(str(fila.get("landingPagePlusQueryString", "")) for fila in sin_conversion[:INSIGHT_MUESTRA_URLS])
+        muestra = ", ".join(
+            str(fila.get("landingPagePlusQueryString", "")) for fila in sin_conversion[:INSIGHT_MUESTRA_URLS]
+        )
 
         # Registra insight de oportunidad de conversión.
         insights.append(f"Páginas con tráfico pero sin conversión: {muestra}.")
 
     # Detecta páginas con rebote alto en muestra suficiente.
     alto_rebote = [
-        fila for fila in landings if fila.get("sessions", 0.0) >= INSIGHT_MIN_SESIONES_REBOTE and fila.get("bounceRate", 0.0) >= INSIGHT_MIN_REBOTE
+        fila
+        for fila in landings
+        if fila.get("sessions", 0.0) >= INSIGHT_MIN_SESIONES_REBOTE
+        and fila.get("bounceRate", 0.0) >= INSIGHT_MIN_REBOTE
     ]
 
     # Añade insight si existen páginas con rebote alto.
     if alto_rebote:
         # Construye muestra compacta de páginas con peor rebote.
-        muestra = ", ".join(str(fila.get("landingPagePlusQueryString", "")) for fila in alto_rebote[:INSIGHT_MUESTRA_URLS])
+        muestra = ", ".join(
+            str(fila.get("landingPagePlusQueryString", "")) for fila in alto_rebote[:INSIGHT_MUESTRA_URLS]
+        )
 
         # Registra insight de fricción UX/contenido.
         insights.append(f"Páginas con alto rebote detectadas: {muestra}.")
@@ -197,13 +219,16 @@ def _construir_insights(landings: list[dict[str, Any]]) -> list[str]:
     alto_valor = [
         fila
         for fila in landings
-        if fila.get("sessions", 0.0) >= INSIGHT_MIN_SESIONES_ALTO_VALOR and fila.get("conversions", 0.0) >= INSIGHT_MIN_CONVERSIONES_ALTO_VALOR
+        if fila.get("sessions", 0.0) >= INSIGHT_MIN_SESIONES_ALTO_VALOR
+        and fila.get("conversions", 0.0) >= INSIGHT_MIN_CONVERSIONES_ALTO_VALOR
     ]
 
     # Añade insight de valor si hay páginas destacadas.
     if alto_valor:
         # Construye muestra de landings de alto valor.
-        muestra = ", ".join(str(fila.get("landingPagePlusQueryString", "")) for fila in alto_valor[:INSIGHT_MUESTRA_URLS])
+        muestra = ", ".join(
+            str(fila.get("landingPagePlusQueryString", "")) for fila in alto_valor[:INSIGHT_MUESTRA_URLS]
+        )
 
         # Registra insight de replicación estratégica.
         insights.append(f"Páginas con alto valor para escalar: {muestra}.")
@@ -213,7 +238,9 @@ def _construir_insights(landings: list[dict[str, Any]]) -> list[str]:
 
 
 # Consulta todos los datasets necesarios para el informe premium.
-def _cargar_datasets_ga4(cliente: Any, property_id: str, fecha_desde: str, fecha_hasta: str, fecha_comp_desde: str, fecha_comp_hasta: str) -> dict[str, list[dict[str, Any]]]:
+def _cargar_datasets_ga4(
+    cliente: Any, property_id: str, fecha_desde: str, fecha_hasta: str, fecha_comp_desde: str, fecha_comp_hasta: str
+) -> dict[str, list[dict[str, Any]]]:
     """Agrupa consultas GA4 para simplificar la orquestación del informe."""
 
     # Devuelve todos los datasets en un único diccionario.
@@ -223,12 +250,22 @@ def _cargar_datasets_ga4(cliente: Any, property_id: str, fecha_desde: str, fecha
         "paises": _consultar_ga4(cliente, property_id, fecha_desde, fecha_hasta, ["country"], ["totalUsers"], 250),
         "comunidades": _consultar_ga4(cliente, property_id, fecha_desde, fecha_hasta, ["region"], ["totalUsers"], 250),
         "ciudades": _consultar_ga4(cliente, property_id, fecha_desde, fecha_hasta, ["city"], ["totalUsers"], 250),
-        "dispositivos": _consultar_ga4(cliente, property_id, fecha_desde, fecha_hasta, ["deviceCategory"], ["sessions"], 10),
+        "dispositivos": _consultar_ga4(
+            cliente, property_id, fecha_desde, fecha_hasta, ["deviceCategory"], ["sessions"], 10
+        ),
         "navegadores": _consultar_ga4(cliente, property_id, fecha_desde, fecha_hasta, ["browser"], ["sessions"], 20),
-        "adquisicion_actual": _consultar_ga4(cliente, property_id, fecha_desde, fecha_hasta, ["sessionDefaultChannelGroup"], ["sessions"], 30),
-        "adquisicion_comparada": _consultar_ga4(cliente, property_id, fecha_comp_desde, fecha_comp_hasta, ["sessionDefaultChannelGroup"], ["sessions"], 30),
-        "referidos": _consultar_ga4(cliente, property_id, fecha_desde, fecha_hasta, ["sessionSourceMedium"], ["sessions", "conversions"], 50),
-        "social": _consultar_ga4(cliente, property_id, fecha_desde, fecha_hasta, ["sessionDefaultChannelGroup"], ["sessions"], 30),
+        "adquisicion_actual": _consultar_ga4(
+            cliente, property_id, fecha_desde, fecha_hasta, ["sessionDefaultChannelGroup"], ["sessions"], 30
+        ),
+        "adquisicion_comparada": _consultar_ga4(
+            cliente, property_id, fecha_comp_desde, fecha_comp_hasta, ["sessionDefaultChannelGroup"], ["sessions"], 30
+        ),
+        "referidos": _consultar_ga4(
+            cliente, property_id, fecha_desde, fecha_hasta, ["sessionSourceMedium"], ["sessions", "conversions"], 50
+        ),
+        "social": _consultar_ga4(
+            cliente, property_id, fecha_desde, fecha_hasta, ["sessionDefaultChannelGroup"], ["sessions"], 30
+        ),
         "landings": _consultar_ga4(
             cliente,
             property_id,
@@ -242,7 +279,9 @@ def _cargar_datasets_ga4(cliente: Any, property_id: str, fecha_desde: str, fecha
 
 
 # Calcula kpis y variaciones para reutilizar en todas las exportaciones.
-def _calcular_kpis(kpi_actual: list[dict[str, Any]], kpi_comparado: list[dict[str, Any]]) -> tuple[dict[str, float], dict[str, float]]:
+def _calcular_kpis(
+    kpi_actual: list[dict[str, Any]], kpi_comparado: list[dict[str, Any]]
+) -> tuple[dict[str, float], dict[str, float]]:
     """Calcula KPIs requeridos y variaciones frente al periodo comparado."""
 
     # Obtiene fila única de KPI actual con fallback vacío.
@@ -280,7 +319,10 @@ def _calcular_kpis(kpi_actual: list[dict[str, Any]], kpi_comparado: list[dict[st
     }
 
     # Calcula variaciones porcentuales con protección ante división por cero.
-    variaciones = {nombre: ((valor - kpis_comp[nombre]) / kpis_comp[nombre] * 100.0) if kpis_comp[nombre] > 0 else 0.0 for nombre, valor in kpis.items()}
+    variaciones = {
+        nombre: ((valor - kpis_comp[nombre]) / kpis_comp[nombre] * 100.0) if kpis_comp[nombre] > 0 else 0.0
+        for nombre, valor in kpis.items()
+    }
 
     # Devuelve KPIs y variaciones para reutilización en exportaciones.
     return kpis, variaciones
@@ -349,16 +391,22 @@ def _generar_graficos(datasets: dict[str, list[dict[str, Any]]]) -> tuple[dict[s
     # Crea barras horizontales para navegadores.
     if not dataframes["navegadores"].empty:
         top_navegadores = dataframes["navegadores"].sort_values("sessions", ascending=True).tail(12)
-        graficos["navegadores"] = px.bar(top_navegadores, x="sessions", y="browser", orientation="h", title="Navegadores por sesiones")
+        graficos["navegadores"] = px.bar(
+            top_navegadores, x="sessions", y="browser", orientation="h", title="Navegadores por sesiones"
+        )
 
     # Crea barras comparativas para adquisición por canal.
     if not dataframes["adq_actual"].empty or not dataframes["adq_comp"].empty:
-        comparativo = dataframes["adq_actual"].merge(
-            dataframes["adq_comp"],
-            how="outer",
-            on="sessionDefaultChannelGroup",
-            suffixes=("_actual", "_comparado"),
-        ).fillna(0.0)
+        comparativo = (
+            dataframes["adq_actual"]
+            .merge(
+                dataframes["adq_comp"],
+                how="outer",
+                on="sessionDefaultChannelGroup",
+                suffixes=("_actual", "_comparado"),
+            )
+            .fillna(0.0)
+        )
 
         # Ordena por sesiones del periodo actual para legibilidad.
         comparativo = comparativo.sort_values("sessions_actual", ascending=False)
@@ -366,8 +414,14 @@ def _generar_graficos(datasets: dict[str, list[dict[str, Any]]]) -> tuple[dict[s
         # Construye figura comparativa agrupada por canal.
         graficos["adquisicion"] = go.Figure(
             data=[
-                go.Bar(name="Periodo actual", x=comparativo["sessionDefaultChannelGroup"], y=comparativo["sessions_actual"]),
-                go.Bar(name="Periodo comparado", x=comparativo["sessionDefaultChannelGroup"], y=comparativo["sessions_comparado"]),
+                go.Bar(
+                    name="Periodo actual", x=comparativo["sessionDefaultChannelGroup"], y=comparativo["sessions_actual"]
+                ),
+                go.Bar(
+                    name="Periodo comparado",
+                    x=comparativo["sessionDefaultChannelGroup"],
+                    y=comparativo["sessions_comparado"],
+                ),
             ]
         )
         graficos["adquisicion"].update_layout(barmode="group", title="Adquisición por canal")
@@ -402,7 +456,10 @@ def _exportar_html(
     # Construye contenido HTML interactivo.
     bloques_html = [
         f"<h1>Informe GA4 Premium · {cliente_nombre}</h1>",
-        f"<p>Gestor: {gestor} | Periodo: {fecha_desde} a {fecha_hasta} | Comparación: {fecha_comp_desde} a {fecha_comp_hasta}</p>",
+        (
+            f"<p>Gestor: {gestor} | Periodo: {fecha_desde} a {fecha_hasta} "
+            f"| Comparación: {fecha_comp_desde} a {fecha_comp_hasta}</p>"
+        ),
         "<h2>KPIs generales</h2>",
         "<ul>",
     ]
@@ -438,12 +495,16 @@ def _exportar_html(
     # Inserta tabla de referidos cuando haya filas disponibles.
     if not dataframes["referidos"].empty:
         bloques_html.append("<h2>Referidos (source / medium)</h2>")
-        bloques_html.append(dataframes["referidos"].sort_values("sessions", ascending=False).head(20).to_html(index=False))
+        bloques_html.append(
+            dataframes["referidos"].sort_values("sessions", ascending=False).head(20).to_html(index=False)
+        )
 
     # Inserta tabla de landings cuando haya filas disponibles.
     if not dataframes["landings"].empty:
         bloques_html.append("<h2>Landing pages</h2>")
-        bloques_html.append(dataframes["landings"].sort_values("sessions", ascending=False).head(30).to_html(index=False))
+        bloques_html.append(
+            dataframes["landings"].sort_values("sessions", ascending=False).head(30).to_html(index=False)
+        )
 
     # Inserta resumen de social orgánico y paid.
     bloques_html.append("<h2>Redes sociales</h2>")
@@ -457,14 +518,24 @@ def _exportar_html(
 
         # Añade resumen provincial al HTML.
         bloques_html.append(f"<h2>Detalle provincial: {provincia}</h2>")
-        bloques_html.append(filtro.to_html(index=False) if not filtro.empty else "<p>No hay ciudades para la provincia indicada.</p>")
+        bloques_html.append(
+            filtro.to_html(index=False) if not filtro.empty else "<p>No hay ciudades para la provincia indicada.</p>"
+        )
 
     # Escribe el informe HTML completo en disco.
     ruta_html.write_text("\n".join(bloques_html), encoding="utf-8")
 
 
 # Exporta informe Excel con Dashboard y hoja GA4 de detalle.
-def _exportar_excel(ruta_excel: Path, cliente_nombre: str, fecha_desde: str, fecha_hasta: str, kpis: dict[str, float], variaciones: dict[str, float], datasets: dict[str, list[dict[str, Any]]]) -> None:
+def _exportar_excel(
+    ruta_excel: Path,
+    cliente_nombre: str,
+    fecha_desde: str,
+    fecha_hasta: str,
+    kpis: dict[str, float],
+    variaciones: dict[str, float],
+    datasets: dict[str, list[dict[str, Any]]],
+) -> None:
     """Escribe versión Excel del informe premium con hoja GA4 específica."""
 
     # Construye libro Excel con hoja específica de GA4.
@@ -504,11 +575,22 @@ def _exportar_excel(ruta_excel: Path, cliente_nombre: str, fecha_desde: str, fec
 
     # Añade filas de adquisición a la hoja GA4.
     for fila in datasets.get("adquisicion_actual", [])[:EXCEL_MAX_FILAS_ADQUISICION]:
-        hoja_ga4.append(["adquisicion", fila.get("sessionDefaultChannelGroup", ""), fila.get("sessions", 0.0), "", "", ""])
+        hoja_ga4.append(
+            ["adquisicion", fila.get("sessionDefaultChannelGroup", ""), fila.get("sessions", 0.0), "", "", ""]
+        )
 
     # Añade filas de referidos a la hoja GA4.
     for fila in datasets.get("referidos", [])[:EXCEL_MAX_FILAS_REFERIDOS]:
-        hoja_ga4.append(["referidos", fila.get("sessionSourceMedium", ""), fila.get("sessions", 0.0), fila.get("conversions", 0.0), "", ""])
+        hoja_ga4.append(
+            [
+                "referidos",
+                fila.get("sessionSourceMedium", ""),
+                fila.get("sessions", 0.0),
+                fila.get("conversions", 0.0),
+                "",
+                "",
+            ]
+        )
 
     # Añade filas de landing pages a la hoja GA4.
     for fila in datasets.get("landings", [])[:EXCEL_MAX_FILAS_LANDINGS]:
@@ -533,7 +615,18 @@ def _exportar_excel(ruta_excel: Path, cliente_nombre: str, fecha_desde: str, fec
 
 
 # Exporta informe PDF estático e intenta incluir gráficos como imágenes.
-def _exportar_pdf(ruta_pdf: Path, carpeta_salida: Path, cliente_nombre: str, gestor: str, fecha_desde: str, fecha_hasta: str, kpis: dict[str, float], variaciones: dict[str, float], insights: list[str], graficos: dict[str, Any]) -> None:
+def _exportar_pdf(
+    ruta_pdf: Path,
+    carpeta_salida: Path,
+    cliente_nombre: str,
+    gestor: str,
+    fecha_desde: str,
+    fecha_hasta: str,
+    kpis: dict[str, float],
+    variaciones: dict[str, float],
+    insights: list[str],
+    graficos: dict[str, Any],
+) -> None:
     """Escribe versión PDF del informe premium con degradación por gráfico."""
 
     # Inicializa estructura del PDF premium.
@@ -551,7 +644,13 @@ def _exportar_pdf(ruta_pdf: Path, carpeta_salida: Path, cliente_nombre: str, ges
     # Construye tabla de KPIs para PDF.
     tabla_kpis = [["KPI", "Valor", "% variación"]]
     for nombre, valor in kpis.items():
-        tabla_kpis.append([nombre, _formatear_segundos(valor) if nombre == "engagement_time" else f"{valor:,.0f}", f"{variaciones.get(nombre, 0.0):.2f}%"])
+        tabla_kpis.append(
+            [
+                nombre,
+                _formatear_segundos(valor) if nombre == "engagement_time" else f"{valor:,.0f}",
+                f"{variaciones.get(nombre, 0.0):.2f}%",
+            ]
+        )
 
     # Añade tabla de KPIs al PDF.
     tabla = Table(tabla_kpis)
@@ -629,7 +728,9 @@ def generar_informe_ga4_premium(
         cliente = _crear_cliente(configuracion.ga_credentials_file)
 
         # Carga datasets necesarios para el informe premium.
-        datasets = _cargar_datasets_ga4(cliente, configuracion.ga_property_id, fecha_desde, fecha_hasta, fecha_comp_desde, fecha_comp_hasta)
+        datasets = _cargar_datasets_ga4(
+            cliente, configuracion.ga_property_id, fecha_desde, fecha_hasta, fecha_comp_desde, fecha_comp_hasta
+        )
 
     # Maneja cualquier error remoto/auth de forma no bloqueante.
     except Exception as exc:
@@ -673,7 +774,18 @@ def generar_informe_ga4_premium(
     _exportar_excel(ruta_excel, cliente_nombre, fecha_desde, fecha_hasta, kpis, variaciones, datasets)
 
     # Exporta versión PDF estática con degradación por gráfico.
-    _exportar_pdf(ruta_pdf, carpeta_salida, cliente_nombre, gestor, fecha_desde, fecha_hasta, kpis, variaciones, insights, graficos)
+    _exportar_pdf(
+        ruta_pdf,
+        carpeta_salida,
+        cliente_nombre,
+        gestor,
+        fecha_desde,
+        fecha_hasta,
+        kpis,
+        variaciones,
+        insights,
+        graficos,
+    )
 
     # Rellena metadatos de salida exitosa.
     salida["activo"] = True

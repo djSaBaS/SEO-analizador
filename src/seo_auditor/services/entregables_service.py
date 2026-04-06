@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import logging
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from seo_auditor.models import EstadoEntregable, RegistroEntregable, ResultadoEntregables
 
@@ -72,7 +73,9 @@ class EntregablesService:
         self.adapters = adapters
         self.logger = logging.getLogger(__name__)
 
-    def generar_entregables(self, resultado: Any, modelo_documental: ModeloEntregables, configuracion: Any) -> ResultadoEntregables:
+    def generar_entregables(
+        self, resultado: Any, modelo_documental: ModeloEntregables, configuracion: Any
+    ) -> ResultadoEntregables:
         """Orquesta la exportación y devuelve un resumen estructurado consumible por CLI/web."""
         resumen = ResultadoEntregables()
 
@@ -85,9 +88,13 @@ class EntregablesService:
             ENTREGABLE_MARKDOWN_IA: self.adapters.exportar_markdown_ia,
         }
 
-        for entregable in self.adapters.iterar_con_progreso(modelo_documental.entregables_solicitados, "Exportación", "archivo"):
+        for entregable in self.adapters.iterar_con_progreso(
+            modelo_documental.entregables_solicitados, "Exportación", "archivo"
+        ):
             if entregable in exportadores:
-                self._exportar_entregable_estandar(resumen, entregable, exportadores[entregable], resultado, modelo_documental)
+                self._exportar_entregable_estandar(
+                    resumen, entregable, exportadores[entregable], resultado, modelo_documental
+                )
                 continue
 
             if entregable == ENTREGABLE_GA4_PREMIUM:
@@ -112,7 +119,9 @@ class EntregablesService:
         except Exception as exc:
             self._registrar_error(resumen, entregable, exc)
 
-    def _exportar_entregable_ga4_premium(self, resumen: ResultadoEntregables, modelo_documental: ModeloEntregables, configuracion: Any) -> None:
+    def _exportar_entregable_ga4_premium(
+        self, resumen: ResultadoEntregables, modelo_documental: ModeloEntregables, configuracion: Any
+    ) -> None:
         if not configuracion.ga_enabled:
             self._registrar_omitido(resumen, ENTREGABLE_GA4_PREMIUM, "GA4 no habilitado")
             return
@@ -159,7 +168,9 @@ class EntregablesService:
     def _registrar_omitido(self, resumen: ResultadoEntregables, entregable: str, detalle: str) -> None:
         mensaje = f"{entregable} ({detalle})"
         resumen.omitidos.append(mensaje)
-        resumen.registros.append(RegistroEntregable(entregable=entregable, estado=EstadoEntregable.OMITIDO, detalle=detalle))
+        resumen.registros.append(
+            RegistroEntregable(entregable=entregable, estado=EstadoEntregable.OMITIDO, detalle=detalle)
+        )
 
     def _registrar_error(self, resumen: ResultadoEntregables, entregable: str, exc: Exception) -> None:
         detalle = str(exc)
