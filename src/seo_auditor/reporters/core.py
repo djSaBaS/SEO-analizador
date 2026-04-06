@@ -2735,18 +2735,6 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     # Calcula métricas de dashboard.
     metricas = calcular_metricas(resultado)
 
-    # Calcula scores medios mobile y desktop desde ejecuciones únicas.
-    scores_mobile = [item.performance_score for item in resultado.rendimiento if item.estrategia == "mobile" and isinstance(item.performance_score, (int, float))]
-
-    # Calcula scores de desktop desde ejecuciones únicas.
-    scores_desktop = [item.performance_score for item in resultado.rendimiento if item.estrategia == "desktop" and isinstance(item.performance_score, (int, float))]
-
-    # Obtiene media mobile segura.
-    score_medio_mobile = round(sum(scores_mobile) / len(scores_mobile), 1) if scores_mobile else 0.0
-
-    # Obtiene media desktop segura.
-    score_medio_desktop = round(sum(scores_desktop) / len(scores_desktop), 1) if scores_desktop else 0.0
-
     # Resuelve periodo efectivo con helper común para evitar duplicación.
     periodo_desde, periodo_hasta = _resolver_periodo_analizado(resultado)
 
@@ -2761,9 +2749,6 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     hoja_dashboard["A2"] = f"Cliente: {resultado.cliente} | Fecha: {resultado.fecha_ejecucion} | Periodo: {periodo_texto}"
     hoja_dashboard["A2"].font = Font(size=11, color="4B5563")
 
-    # Calcula total de oportunidades de rendimiento.
-    total_oportunidades = len([fila for fila in filas_rendimiento if fila.get("oportunidad")])
-
     # Calcula total de incidencias críticas.
     incidencias_criticas = metricas["severidades"].get("crítica", 0)
 
@@ -2775,27 +2760,6 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
 
     # Calcula total de incidencias bajas.
     incidencias_bajas = metricas["severidades"].get("baja", 0)
-
-    # Calcula porcentaje de URLs con incidencias.
-    porcentaje_urls_con_incidencia = round(((metricas["total_urls"] - metricas["urls_sanas"]) / max(1, metricas["total_urls"])) * 100.0, 1)
-
-    # Calcula porcentaje de incidencias marcadas como resueltas en tracking.
-    incidencias_resueltas = len([fila for fila in filas if str(fila.get("resuelto", "")).strip().lower() == "sí"])
-
-    # Calcula porcentaje real de incidencias resueltas.
-    porcentaje_resueltas = round((incidencias_resueltas / max(1, metricas["total_incidencias"])) * 100.0, 1)
-
-    # Cuenta imágenes sin alt dentro del detalle técnico.
-    total_imagenes_sin_alt = len([fila for fila in filas if "imágenes sin atributo alt" in str(fila.get("problema", "")).lower()])
-
-    # Cuenta titles demasiado largos dentro del detalle técnico.
-    total_titles_largos = len([fila for fila in filas if "title demasiado largo" in str(fila.get("problema", "")).lower()])
-
-    # Cuenta metas vacías dentro del detalle técnico.
-    total_metas_vacias = len([fila for fila in filas if "no tiene meta description" in str(fila.get("problema", "")).lower()])
-
-    # Cuenta páginas con problemas de H1.
-    total_h1_problematico = len([fila for fila in filas if "h1" in str(fila.get("problema", "")).lower()])
 
     # Obtiene métricas GSC centralizadas para evitar duplicación.
     metricas_gsc = metricas.get("gsc", {}) if isinstance(metricas.get("gsc", {}), dict) else {}
@@ -2814,9 +2778,6 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
 
     # Obtiene posición media de GSC desde métrica centralizada.
     posicion_media_gsc = float(metricas_gsc.get("posicion_media", 0.0))
-
-    # Cuenta páginas con oportunidad real por GSC.
-    total_oportunidades_gsc = len(filas_oportunidades_gsc)
 
     # Obtiene sesiones totales de Analytics desde métrica centralizada.
     sesiones_totales_analytics = float(metricas_analytics.get("sesiones_totales", 0.0))

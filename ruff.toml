@@ -13,4 +13,4 @@ ignore = []
 
 [lint.per-file-ignores]
 # Mantiene control progresivo en el núcleo legacy sin ocultar errores de sintaxis o compatibilidad.
-"src/seo_auditor/reporters/core.py" = ["E501", "F841", "I001"]
+"src/seo_auditor/reporters/core.py" = ["E501", "I001"]
