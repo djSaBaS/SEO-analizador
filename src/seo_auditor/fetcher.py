@@ -1,4 +1,5 @@
 # Importa utilidades XML para parsear sitemaps de forma robusta.
+# Importa tipos para definir firmas claras.
 from xml.etree import ElementTree
 
 # Importa cliente HTTP seguro y extendido.
@@ -7,19 +8,15 @@ import requests
 # Importa el analizador HTML para extraer metadatos de páginas.
 from bs4 import BeautifulSoup
 
-# Importa tipos para definir firmas claras.
-from typing import List, Tuple
-
 # Importa la validación de URLs del proyecto.
 from seo_auditor.utils import es_url_http_valida, normalizar_url
-
 
 # Define el espacio de nombres estándar de sitemaps XML.
 NAMESPACE = {"sm": "http://www.sitemaps.org/schemas/sitemap/0.9"}
 
 
 # Descarga contenido textual desde una URL con controles básicos.
-def descargar_texto(url: str, timeout: int) -> Tuple[str, requests.Response]:
+def descargar_texto(url: str, timeout: int) -> tuple[str, requests.Response]:
     """
     Descarga el contenido textual de una URL.
 
@@ -68,7 +65,7 @@ def descargar_texto(url: str, timeout: int) -> Tuple[str, requests.Response]:
 
 
 # Extrae URLs de un sitemap o índice de sitemaps.
-def extraer_urls_sitemap(url_sitemap: str, timeout: int, max_urls: int) -> List[str]:
+def extraer_urls_sitemap(url_sitemap: str, timeout: int, max_urls: int) -> list[str]:
     """
     Descarga y parsea un sitemap XML, incluyendo índices simples.
 
@@ -94,7 +91,7 @@ def extraer_urls_sitemap(url_sitemap: str, timeout: int, max_urls: int) -> List[
     raiz = ElementTree.fromstring(xml_texto)
 
     # Inicializa la lista de URLs consolidadas.
-    urls: List[str] = []
+    urls: list[str] = []
 
     # Detecta si el XML es un índice de sitemaps.
     if raiz.tag.endswith("sitemapindex"):
@@ -138,7 +135,7 @@ def extraer_urls_sitemap(url_sitemap: str, timeout: int, max_urls: int) -> List[
 
 
 # Descarga una página y extrae señales SEO básicas.
-def obtener_metadatos_html(url: str, timeout: int) -> Tuple[requests.Response, BeautifulSoup]:
+def obtener_metadatos_html(url: str, timeout: int) -> tuple[requests.Response, BeautifulSoup]:
     """
     Descarga una página y devuelve la respuesta HTTP junto al árbol HTML.
 

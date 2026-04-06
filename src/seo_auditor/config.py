@@ -7,7 +7,6 @@ from dataclasses import dataclass
 # Importa la carga automática del archivo .env cuando exista.
 from dotenv import load_dotenv
 
-
 # Carga variables del archivo .env de forma transparente y segura.
 load_dotenv()
 

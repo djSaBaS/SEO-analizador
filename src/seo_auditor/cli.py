@@ -1,6 +1,5 @@
 import argparse
 from datetime import date, timedelta
-from pathlib import Path
 
 from seo_auditor.config import cargar_configuracion
 from seo_auditor.services.adapters_factory import crear_adaptadores_auditoria
@@ -51,23 +50,55 @@ def crear_parser() -> argparse.ArgumentParser:
     parser.add_argument("--testia", action="store_true", help="Valida conexión y modelo IA con una llamada mínima.")
     parser.add_argument("--testga", action="store_true", help="Valida conexión con Google Analytics 4 y finaliza.")
     parser.add_argument("--testgsc", action="store_true", help="Valida conexión con Google Search Console y finaliza.")
-    parser.add_argument("--modelo-ia", default="", help="Sobrescribe temporalmente el modelo de IA para esta ejecución.")
-    parser.add_argument("--modo", choices=["completo", "resumen", "quickwins", "gsc", "roadmap", "informe-ga4", "entrega-completa"], default="completo", help="Selecciona el modo de ejecución/prompt.")
-    parser.add_argument("--generar-todo", action="store_true", help="Atajo de orquestación equivalente a --modo entrega-completa.")
+    parser.add_argument(
+        "--modelo-ia", default="", help="Sobrescribe temporalmente el modelo de IA para esta ejecución."
+    )
+    parser.add_argument(
+        "--modo",
+        choices=["completo", "resumen", "quickwins", "gsc", "roadmap", "informe-ga4", "entrega-completa"],
+        default="completo",
+        help="Selecciona el modo de ejecución/prompt.",
+    )
+    parser.add_argument(
+        "--generar-todo", action="store_true", help="Atajo de orquestación equivalente a --modo entrega-completa."
+    )
     parser.add_argument("--pagepsi", default="", help="URL concreta a analizar con PageSpeed Insights.")
     parser.add_argument("--pagepsi-list", default="", help="Ruta a archivo con URLs para PageSpeed (una por línea).")
-    parser.add_argument("--max-pagepsi-urls", type=int, default=0, help="Límite manual de URLs para PageSpeed (0 usa configuración).")
-    parser.add_argument("--pagepsi-timeout", type=int, default=0, help="Timeout de PageSpeed en segundos (0 usa configuración).")
-    parser.add_argument("--pagepsi-reintentos", type=int, default=-1, help="Reintentos de PageSpeed (valor negativo usa configuración).")
+    parser.add_argument(
+        "--max-pagepsi-urls", type=int, default=0, help="Límite manual de URLs para PageSpeed (0 usa configuración)."
+    )
+    parser.add_argument(
+        "--pagepsi-timeout", type=int, default=0, help="Timeout de PageSpeed en segundos (0 usa configuración)."
+    )
+    parser.add_argument(
+        "--pagepsi-reintentos", type=int, default=-1, help="Reintentos de PageSpeed (valor negativo usa configuración)."
+    )
     parser.add_argument("--gestor", default=GESTOR_POR_DEFECTO, help="Nombre del gestor responsable del informe.")
     parser.add_argument("--cliente", default="", help="Nombre de cliente para portada de informe premium (opcional).")
-    parser.add_argument("--max-muestras-ia", type=int, default=15, help="Número máximo de muestras agregadas para la IA.")
+    parser.add_argument(
+        "--max-muestras-ia", type=int, default=15, help="Número máximo de muestras agregadas para la IA."
+    )
     parser.add_argument("--modo-rapido", action="store_true", help="Limita volumen de URLs para una auditoría rápida.")
-    parser.add_argument("--cache-ttl", type=int, default=0, help="TTL de caché local en segundos (0 usa configuración).")
-    parser.add_argument("--invalidar-cache", action="store_true", help="Elimina la caché local antes de iniciar la auditoría.")
-    parser.add_argument("--noGSC", action="store_true", help="Desactiva Google Search Console para esta ejecución, aunque esté configurado.")
-    parser.add_argument("--comparar", choices=["periodo-anterior", "anio-anterior"], default="periodo-anterior", help="Comparación temporal para informe GA4.")
-    parser.add_argument("--provincia", default="", help="Provincia objetivo para detalle de ciudades en informe GA4 premium.")
+    parser.add_argument(
+        "--cache-ttl", type=int, default=0, help="TTL de caché local en segundos (0 usa configuración)."
+    )
+    parser.add_argument(
+        "--invalidar-cache", action="store_true", help="Elimina la caché local antes de iniciar la auditoría."
+    )
+    parser.add_argument(
+        "--noGSC",
+        action="store_true",
+        help="Desactiva Google Search Console para esta ejecución, aunque esté configurado.",
+    )
+    parser.add_argument(
+        "--comparar",
+        choices=["periodo-anterior", "anio-anterior"],
+        default="periodo-anterior",
+        help="Comparación temporal para informe GA4.",
+    )
+    parser.add_argument(
+        "--provincia", default="", help="Provincia objetivo para detalle de ciudades en informe GA4 premium."
+    )
     parser.add_argument("--date-from", default="", help="Fecha inicial del análisis (YYYY-MM-DD).")
     parser.add_argument("--date-to", default="", help="Fecha final del análisis (YYYY-MM-DD).")
     return parser
@@ -78,7 +109,9 @@ def main() -> int:
     argumentos = parser.parse_args()
     configuracion = cargar_configuracion()
     perfil_generacion = _resolver_perfil_generacion(argumentos)
-    requiere_sitemap_http = not (argumentos.testia or argumentos.testga or argumentos.testgsc or perfil_generacion == "solo-ga4-premium")
+    requiere_sitemap_http = not (
+        argumentos.testia or argumentos.testga or argumentos.testgsc or perfil_generacion == "solo-ga4-premium"
+    )
 
     if requiere_sitemap_http and not argumentos.sitemap:
         print("Error: --sitemap es obligatorio salvo en modo --testia, --testga o --testgsc.")
@@ -119,6 +152,8 @@ def main() -> int:
     modelo_ia = argumentos.modelo_ia.strip() or configuracion.gemini_model
     print(f"[cli] Modo={argumentos.modo} | generar_todo={'sí' if argumentos.generar_todo else 'no'}")
 
-    request = construir_request_desde_cli(argumentos, configuracion, modelo_ia, periodo_desde, periodo_hasta, perfil_generacion)
+    request = construir_request_desde_cli(
+        argumentos, configuracion, modelo_ia, periodo_desde, periodo_hasta, perfil_generacion
+    )
     servicio = AuditoriaService(crear_adaptadores_auditoria())
     return servicio.ejecutar(request)

@@ -1,24 +1,22 @@
 # Importa parser de URL para derivar robots.txt y parámetros.
-from urllib.parse import parse_qsl, urlparse
-
-# Importa parser estándar de robots para evaluación precisa allow/disallow.
-from urllib.robotparser import RobotFileParser
-
 # Importa utilidades para dependencias opcionales.
 import importlib
 
 # Importa utilidades de descubrimiento de módulos.
 import importlib.util
+from urllib.parse import parse_qsl, urlparse
+
+# Importa parser estándar de robots para evaluación precisa allow/disallow.
+from urllib.robotparser import RobotFileParser
 
 # Importa cliente HTTP para validaciones de disponibilidad.
 import requests
 
-# Importa utilidades internas de normalización y validación.
-from seo_auditor.utils import es_url_http_valida, normalizar_url
-
 # Importa modelos tipados para decisiones de indexación.
 from seo_auditor.models import DecisionIndexacion, MetricaGscPagina, ResultadoUrl
 
+# Importa utilidades internas de normalización y validación.
+from seo_auditor.utils import es_url_http_valida, normalizar_url
 
 # Resuelve disponibilidad real de advertools en tiempo de ejecución.
 ADVERTOOLS_DISPONIBLE = importlib.util.find_spec("advertools") is not None
@@ -33,7 +31,15 @@ PATRONES_NO_INDEXAR_URL = ["/gracias", "/thank", "/form", "/formulario", "/feed"
 PARAMETROS_NO_INDEXAR = {"utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "fbclid", "gclid"}
 
 # Define frases habituales de confirmación no indexable.
-FRASES_CONFIRMACION = {"gracias por", "thank you", "formulario enviado", "confirmación", "confirmacion", "suscripción confirmada", "suscripcion confirmada"}
+FRASES_CONFIRMACION = {
+    "gracias por",
+    "thank you",
+    "formulario enviado",
+    "confirmación",
+    "confirmacion",
+    "suscripción confirmada",
+    "suscripcion confirmada",
+}
 
 
 # Deriva la URL de robots.txt a partir del sitemap base.

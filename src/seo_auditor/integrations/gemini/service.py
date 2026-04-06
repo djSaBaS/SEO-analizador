@@ -99,10 +99,13 @@ def _crear_cliente_gemini(api_key: str):
 
 
 # Define fallback interno alineado 1:1 con el archivo editable del repositorio.
-PROMPT_IA_FALLBACK = """Actúa como consultor SEO senior de agencia, especializado en crecimiento orgánico basado en datos reales.
-Tu objetivo no es describir datos, sino analizarlos, cruzarlos y priorizar acciones que generen impacto directo en visibilidad, tráfico y negocio.
+PROMPT_IA_FALLBACK = """Actúa como consultor SEO senior de agencia,
+especializado en crecimiento orgánico basado en datos reales.
+Tu objetivo no es describir datos, sino analizarlos, cruzarlos y priorizar acciones
+que generen impacto directo en visibilidad, tráfico y negocio.
 Redacta en español profesional, natural y claro.
-Puedes usar emojis de forma moderada y estratégica para mejorar la legibilidad, especialmente en títulos y elementos clave, pero sin abusar.
+Puedes usar emojis de forma moderada y estratégica para mejorar la legibilidad,
+especialmente en títulos y elementos clave, pero sin abusar.
 No uses Markdown ni símbolos como **, ### o ---.
 Usa únicamente los datos proporcionados. No inventes información ni menciones herramientas no activas.
 
@@ -121,7 +124,8 @@ Debes cruzar información entre:
 - Google Search Console
 
 REGLAS DE CONSISTENCIA OBLIGATORIAS (NO INCUMPLIR):
-- Lee y respeta estas banderas del JSON: gsc_activo, pagespeed_activo, fuentes_activas, fuentes_fallidas, usar_seccion_gsc.
+- Lee y respeta estas banderas del JSON: gsc_activo, pagespeed_activo,
+  fuentes_activas, fuentes_fallidas, usar_seccion_gsc.
 - Usa también contexto_control como fuente prioritaria de verificación.
 - Si gsc_activo=true o "search_console" aparece en fuentes_activas:
   - está prohibido afirmar que faltan datos de GSC/Search Console.
@@ -312,7 +316,9 @@ def construir_contexto_ia(resultado: ResultadoAuditoria, max_muestras: int) -> d
             # Filtra incidencias de esfuerzo bajo y potencial relevante.
             if hallazgo.esfuerzo == "Bajo" and hallazgo.impacto in {"Muy alto", "Alto", "Medio"}:
                 # Añade la incidencia al conjunto de quick wins.
-                quick_wins.append({"url": item.url, "problema": hallazgo.descripcion, "recomendacion": hallazgo.recomendacion})
+                quick_wins.append(
+                    {"url": item.url, "problema": hallazgo.descripcion, "recomendacion": hallazgo.recomendacion}
+                )
 
     # Resume resultados de rendimiento para minimizar tokens.
     resumen_rendimiento = []
@@ -352,7 +358,8 @@ def construir_contexto_ia(resultado: ResultadoAuditoria, max_muestras: int) -> d
 
     # Detecta filas de PageSpeed con métricas reales y sin errores de ejecución.
     pagespeed_con_metricas_validas = any(
-        any(getattr(item, metrica) is not None for metrica in METRICAS_PAGESPEED_VALIDAS) and not item.error for item in resultado.rendimiento
+        any(getattr(item, metrica) is not None for metrica in METRICAS_PAGESPEED_VALIDAS) and not item.error
+        for item in resultado.rendimiento
     )
 
     # Marca PageSpeed activo solo cuando hay métricas útiles o fuente validada por CLI.
@@ -387,8 +394,13 @@ def construir_contexto_ia(resultado: ResultadoAuditoria, max_muestras: int) -> d
         "total_urls": resultado.total_urls,
         "total_incidencias": sum(contador_problemas.values()),
         "distribucion_severidad": dict(contador_severidad),
-        "top_problemas": [{"problema": problema, "cantidad": cantidad} for problema, cantidad in contador_problemas.most_common(max_muestras)],
-        "top_urls_afectadas": [{"url": url, "incidencias": incidencias} for url, incidencias in top_urls[:max_muestras]],
+        "top_problemas": [
+            {"problema": problema, "cantidad": cantidad}
+            for problema, cantidad in contador_problemas.most_common(max_muestras)
+        ],
+        "top_urls_afectadas": [
+            {"url": url, "incidencias": incidencias} for url, incidencias in top_urls[:max_muestras]
+        ],
         "muestras_representativas": [
             {
                 "url": item.url,
@@ -411,6 +423,7 @@ def construir_contexto_ia(resultado: ResultadoAuditoria, max_muestras: int) -> d
             "global": resultado.seo_score_global,
         },
     }
+
 
 # Normaliza contradicciones del texto IA respecto a disponibilidad real de GSC.
 def validar_consistencia_resumen_ia(texto: str, datos_contexto: dict) -> str:
