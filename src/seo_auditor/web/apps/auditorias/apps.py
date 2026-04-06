@@ -2,6 +2,11 @@
 
 # Importa la clase base de configuración de aplicaciones Django.
 from django.apps import AppConfig
+from threading import Lock
+
+
+# Protege la recuperación para ejecutarla como máximo una vez por proceso.
+_RECUPERACION_HUERFANAS_LOCK = Lock()
 
 
 # Registra metadatos de la aplicación de auditorías internas.
@@ -16,6 +21,9 @@ class AuditoriasConfig(AppConfig):
 
     # Define un nombre legible para panel administrativo.
     verbose_name = "Auditorías SEO internas"
+
+    # Evita re-ejecutar la recuperación en nuevas conexiones del proceso.
+    _recuperacion_huerfanas_ejecutada = False
 
     # Registra la recuperación de ejecuciones huérfanas al arrancar la app.
     def ready(self) -> None:
@@ -37,6 +45,12 @@ class AuditoriasConfig(AppConfig):
         # Evita tocar conexiones no principales (p. ej., réplicas o pruebas especiales).
         if connection.alias != "default":
             return
+
+        # Garantiza que la recuperación solo se ejecute una única vez por proceso.
+        with _RECUPERACION_HUERFANAS_LOCK:
+            if self._recuperacion_huerfanas_ejecutada:
+                return
+            self._recuperacion_huerfanas_ejecutada = True
 
         # Importa excepciones SQL para control defensivo de esquema incompleto.
         from django.db import OperationalError, ProgrammingError
