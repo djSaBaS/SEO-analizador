@@ -6,7 +6,6 @@ import os
 # Importa constructor de aplicación WSGI de Django.
 from django.core.wsgi import get_wsgi_application
 
-
 # Define módulo de configuración Django para esta capa web.
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "seo_auditor.web.config.settings")
 

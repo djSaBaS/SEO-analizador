@@ -24,7 +24,10 @@ def test_dominios_coherentes_equivalentes() -> None:
     """Comprueba que dominios equivalentes se marquen como coherentes."""
 
     # Verifica coherencia entre sitemap y GSC URL-prefix.
-    assert dominios_coherentes("https://humanitaseducacion.com/sitemap_index.xml", "https://www.humanitaseducacion.com/") is True
+    assert (
+        dominios_coherentes("https://humanitaseducacion.com/sitemap_index.xml", "https://www.humanitaseducacion.com/")
+        is True
+    )
 
 
 # Valida comparación negativa para dominios distintos.

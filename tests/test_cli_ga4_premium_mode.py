@@ -104,7 +104,11 @@ def test_main_modo_informe_ga4_ejecuta_exportador(monkeypatch, tmp_path) -> None
     monkeypatch.setattr(cli, "generar_informe_ga4_premium", _generador_falso)
 
     # Protege contra ejecución accidental de auditoría de sitemap.
-    monkeypatch.setattr(cli, "extraer_urls_sitemap", lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("No debe analizar sitemap en modo informe-ga4")))
+    monkeypatch.setattr(
+        cli,
+        "extraer_urls_sitemap",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("No debe analizar sitemap en modo informe-ga4")),
+    )
 
     # Ejecuta flujo principal del CLI.
     codigo = cli.main()

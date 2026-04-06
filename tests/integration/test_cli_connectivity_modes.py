@@ -104,7 +104,11 @@ def test_main_testga_ok_sin_sitemap(monkeypatch) -> None:
     )
 
     # Protege contra ejecución accidental de flujo completo.
-    monkeypatch.setattr(cli, "extraer_urls_sitemap", lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("No debe extraer sitemap en --testga")))
+    monkeypatch.setattr(
+        cli,
+        "extraer_urls_sitemap",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("No debe extraer sitemap en --testga")),
+    )
 
     # Ejecuta flujo principal.
     codigo = cli.main()
@@ -180,7 +184,11 @@ def test_main_testgsc_error_sin_sitemap(monkeypatch) -> None:
     )
 
     # Protege contra ejecución accidental de flujo completo.
-    monkeypatch.setattr(cli, "extraer_urls_sitemap", lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("No debe extraer sitemap en --testgsc")))
+    monkeypatch.setattr(
+        cli,
+        "extraer_urls_sitemap",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("No debe extraer sitemap en --testgsc")),
+    )
 
     # Ejecuta flujo principal.
     codigo = cli.main()
@@ -242,7 +250,9 @@ def test_main_testga_aplica_rango_fechas_cli(monkeypatch) -> None:
         """Valida que el helper haya aplicado fechas CLI a la configuración efectiva."""
         assert configuracion.ga_date_from == "2026-01-01"
         assert configuracion.ga_date_to == "2026-01-31"
-        return DatosAnalytics(activo=True, error=None, property_id="123456", date_from="2026-01-01", date_to="2026-01-31", paginas=[])
+        return DatosAnalytics(
+            activo=True, error=None, property_id="123456", date_from="2026-01-01", date_to="2026-01-31", paginas=[]
+        )
 
     # Inyecta simulador GA4 con aserciones de rango.
     monkeypatch.setattr(cli, "cargar_datos_analytics", _carga_ga4_verificando_rango)

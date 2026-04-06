@@ -1,11 +1,17 @@
 # Importa los modelos del dominio para construir datos de prueba.
-from seo_auditor.models import HallazgoSeo, ResultadoAuditoria, ResultadoUrl
-
 # Importa funciones a validar del analizador.
 from bs4 import BeautifulSoup
 
 # Importa funciones internas y públicas del analizador.
-from seo_auditor.analyzer import _calcular_metricas_contenido, _clasificar_canonical, _es_redireccion_solo_slash, _estructura_headings_correcta, _normalizar_url_comparable, clasificar_hallazgo
+from seo_auditor.analyzer import (
+    _calcular_metricas_contenido,
+    _clasificar_canonical,
+    _es_redireccion_solo_slash,
+    _estructura_headings_correcta,
+    _normalizar_url_comparable,
+    clasificar_hallazgo,
+)
+from seo_auditor.models import HallazgoSeo, ResultadoAuditoria, ResultadoUrl
 
 # Importa el exportador tabular para validar la salida.
 from seo_auditor.reporters import construir_filas
@@ -106,7 +112,9 @@ def test_clasificar_canonical_diferencia_menor_por_slash() -> None:
     """Comprueba que una diferencia menor de slash final se clasifique como menor."""
 
     # Evalúa canonical equivalente con slash final en URL 200.
-    estado = _clasificar_canonical("https://ejemplo.com/pagina", "https://ejemplo.com/pagina", "https://ejemplo.com/pagina/", 200)
+    estado = _clasificar_canonical(
+        "https://ejemplo.com/pagina", "https://ejemplo.com/pagina", "https://ejemplo.com/pagina/", 200
+    )
 
     # Verifica clasificación de baja severidad.
     assert estado == "coherente"
@@ -117,7 +125,9 @@ def test_clasificar_canonical_coherente_no_genera_desviacion() -> None:
     """Comprueba que una canonical igual a la URL final no se clasifique como incidencia."""
 
     # Evalúa canonical autorreferente exacta.
-    estado = _clasificar_canonical("https://ejemplo.com/pagina", "https://ejemplo.com/pagina", "https://ejemplo.com/pagina", 200)
+    estado = _clasificar_canonical(
+        "https://ejemplo.com/pagina", "https://ejemplo.com/pagina", "https://ejemplo.com/pagina", 200
+    )
 
     # Verifica clasificación coherente.
     assert estado == "coherente"
@@ -128,7 +138,9 @@ def test_clasificar_canonical_incoherente_real() -> None:
     """Comprueba que una canonical en ruta distinta se marque como incoherente."""
 
     # Evalúa canonical en ruta diferente y no equivalente.
-    estado = _clasificar_canonical("https://ejemplo.com/a", "https://ejemplo.com/a", "https://ejemplo.com/otra-url", 200)
+    estado = _clasificar_canonical(
+        "https://ejemplo.com/a", "https://ejemplo.com/a", "https://ejemplo.com/otra-url", 200
+    )
 
     # Verifica clasificación de incoherencia real.
     assert estado == "incoherente"

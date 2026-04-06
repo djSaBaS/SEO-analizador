@@ -32,7 +32,13 @@ class NuevaAuditoriaForm(forms.Form):
     # Define modo de informe para el prompt narrativo.
     modo_informe = forms.ChoiceField(
         label="Modo informe",
-        choices=[("completo", "Completo"), ("resumen", "Resumen"), ("quickwins", "Quick wins"), ("gsc", "GSC"), ("roadmap", "Roadmap")],
+        choices=[
+            ("completo", "Completo"),
+            ("resumen", "Resumen"),
+            ("quickwins", "Quick wins"),
+            ("gsc", "GSC"),
+            ("roadmap", "Roadmap"),
+        ],
         initial="completo",
     )
 

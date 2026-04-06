@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+
 from seo_auditor.documentacion.exportadores.exportador_html import exportar_html
 from seo_auditor.documentacion.exportadores.exportador_pdf import exportar_pdf
 from seo_auditor.documentacion.exportadores.exportador_word import exportar_word

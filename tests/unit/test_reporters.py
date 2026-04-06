@@ -1,27 +1,48 @@
 # Importa Path para construir rutas temporales de prueba.
+import re
 from pathlib import Path
 
-# Importa modelos del dominio para fabricar una auditoría mínima de prueba.
-from seo_auditor.models import DatosAnalytics, DatosSearchConsole, DecisionIndexacion, HallazgoSeo, MetricaAnalyticsPagina, MetricaGscPagina, OportunidadRendimiento, ResultadoAuditoria, ResultadoRendimiento, ResultadoUrl
+from docx import Document
+
+# Importa lector de libros Excel para validar KPIs.
+from openpyxl import Workbook, load_workbook
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.platypus import Table
+
 import seo_auditor.reporters.core as reporters_core
+
+# Importa modelos del dominio para fabricar una auditoría mínima de prueba.
+from seo_auditor.models import (
+    DatosAnalytics,
+    DatosSearchConsole,
+    DecisionIndexacion,
+    HallazgoSeo,
+    MetricaAnalyticsPagina,
+    MetricaGscPagina,
+    OportunidadRendimiento,
+    ResultadoAuditoria,
+    ResultadoRendimiento,
+    ResultadoUrl,
+)
 
 # Importa funciones de reporters bajo prueba.
 from seo_auditor.reporters import (
     PDF_HORIZONTAL_MARGIN_POINTS,
-    calcular_score_prioridad_pagina,
     calcular_metricas,
-    construir_modelo_semantico_informe,
+    calcular_score_prioridad_pagina,
     construir_cruces_gsc_analytics,
     construir_filas_contenido_consolidado,
     construir_jerarquia_visible,
+    construir_modelo_semantico_informe,
     construir_secciones_desde_ia,
     exportar_excel,
     exportar_html,
     exportar_pdf,
     exportar_word,
     reemplazar_emojis_problematicos,
-    sanitizar_texto_final_exportable,
     sanear_texto_para_pdf,
+    sanitizar_texto_final_exportable,
 )
 
 # Importa helpers internos desde el núcleo para evitar exponer privados en la API pública.
@@ -34,15 +55,6 @@ from seo_auditor.reporters.core import (
     _renderizar_tabla_word,
     _resolver_subtablas_pdf,
 )
-
-# Importa lector de libros Excel para validar KPIs.
-from openpyxl import load_workbook
-from openpyxl import Workbook
-from docx import Document
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.platypus import Table
-import re
 
 
 # Verifica que el saneamiento escape etiquetas potencialmente problemáticas.
@@ -288,8 +300,20 @@ def test_construir_quick_wins_deduplica_y_filtra() -> None:
 
     # Define filas con duplicado y fila incompleta.
     filas = [
-        {"url": "https://ejemplo.com/a", "problema": "Falta title", "recomendacion": "Añadir title", "impacto": "Alto", "esfuerzo": "Bajo"},
-        {"url": "https://ejemplo.com/a", "problema": "Falta title", "recomendacion": "Añadir title", "impacto": "Alto", "esfuerzo": "Bajo"},
+        {
+            "url": "https://ejemplo.com/a",
+            "problema": "Falta title",
+            "recomendacion": "Añadir title",
+            "impacto": "Alto",
+            "esfuerzo": "Bajo",
+        },
+        {
+            "url": "https://ejemplo.com/a",
+            "problema": "Falta title",
+            "recomendacion": "Añadir title",
+            "impacto": "Alto",
+            "esfuerzo": "Bajo",
+        },
         {"url": "", "problema": "Sin meta", "recomendacion": "Añadir meta", "impacto": "Alto", "esfuerzo": "Bajo"},
     ]
 
@@ -706,7 +730,9 @@ def test_exportar_excel_contenido_unico_y_conteos_consistentes(tmp_path: Path) -
     indice_incidencias_url = cabeceras_contenido.index("incidencias_url")
 
     # Lee URLs y conteos de la hoja de contenido.
-    filas_contenido = [fila for fila in hoja_contenido.iter_rows(min_row=2, values_only=True) if fila[indice_url_contenido]]
+    filas_contenido = [
+        fila for fila in hoja_contenido.iter_rows(min_row=2, values_only=True) if fila[indice_url_contenido]
+    ]
     urls_contenido = [fila[indice_url_contenido] for fila in filas_contenido]
     conteos_contenido = {fila[indice_url_contenido]: int(fila[indice_incidencias_url] or 0) for fila in filas_contenido}
 
@@ -918,7 +944,9 @@ def test_construir_modelo_semantico_informe_bloques_explicitos_minimos() -> None
     assert "periodo_texto" in modelo["metadatos"]
 
     # Localiza secciones obligatorias del informe.
-    seccion_resumen = next((seccion for seccion in modelo["secciones"] if seccion["titulo"] == "Resumen ejecutivo"), None)
+    seccion_resumen = next(
+        (seccion for seccion in modelo["secciones"] if seccion["titulo"] == "Resumen ejecutivo"), None
+    )
     seccion_kpis = next((seccion for seccion in modelo["secciones"] if seccion["titulo"] == "KPIs principales"), None)
 
     # Comprueba que las secciones obligatorias existan.
@@ -1109,12 +1137,17 @@ def test_modelo_semantico_rendimiento_incluye_metricas_y_oportunidades() -> None
     modelo = construir_modelo_semantico_informe(auditoria)
 
     # Obtiene sección de rendimiento del modelo.
-    seccion_rendimiento = next((seccion for seccion in modelo["secciones"] if seccion["titulo"] == "Rendimiento y experiencia de usuario"), None)
+    seccion_rendimiento = next(
+        (seccion for seccion in modelo["secciones"] if seccion["titulo"] == "Rendimiento y experiencia de usuario"),
+        None,
+    )
 
     # Verifica existencia de sección y tablas esperadas.
     assert seccion_rendimiento is not None
     assert any(tabla.get("titulo") == "Rendimiento por métrica" for tabla in seccion_rendimiento.get("tablas", []))
-    assert any(tabla.get("titulo") == "Oportunidades PageSpeed priorizadas" for tabla in seccion_rendimiento.get("tablas", []))
+    assert any(
+        tabla.get("titulo") == "Oportunidades PageSpeed priorizadas" for tabla in seccion_rendimiento.get("tablas", [])
+    )
 
 
 # Verifica coherencia cruzada de secciones principales entre DOCX, PDF y HTML.
@@ -1154,7 +1187,9 @@ def test_exportadores_mantienen_coherencia_de_titulos_principales(tmp_path: Path
 
     # Genera modelo semántico y obtiene secciones principales visibles.
     modelo = construir_modelo_semantico_informe(auditoria)
-    titulos_principales = [seccion["titulo"] for seccion in modelo["secciones"] if seccion.get("tipo_bloque") == "seccion"]
+    titulos_principales = [
+        seccion["titulo"] for seccion in modelo["secciones"] if seccion.get("tipo_bloque") == "seccion"
+    ]
 
     # Exporta formatos a validar.
     ruta_word = exportar_word(auditoria, tmp_path)
@@ -1527,8 +1562,16 @@ def test_exportar_excel_score_medio_desde_ejecuciones_unicas(tmp_path: Path) -> 
 
     # Crea oportunidades duplicadas en un mismo análisis móvil.
     oportunidades = [
-        OportunidadRendimiento(id_oportunidad="op1", titulo="Reducir JS", descripcion="...", ahorro_estimado="500 ms", severidad="alta"),
-        OportunidadRendimiento(id_oportunidad="op2", titulo="Optimizar imágenes", descripcion="...", ahorro_estimado="300 ms", severidad="media"),
+        OportunidadRendimiento(
+            id_oportunidad="op1", titulo="Reducir JS", descripcion="...", ahorro_estimado="500 ms", severidad="alta"
+        ),
+        OportunidadRendimiento(
+            id_oportunidad="op2",
+            titulo="Optimizar imágenes",
+            descripcion="...",
+            ahorro_estimado="300 ms",
+            severidad="media",
+        ),
     ]
 
     # Construye resultados de rendimiento por estrategia.
@@ -2071,6 +2114,7 @@ def test_renderizar_tabla_pdf_configura_col_widths_en_tablas_criticas() -> None:
     assert len(tablas) == 2
     assert all(tabla_render._colWidths for tabla_render in tablas)
     assert max(len(tabla_render._colWidths) for tabla_render in tablas) <= 3
+
 
 # Verifica que cada exportador público viva en su módulo dedicado.
 def test_exportadores_publicos_viven_en_modulos_dedicados() -> None:

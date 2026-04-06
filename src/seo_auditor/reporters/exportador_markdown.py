@@ -1,8 +1,8 @@
 # Módulo puente: reexporta exportar_markdown_ia desde documentacion/exportadores.
 from pathlib import Path
 
-from seo_auditor.models import ResultadoAuditoria
 from seo_auditor.documentacion.exportadores.exportador_markdown import exportar_markdown_ia as _impl
+from seo_auditor.models import ResultadoAuditoria
 
 
 def exportar_markdown_ia(resultado: ResultadoAuditoria, path_salida: Path) -> Path | None:

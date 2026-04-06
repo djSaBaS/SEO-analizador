@@ -3,7 +3,6 @@
 # Importa función include para componer rutas por aplicación.
 from django.urls import include, path
 
-
 # Declara el conjunto principal de rutas de la web interna.
 urlpatterns = [
     # Monta las rutas funcionales de auditorías en la raíz.

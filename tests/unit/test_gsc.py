@@ -1,11 +1,11 @@
 # Importa utilidades de fecha para validaciones deterministas.
 from datetime import date, timedelta
 
-# Importa configuración tipada del proyecto.
-from seo_auditor.config import Configuracion
-
 # Importa módulo GSC bajo prueba.
 from seo_auditor import gsc
+
+# Importa configuración tipada del proyecto.
+from seo_auditor.config import Configuracion
 
 
 # Construye configuración base para pruebas de GSC.
@@ -96,7 +96,9 @@ def test_cargar_datos_search_console_completa_url_asociada_en_queries(monkeypatc
         # Devuelve filas por página para el bloque de páginas.
         if dimensiones == ["page"]:
             # Retorna una URL con visibilidad.
-            return [{"keys": ["https://ejemplo.com/url-a"], "clicks": 10, "impressions": 100, "ctr": 0.1, "position": 7.0}]
+            return [
+                {"keys": ["https://ejemplo.com/url-a"], "clicks": 10, "impressions": 100, "ctr": 0.1, "position": 7.0}
+            ]
 
         # Devuelve filas por query para el bloque de queries.
         if dimensiones == ["query"]:

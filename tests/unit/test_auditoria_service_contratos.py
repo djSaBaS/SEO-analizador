@@ -134,7 +134,9 @@ def test_ejecutar_contrato_degradacion_integraciones_no_disponibles() -> None:
             ga_enabled=True,
             gsc_enabled=True,
         ),
-        argumentos=SimpleNamespace(comparar="periodo-anterior", provincia="", testia=False, testgsc=False, testga=False),
+        argumentos=SimpleNamespace(
+            comparar="periodo-anterior", provincia="", testia=False, testgsc=False, testga=False
+        ),
     )
 
     resultado = servicio.ejecutar_contrato(request)
@@ -216,7 +218,9 @@ def test_ejecutar_contrato_excluye_fuentes_incompatibles_por_dominio() -> None:
             gsc_site_url="sc-domain:colegiolegamar.com",
             ga_site_url="https://colegiolegamar.com/",
         ),
-        argumentos=SimpleNamespace(comparar="periodo-anterior", provincia="", testia=False, testgsc=False, testga=False),
+        argumentos=SimpleNamespace(
+            comparar="periodo-anterior", provincia="", testia=False, testgsc=False, testga=False
+        ),
     )
 
     resultado = servicio.ejecutar_contrato(request)
@@ -296,7 +300,9 @@ def test_ejecutar_contrato_omite_pagespeed_con_url_incompatible() -> None:
             ga_enabled=False,
             gsc_enabled=False,
         ),
-        argumentos=SimpleNamespace(comparar="periodo-anterior", provincia="", testia=False, testgsc=False, testga=False),
+        argumentos=SimpleNamespace(
+            comparar="periodo-anterior", provincia="", testia=False, testgsc=False, testga=False
+        ),
     )
 
     resultado = servicio.ejecutar_contrato(request)
