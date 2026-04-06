@@ -169,7 +169,7 @@ jobs:
         env:
 
           # Ajusta esta ruta a tu módulo real de settings si no usas config.settings.
-          DJANGO_SETTINGS_MODULE: config.settings
+          DJANGO_SETTINGS_MODULE: seo_auditor.web.config.settings
         run: |
           echo "Ejecutando la comprobación general de Django..."
           python src/seo_auditor/web/manage.py check
@@ -180,7 +180,7 @@ jobs:
         env:
 
           # Ajusta esta ruta a tu módulo real de settings si no usas config.settings.
-          DJANGO_SETTINGS_MODULE: config.settings
+          DJANGO_SETTINGS_MODULE: seo_auditor.web.config.settings
         run: |
           echo "Comprobando si existen cambios en modelos sin migración..."
           python src/seo_auditor/web/manage.py makemigrations --check --dry-run
@@ -210,7 +210,7 @@ jobs:
       PYTHONUNBUFFERED: "1"
 
       # Ajusta esta ruta a tu módulo real de settings si no usas config.settings.
-      DJANGO_SETTINGS_MODULE: config.settings
+      DJANGO_SETTINGS_MODULE: seo_auditor.web.config.settings
 
     # Pasos del trabajo.
     steps:
