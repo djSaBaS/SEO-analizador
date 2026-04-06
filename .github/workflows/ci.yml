@@ -1,0 +1,295 @@
+# Nombre del flujo de trabajo que se mostrará en GitHub Actions.
+name: Integración continua Django
+
+# Eventos que lanzan la ejecución del flujo.
+on:
+
+  # Ejecutar el flujo cuando se haga push.
+  push:
+
+    # Limitar la ejecución a la rama principal.
+    branches:
+      - main
+
+  # Ejecutar el flujo cuando se abra o actualice una pull request.
+  pull_request:
+
+    # Limitar la ejecución a la rama principal.
+    branches:
+      - main
+
+# Definición de los trabajos del flujo.
+jobs:
+
+  # Trabajo para validar calidad básica y análisis estático.
+  calidad:
+
+    # Nombre visible del trabajo en la interfaz de GitHub.
+    name: Calidad y análisis estático
+
+    # Sistema operativo donde se ejecutará el runner.
+    runs-on: ubuntu-latest
+
+    # Variables de entorno comunes para todos los pasos del trabajo.
+    env:
+
+      # Evitar la generación de archivos pyc durante la ejecución.
+      PYTHONDONTWRITEBYTECODE: "1"
+
+      # Forzar la salida inmediata de logs en consola.
+      PYTHONUNBUFFERED: "1"
+
+    # Pasos del trabajo.
+    steps:
+
+      # Descargar el código fuente del repositorio.
+      - name: Descargar código fuente
+        uses: actions/checkout@v4
+
+      # Configurar la versión principal de Python para calidad.
+      - name: Configurar Python 3.12
+        uses: actions/setup-python@v6
+        with:
+
+          # Indicar la versión de Python a instalar.
+          python-version: "3.12"
+
+          # Activar la caché integrada de pip.
+          cache: pip
+
+          # Indicar el fichero que define dependencias para invalidar la caché si cambia.
+          cache-dependency-path: requirements.txt
+
+      # Mostrar información inicial en consola.
+      - name: Mostrar inicio del proceso
+        run: |
+          echo "=================================================="
+          echo "Iniciando validación de calidad del proyecto..."
+          echo "Repositorio descargado correctamente."
+          echo "=================================================="
+
+      # Actualizar pip a la última versión disponible.
+      - name: Actualizar pip
+        run: |
+          echo "Actualizando pip..."
+          python -m pip install --upgrade pip
+          echo "Pip actualizado correctamente."
+
+      # Instalar las dependencias del proyecto.
+      - name: Instalar dependencias del proyecto
+        run: |
+          echo "Instalando dependencias del proyecto..."
+          pip install -r requirements.txt
+          echo "Dependencias instaladas correctamente."
+
+      # Ejecutar una comprobación de sintaxis y estilo con Ruff.
+      - name: Ejecutar análisis estático con Ruff
+        run: |
+          echo "Ejecutando análisis estático con Ruff..."
+          ruff check .
+          echo "Análisis estático finalizado correctamente."
+
+  # Trabajo para validar la compatibilidad del proyecto Django en varias versiones de Python.
+  validacion:
+
+    # Nombre visible del trabajo en GitHub Actions.
+    name: Validación Django en Python ${{ matrix.python-version }}
+
+    # Sistema operativo del runner.
+    runs-on: ubuntu-latest
+
+    # Variables de entorno comunes.
+    env:
+
+      # Evitar la generación de archivos compilados.
+      PYTHONDONTWRITEBYTECODE: "1"
+
+      # Forzar el volcado inmediato de logs.
+      PYTHONUNBUFFERED: "1"
+
+    # Estrategia de ejecución para probar distintas versiones de Python.
+    strategy:
+
+      # No detener el resto de ejecuciones si una versión falla.
+      fail-fast: false
+
+      # Matriz de versiones de Python soportadas por Django 5.1.
+      matrix:
+        python-version:
+          - "3.10"
+          - "3.11"
+          - "3.12"
+          - "3.13"
+
+    # Pasos del trabajo.
+    steps:
+
+      # Descargar el código fuente del repositorio.
+      - name: Descargar código fuente
+        uses: actions/checkout@v4
+
+      # Configurar la versión de Python indicada por la matriz.
+      - name: Configurar Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v6
+        with:
+
+          # Usar la versión actual de la matriz.
+          python-version: ${{ matrix.python-version }}
+
+          # Activar caché de pip.
+          cache: pip
+
+          # Especificar el archivo de dependencias para la clave de caché.
+          cache-dependency-path: requirements.txt
+
+      # Mostrar información de la versión actual en consola.
+      - name: Mostrar versión de Python
+        run: |
+          echo "=================================================="
+          echo "Preparando validación del proyecto con Python ${{ matrix.python-version }}..."
+          python --version
+          echo "=================================================="
+
+      # Actualizar pip.
+      - name: Actualizar pip
+        run: |
+          echo "Actualizando pip para Python ${{ matrix.python-version }}..."
+          python -m pip install --upgrade pip
+          echo "Pip actualizado correctamente."
+
+      # Instalar dependencias del proyecto.
+      - name: Instalar dependencias
+        run: |
+          echo "Instalando dependencias para Python ${{ matrix.python-version }}..."
+          pip install -r requirements.txt
+          echo "Dependencias instaladas correctamente."
+
+      # Verificar la configuración básica del proyecto Django.
+      - name: Ejecutar comprobación general de Django
+        env:
+
+          # Ajusta esta ruta a tu módulo real de settings si no usas config.settings.
+          DJANGO_SETTINGS_MODULE: config.settings
+        run: |
+          echo "Ejecutando la comprobación general de Django..."
+          python manage.py check
+          echo "Comprobación general completada correctamente."
+
+      # Verificar que no existan migraciones pendientes de generar.
+      - name: Validar migraciones pendientes
+        env:
+
+          # Ajusta esta ruta a tu módulo real de settings si no usas config.settings.
+          DJANGO_SETTINGS_MODULE: config.settings
+        run: |
+          echo "Comprobando si existen cambios en modelos sin migración..."
+          python manage.py makemigrations --check --dry-run
+          echo "No existen migraciones pendientes."
+
+  # Trabajo principal para ejecutar tests y generar cobertura.
+  tests:
+
+    # Nombre visible del trabajo.
+    name: Tests y cobertura
+
+    # Indicar dependencias entre trabajos para que este se ejecute después.
+    needs:
+      - calidad
+      - validacion
+
+    # Sistema operativo del runner.
+    runs-on: ubuntu-latest
+
+    # Variables de entorno comunes para este trabajo.
+    env:
+
+      # Evitar la creación de pyc.
+      PYTHONDONTWRITEBYTECODE: "1"
+
+      # Forzar el vaciado de logs en tiempo real.
+      PYTHONUNBUFFERED: "1"
+
+      # Ajusta esta ruta a tu módulo real de settings si no usas config.settings.
+      DJANGO_SETTINGS_MODULE: config.settings
+
+    # Pasos del trabajo.
+    steps:
+
+      # Descargar el código fuente.
+      - name: Descargar código fuente
+        uses: actions/checkout@v4
+
+      # Configurar una versión estable de Python para ejecutar los tests principales.
+      - name: Configurar Python 3.12
+        uses: actions/setup-python@v6
+        with:
+
+          # Definir la versión de Python del job de tests.
+          python-version: "3.12"
+
+          # Activar caché de pip.
+          cache: pip
+
+          # Especificar el fichero de dependencias.
+          cache-dependency-path: requirements.txt
+
+      # Mostrar información inicial del job.
+      - name: Mostrar inicio de tests
+        run: |
+          echo "=================================================="
+          echo "Iniciando batería principal de tests del proyecto..."
+          echo "Se ejecutarán tests con pytest y se calculará cobertura."
+          echo "=================================================="
+
+      # Actualizar pip.
+      - name: Actualizar pip
+        run: |
+          echo "Actualizando pip..."
+          python -m pip install --upgrade pip
+          echo "Pip actualizado correctamente."
+
+      # Instalar dependencias del proyecto.
+      - name: Instalar dependencias
+        run: |
+          echo "Instalando dependencias del proyecto..."
+          pip install -r requirements.txt
+          echo "Dependencias instaladas correctamente."
+
+      # Ejecutar pytest con cobertura y generar informes.
+      - name: Ejecutar tests con cobertura
+        run: |
+          echo "Ejecutando tests con pytest..."
+          coverage run -m pytest -v
+          echo "Generando informe XML de cobertura..."
+          coverage xml -o coverage.xml
+          echo "Generando informe textual de cobertura..."
+          coverage report -m
+          echo "Tests y cobertura completados correctamente."
+
+      # Subir el informe XML de cobertura como artefacto descargable.
+      - name: Subir artefacto de cobertura
+        uses: actions/upload-artifact@v4
+        with:
+
+          # Nombre del artefacto visible en GitHub Actions.
+          name: cobertura-xml
+
+          # Archivo que se subirá como artefacto.
+          path: coverage.xml
+
+      # Subir la carpeta de resultados de tests si más adelante generas reportes adicionales.
+      - name: Guardar resultados adicionales si existen
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+
+          # Nombre visible del artefacto.
+          name: resultados-tests
+
+          # Rutas opcionales por si en el futuro generas reportes.
+          path: |
+            .pytest_cache
+            coverage.xml
+
+          # No fallar si alguna ruta no existe.
+          if-no-files-found: ignore
