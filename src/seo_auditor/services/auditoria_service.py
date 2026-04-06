@@ -59,6 +59,82 @@ class AuditoriaAdapters:
     ejecutar_pagespeed: Callable[..., list[ResultadoRendimiento]]
     resolver_cliente_informe_ga4: Callable[[str | None, str | None], str]
 
+    @classmethod
+    def desde_componentes(
+        cls,
+        fuentes: AuditoriaFuentesAdapters,
+        exportadores: AuditoriaExportadoresAdapters,
+        utilidades: AuditoriaUtilidadesAdapters,
+    ) -> AuditoriaAdapters:
+        """Construye el adaptador principal desde componentes más cohesionados."""
+
+        return cls(
+            extraer_urls_sitemap=fuentes.extraer_urls_sitemap,
+            auditar_urls=fuentes.auditar_urls,
+            analizar_indexacion_rastreo=fuentes.analizar_indexacion_rastreo,
+            generar_gestion_indexacion_inteligente=fuentes.generar_gestion_indexacion_inteligente,
+            cargar_datos_search_console=fuentes.cargar_datos_search_console,
+            cargar_datos_analytics=fuentes.cargar_datos_analytics,
+            generar_resumen_ia=fuentes.generar_resumen_ia,
+            generar_informe_ga4_premium=fuentes.generar_informe_ga4_premium,
+            detectar_home=fuentes.detectar_home,
+            invalidar_cache=fuentes.invalidar_cache,
+            exportar_json=exportadores.exportar_json,
+            exportar_excel=exportadores.exportar_excel,
+            exportar_word=exportadores.exportar_word,
+            exportar_pdf=exportadores.exportar_pdf,
+            exportar_html=exportadores.exportar_html,
+            exportar_markdown_ia=exportadores.exportar_markdown_ia,
+            iterar_con_progreso=utilidades.iterar_con_progreso,
+            es_url_http_valida=utilidades.es_url_http_valida,
+            fecha_ejecucion_iso=utilidades.fecha_ejecucion_iso,
+            slug_dominio_desde_url=utilidades.slug_dominio_desde_url,
+            inferir_cliente_desde_slug=utilidades.inferir_cliente_desde_slug,
+            ejecutar_pagespeed=fuentes.ejecutar_pagespeed,
+            resolver_cliente_informe_ga4=utilidades.resolver_cliente_informe_ga4,
+        )
+
+
+@dataclass(slots=True)
+class AuditoriaFuentesAdapters:
+    """Dependencias de adquisición de datos y ejecución de integraciones."""
+
+    extraer_urls_sitemap: Callable[..., list[str]]
+    auditar_urls: Callable[..., Any]
+    analizar_indexacion_rastreo: Callable[..., Any]
+    generar_gestion_indexacion_inteligente: Callable[..., Any]
+    cargar_datos_search_console: Callable[..., Any]
+    cargar_datos_analytics: Callable[..., Any]
+    generar_resumen_ia: Callable[..., str]
+    generar_informe_ga4_premium: Callable[..., dict[str, Any]]
+    detectar_home: Callable[..., str]
+    invalidar_cache: Callable[..., int]
+    ejecutar_pagespeed: Callable[..., list[ResultadoRendimiento]]
+
+
+@dataclass(slots=True)
+class AuditoriaExportadoresAdapters:
+    """Dependencias de salida documental para entregables."""
+
+    exportar_json: Callable[..., Any]
+    exportar_excel: Callable[..., Any]
+    exportar_word: Callable[..., Any]
+    exportar_pdf: Callable[..., Any]
+    exportar_html: Callable[..., Any]
+    exportar_markdown_ia: Callable[..., Any]
+
+
+@dataclass(slots=True)
+class AuditoriaUtilidadesAdapters:
+    """Utilidades transversales de validación, fechas y normalización."""
+
+    iterar_con_progreso: Callable[..., Any]
+    es_url_http_valida: Callable[[str], bool]
+    fecha_ejecucion_iso: Callable[[], str]
+    slug_dominio_desde_url: Callable[[str], str]
+    inferir_cliente_desde_slug: Callable[[str], str]
+    resolver_cliente_informe_ga4: Callable[[str | None, str | None], str]
+
 
 class AuditoriaService:
     """Orquesta la ejecución completa de la auditoría y sus entregables."""
