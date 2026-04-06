@@ -31,13 +31,26 @@ from seo_auditor.integrations.gsc.service import cargar_datos_search_console
 from seo_auditor.integrations.pagespeed.service import analizar_pagespeed_url, detectar_home
 
 # Importa exportadores contractuales para entregables SEO.
-from seo_auditor.reporters import exportar_excel, exportar_html, exportar_json, exportar_markdown_ia, exportar_pdf, exportar_word
+from seo_auditor.reporters import (
+    exportar_excel,
+    exportar_html,
+    exportar_json,
+    exportar_markdown_ia,
+    exportar_pdf,
+    exportar_word,
+)
 
 # Importa contratos de adaptación de la capa de servicios.
 from seo_auditor.services.auditoria_service import AuditoriaAdapters
 
 # Importa utilidades generales de validación y trazabilidad.
-from seo_auditor.utils import es_url_http_valida, fecha_ejecucion_iso, inferir_cliente_desde_slug, iterar_con_progreso, slug_dominio_desde_url
+from seo_auditor.utils import (
+    es_url_http_valida,
+    fecha_ejecucion_iso,
+    inferir_cliente_desde_slug,
+    iterar_con_progreso,
+    slug_dominio_desde_url,
+)
 
 
 # Ejecuta PageSpeed con ambas estrategias manteniendo contrato histórico.
@@ -59,7 +72,17 @@ def _ejecutar_pagespeed(
         # Evalúa ambas estrategias Lighthouse para cada URL.
         for estrategia in ["mobile", "desktop"]:
             # Añade el resultado de la consulta actual con caché opcional.
-            resultados.append(analizar_pagespeed_url(url, api_key, estrategia, timeout, reintentos, cache_dir, cache_ttl_segundos))
+            resultados.append(
+                analizar_pagespeed_url(
+                    url,
+                    api_key,
+                    estrategia,
+                    timeout,
+                    reintentos,
+                    cache_dir,
+                    cache_ttl_segundos,
+                )
+            )
 
     # Devuelve todos los resultados generados para cálculo posterior.
     return resultados

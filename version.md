@@ -1,3 +1,15 @@
+## 0.11.6 - 2026-04-06
+- Se elimina la duplicidad ambigua entre `src/seo_auditor/utils.py` y `src/seo_auditor/utils/__init__.py`, consolidando utilidades en el paquete `utils/` como fuente única.
+- Se retira la supresión `F841` en `ruff.toml` para `reporters/core.py` y se corrigen variables locales no usadas detectadas en el dashboard Excel.
+- Se mantiene la estrategia de limpieza progresiva en `core.py` solo para `E501` e `I001`, sin ocultar posibles errores de lógica por variables no utilizadas.
+
+## 0.11.5 - 2026-04-06
+- Se corrige la exportación HTML de `reporters/core.py` para eliminar f-strings frágiles incompatibles con Python 3.10/3.11, manteniendo sanitización y escape en todo el render.
+- Se sustituye `datetime.UTC` por `timezone.utc` en utilidades compartidas para garantizar compatibilidad temporal desde Python 3.10.
+- Se formalizan reexports públicos en módulos `__init__` de `analyzers` y `services` para evitar falsos positivos `F401` sin romper compatibilidad legacy.
+- Se ordenan imports y se reduce deuda de estilo en módulos críticos tocados (`analyzer`, `utils`, `services/adapters_factory`) para estabilizar Ruff por capas.
+- Se añade configuración acotada en `ruff.toml` con `per-file-ignores` para `reporters/core.py`, permitiendo limpieza progresiva sin ocultar errores críticos de sintaxis o compatibilidad.
+
 ## 0.11.4 - 2026-04-03
 - Se corrige vulnerabilidad de seguridad en descargas web (`path traversal`) validando que los archivos solicitados pertenezcan a `./salidas` antes de servirlos.
 - Se robustece el hilo de ejecución en background para manejar de forma segura la ausencia concurrente del registro (`EjecucionAuditoria`) sin excepciones no controladas.
