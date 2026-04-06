@@ -1,6 +1,12 @@
 # Nombre del flujo de trabajo que se mostrará en GitHub Actions.
 name: Integración continua Django
 
+# Variables globales del flujo de trabajo.
+env:
+
+  # Forzar acciones JavaScript a Node.js 24 para evitar deprecación de Node.js 20.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 # Eventos que lanzan la ejecución del flujo.
 on:
 

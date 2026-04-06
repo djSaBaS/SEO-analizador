@@ -17,24 +17,55 @@ class AuditoriasConfig(AppConfig):
     # Define un nombre legible para panel administrativo.
     verbose_name = "Auditorías SEO internas"
 
-    # Limpia ejecuciones huérfanas al arrancar la app web.
+    # Registra la recuperación de ejecuciones huérfanas al arrancar la app.
     def ready(self) -> None:
-        """Marca en error ejecuciones `en_proceso` que quedaron bloqueadas."""
+        """Registra una recuperación diferida de ejecuciones huérfanas."""
 
-        # Importa timezone para mensajes de trazabilidad temporal.
+        # Importa señal al abrir conexión para evitar consultas en inicialización.
+        from django.db.backends.signals import connection_created
+
+        # Registra receptor con identificador estable para evitar duplicados.
+        connection_created.connect(
+            self._marcar_ejecuciones_huerfanas,
+            dispatch_uid="auditorias.recuperar_en_proceso_en_conexion",
+        )
+
+    # Marca ejecuciones pendientes cuando ya existe conexión operativa.
+    def _marcar_ejecuciones_huerfanas(self, sender, connection, **kwargs) -> None:
+        """Marca como error ejecuciones en proceso tras reconectar el servicio."""
+
+        # Evita tocar conexiones no principales (p. ej., réplicas o pruebas especiales).
+        if connection.alias != "default":
+            return
+
+        # Importa excepciones SQL para control defensivo de esquema incompleto.
+        from django.db import OperationalError, ProgrammingError
         from django.utils import timezone
 
-        # Importa modelo local dentro de ready para evitar side effects de import.
+        # Importa modelo local al momento de uso para minimizar efectos colaterales.
         from seo_auditor.web.apps.auditorias.models import EjecucionAuditoria
 
-        # Define mensaje de recuperación para ejecuciones huérfanas por reinicio.
-        mensaje_recuperacion = (
-            "Ejecución interrumpida por reinicio del servidor "
-            f"({timezone.now().strftime('%Y-%m-%d %H:%M:%S %Z')})."
-        )
+        # Obtiene el nombre físico de tabla asociado al modelo.
+        tabla_ejecuciones = EjecucionAuditoria._meta.db_table
 
-        # Marca en error cualquier ejecución que siguió en proceso tras un reinicio.
-        EjecucionAuditoria.objects.filter(estado=EjecucionAuditoria.ESTADO_EN_PROCESO).update(
-            estado=EjecucionAuditoria.ESTADO_ERROR,
-            mensaje_error=mensaje_recuperacion,
-        )
+        try:
+            # Salta actualización si aún no se ejecutaron migraciones en la base actual.
+            if tabla_ejecuciones not in connection.introspection.table_names():
+                return
+
+            # Define mensaje de recuperación para ejecuciones huérfanas por reinicio.
+            mensaje_recuperacion = (
+                "Ejecución interrumpida por reinicio del servidor "
+                f"({timezone.now().strftime('%Y-%m-%d %H:%M:%S %Z')})."
+            )
+
+            # Marca en error cualquier ejecución que siguió en proceso tras un reinicio.
+            EjecucionAuditoria.objects.filter(
+                estado=EjecucionAuditoria.ESTADO_EN_PROCESO
+            ).update(
+                estado=EjecucionAuditoria.ESTADO_ERROR,
+                mensaje_error=mensaje_recuperacion,
+            )
+        except (OperationalError, ProgrammingError):
+            # Ignora entornos sin migraciones aplicadas (por ejemplo, CI en `check`).
+            return
