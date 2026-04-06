@@ -4032,7 +4032,18 @@ def exportar_html(resultado: ResultadoAuditoria, path_salida: Path, modelo_seman
     textos_secciones = modelo.get("textos_base", {}).get("secciones", {})
 
     # Obtiene filas de incidencias para el detalle técnico final.
-    filas_ordenadas = sorted(construir_filas(resultado), key=lambda fila: (_peso_severidad(str(fila.get("severidad", "informativa"))), str(fila.get("url", ""))))
+    filas_ordenadas = sorted(
+        construir_filas(resultado),
+        key=lambda fila: (
+            _peso_severidad(str(fila.get("severidad", "informativa"))),
+            str(fila.get("url", "")),
+        ),
+    )
+
+    # Centraliza sanitización y escape para evitar cadenas frágiles.
+    def _texto_html(valor: Any) -> str:
+        # Devuelve un texto seguro para insertarlo en HTML.
+        return escape(sanitizar_texto_final_exportable(str(valor), formato="html"))
 
     # Inicializa render de secciones semánticas.
     secciones_html: list[str] = []
@@ -4047,47 +4058,57 @@ def exportar_html(resultado: ResultadoAuditoria, path_salida: Path, modelo_seman
         bloques_html: list[str] = []
         resumenes = _resolver_bloque_render(seccion, "resumen_ejecutivo", "parrafos")
         if resumenes:
-            bloques_html.append("<ul>" + "".join(f"<li>{escape(sanitizar_texto_final_exportable(str(linea), formato='html'))}</li>" for linea in resumenes) + "</ul>")
+            items_resumen = "".join(f"<li>{_texto_html(linea)}</li>" for linea in resumenes)
+            bloques_html.append(f"<ul>{items_resumen}</ul>")
         for prioridad in _resolver_bloque_render(seccion, "prioridades", "tarjetas"):
             if isinstance(prioridad, dict):
                 listas = "".join(
-                    f"<p><b>{escape(sanitizar_texto_final_exportable(str(lista.get('titulo', '')), formato='html'))}</b></p><ul>{''.join(f'<li>{escape(sanitizar_texto_final_exportable(str(item), formato='html'))}</li>' for item in lista.get('items', [])[:LIMITE_ITEMS_LISTA_NARRATIVA])}</ul>"
+                    (
+                        f"<p><b>{_texto_html(lista.get('titulo', ''))}</b></p>"
+                        f"<ul>{''.join(f'<li>{_texto_html(item)}</li>' for item in lista.get('items', [])[:LIMITE_ITEMS_LISTA_NARRATIVA])}</ul>"
+                    )
                     for lista in prioridad.get("listas", [])
                 )
                 items_simples = "".join(
-                    f"<li>{escape(sanitizar_texto_final_exportable(str(item), formato='html'))}</li>"
+                    f"<li>{_texto_html(item)}</li>"
                     for item in prioridad.get("items", [])[:LIMITE_ITEMS_LISTA_NARRATIVA]
                 )
                 lista_items = f"<ul>{items_simples}</ul>" if items_simples else ""
                 tarjeta_prioridad = (
                     f"<article class=\"prioridad\">"
-                    f"<h3>{escape(sanitizar_texto_final_exportable(str(prioridad.get('titulo', '')), formato='html'))}</h3>"
-                    f"<p>{escape(sanitizar_texto_final_exportable(str(prioridad.get('subtitulo', '')), formato='html'))}</p>"
+                    f"<h3>{_texto_html(prioridad.get('titulo', ''))}</h3>"
+                    f"<p>{_texto_html(prioridad.get('subtitulo', ''))}</p>"
                     f"{listas}{lista_items}"
                     f"</article>"
                 )
                 bloques_html.append(tarjeta_prioridad)
                 bloques_prioritarios_html.append(tarjeta_prioridad)
         for tabla in _resolver_bloque_render(seccion, "tablas_detalle", "tablas"):
-            columnas = "".join(f"<th>{escape(sanitizar_texto_final_exportable(str(columna), formato='html'))}</th>" for columna in tabla.get("columnas", []))
-            filas = "".join(f"<tr>{''.join(f'<td>{escape(sanitizar_texto_final_exportable(str(valor), formato='html'))}</td>' for valor in fila)}</tr>" for fila in tabla.get("filas", []))
+            columnas = "".join(f"<th>{_texto_html(columna)}</th>" for columna in tabla.get("columnas", []))
+            filas = "".join(
+                f"<tr>{''.join(f'<td>{_texto_html(valor)}</td>' for valor in fila)}</tr>"
+                for fila in tabla.get("filas", [])
+            )
             colspan = max(1, len(tabla.get("columnas", [])))
+            fila_fallback = f'<tr><td colspan="{colspan}">No disponible</td></tr>'
             bloques_html.append(
-                f"<h3>{escape(sanitizar_texto_final_exportable(str(tabla.get('titulo', 'Tabla')), formato='html'))}</h3>"
+                f"<h3>{_texto_html(tabla.get('titulo', 'Tabla'))}</h3>"
                 f"<div class=\"tabla-ejecutiva tabla-sticky-opcional\">"
                 f"<table><thead><tr>{columnas}</tr></thead>"
-                f"<tbody>{filas or f'<tr><td colspan=\"{colspan}\">No disponible</td></tr>'}</tbody></table>"
+                f"<tbody>{filas or fila_fallback}</tbody></table>"
                 f"</div>"
             )
         if seccion.get("notas"):
-            bloques_html.append("".join(f"<p>{escape(sanitizar_texto_final_exportable(str(nota), formato='html'))}</p>" for nota in seccion.get("notas", [])))
-        secciones_html.append(f"<section class=\"bloque seccion-secundaria\"><h2>{escape(sanitizar_texto_final_exportable(str(seccion['titulo']), formato='html'))}</h2>{''.join(bloques_html)}</section>")
+            bloques_html.append("".join(f"<p>{_texto_html(nota)}</p>" for nota in seccion.get("notas", [])))
+        secciones_html.append(
+            f"<section class=\"bloque seccion-secundaria\"><h2>{_texto_html(seccion['titulo'])}</h2>{''.join(bloques_html)}</section>"
+        )
 
     # Construye rejilla de prioridades y quick wins.
     prioridades_html = "".join(bloques_prioritarios_html) or (
         "<article class=\"prioridad\">"
-        f"<h3>{escape(sanitizar_texto_final_exportable(str(textos_secciones.get('prioridades_quick_wins_vacio_titulo', 'No disponible')), formato='html'))}</h3>"
-        f"<p>{escape(sanitizar_texto_final_exportable(str(textos_secciones.get('prioridades_quick_wins_vacio_descripcion', 'No hay quick wins detectados en esta ejecución.')), formato='html'))}</p>"
+        f"<h3>{_texto_html(textos_secciones.get('prioridades_quick_wins_vacio_titulo', 'No disponible'))}</h3>"
+        f"<p>{_texto_html(textos_secciones.get('prioridades_quick_wins_vacio_descripcion', 'No hay quick wins detectados en esta ejecución.'))}</p>"
         "</article>"
     )
 
@@ -4136,18 +4157,18 @@ def exportar_html(resultado: ResultadoAuditoria, path_salida: Path, modelo_seman
 <body>
   <div class="contenedor">
   <section class="cabecera">
-    <h1>{escape(sanitizar_texto_final_exportable(str(portada['titulo']), formato='html'))}</h1>
-    <p>{escape(sanitizar_texto_final_exportable(str(portada['subtitulo']), formato='html'))}</p>
+    <h1>{_texto_html(portada['titulo'])}</h1>
+    <p>{_texto_html(portada['subtitulo'])}</p>
     <div class="meta">
     <div class="meta-ejecutiva">
       <div class="metadatos">
-        {''.join(f'<div><b>{escape(sanitizar_texto_final_exportable(str(etiqueta), formato="html"))}:</b> {escape(sanitizar_texto_final_exportable(str(valor), formato="html"))}</div>' for etiqueta, valor in portada["filas_metadatos"])}
+        {''.join(f'<div><b>{_texto_html(etiqueta)}:</b> {_texto_html(valor)}</div>' for etiqueta, valor in portada["filas_metadatos"])}
       </div>
-      <div class="periodo-destacado">{escape(sanitizar_texto_final_exportable(str(portada["periodo_analizado"]), formato="html"))}</div>
+      <div class="periodo-destacado">{_texto_html(portada["periodo_analizado"])}</div>
     </div>
     </div>
   </section>
-  <h2>{escape(sanitizar_texto_final_exportable(str(textos_secciones.get("kpis_ejecutivos_titulo", "KPIs ejecutivos")), formato='html'))}</h2>
+  <h2>{_texto_html(textos_secciones.get("kpis_ejecutivos_titulo", "KPIs ejecutivos"))}</h2>
   <div class="kpis">
     <div class="kpi-card"><b>Total URLs</b><br><strong>{metricas["total_urls"]}</strong></div>
     <div class="kpi-card"><b>Total incidencias</b><br><strong>{metricas["total_incidencias"]}</strong></div>
@@ -4156,23 +4177,30 @@ def exportar_html(resultado: ResultadoAuditoria, path_salida: Path, modelo_seman
     <div class="kpi-card"><b>Score SEO</b><br><strong>{metricas["score"]}</strong></div>
   </div>
   <section class="bloque">
-    <h2>{escape(sanitizar_texto_final_exportable(str(textos_secciones.get("prioridades_quick_wins_titulo", "Prioridades y quick wins")), formato='html'))}</h2>
+    <h2>{_texto_html(textos_secciones.get("prioridades_quick_wins_titulo", "Prioridades y quick wins"))}</h2>
     <div class="prioridades-grid">{prioridades_html}</div>
   </section>
   {''.join(secciones_html)}
-  <h2>{escape(sanitizar_texto_final_exportable(str(textos_secciones.get("incidencias_detalle_titulo", "Incidencias técnicas (detalle)")), formato='html'))}</h2>
+  <h2>{_texto_html(textos_secciones.get("incidencias_detalle_titulo", "Incidencias técnicas (detalle)"))}</h2>
   <div class="tabla-ejecutiva tabla-sticky-opcional">
   <table>
-    <thead><tr>{''.join(f"<th>{escape(sanitizar_texto_final_exportable(str(columna), formato='html'))}</th>" for columna in textos_secciones.get("incidencias_detalle_columnas", ["URL", "Severidad", "Área", "Problema", "Recomendación"]))}</tr></thead>
+    <thead><tr>{''.join(f"<th>{_texto_html(columna)}</th>" for columna in textos_secciones.get("incidencias_detalle_columnas", ["URL", "Severidad", "Área", "Problema", "Recomendación"]))}</tr></thead>
     <tbody>
       {''.join(
-        f"<tr style='background:{_color_pastel_severidad(str(fila.get('severidad','informativa')))}'>"
-        f"<td>{escape(sanitizar_texto_final_exportable(str(fila.get('url','')), formato="html"))}</td>"
-        f"<td>{escape(sanitizar_texto_final_exportable(str(fila.get('severidad','')), formato="html"))}</td>"
-        f"<td>{escape(sanitizar_texto_final_exportable(str(fila.get('area','')), formato="html"))}</td>"
-        f"<td>{escape(sanitizar_texto_final_exportable(str(fila.get('problema','')), formato="html"))}</td>"
-        f"<td>{escape(sanitizar_texto_final_exportable(str(fila.get('recomendacion','')), formato="html"))}</td>"
-        f"</tr>"
+        "<tr style='background:{color}'>"
+        "<td>{url}</td>"
+        "<td>{severidad}</td>"
+        "<td>{area}</td>"
+        "<td>{problema}</td>"
+        "<td>{recomendacion}</td>"
+        "</tr>".format(
+            color=_color_pastel_severidad(str(fila.get('severidad', 'informativa'))),
+            url=_texto_html(fila.get('url', '')),
+            severidad=_texto_html(fila.get('severidad', '')),
+            area=_texto_html(fila.get('area', '')),
+            problema=_texto_html(fila.get('problema', '')),
+            recomendacion=_texto_html(fila.get('recomendacion', '')),
+        )
         for fila in filas_ordenadas[:120]
       )}
     </tbody>

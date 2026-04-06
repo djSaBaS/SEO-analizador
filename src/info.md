@@ -23,6 +23,7 @@ Código fuente principal del proyecto.
 - `seo_auditor/services/informe_service.py`: composición semántica del informe como fuente única para Word/PDF/HTML con reglas condicionales por fuentes (GSC/GA4/IA).
 - Contrato documental interno: `exportar_markdown_ia` genera `*_ia.md` solo para revisión editorial interna; DOCX/PDF/HTML deben renderizar siempre desde `construir_modelo_semantico_informe`.
 - La plantilla HTML usa clases semánticas (`.cabecera`, `.meta`, `.kpi-card`, `.prioridad`, `.tabla-ejecutiva`) con tipografía escalada y tablas premium portables sin dependencias JavaScript.
+- El render HTML central (`reporters/core.py`) prioriza compatibilidad Python 3.10+ evitando f-strings anidados frágiles y reutilizando helper interno de sanitización para mantener seguridad y legibilidad.
 
 ## Notas de mantenimiento
 - El flujo admite degradación elegante: si una fuente externa falla, el proceso general continúa.

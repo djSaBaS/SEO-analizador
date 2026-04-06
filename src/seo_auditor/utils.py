@@ -1,15 +1,15 @@
 # Importa expresiones regulares para validaciones seguras y explícitas.
 import re
+from collections.abc import Iterable, Iterator
 
 # Importa utilidades de fecha para metadatos reales de ejecución.
-from datetime import UTC, datetime
+from datetime import datetime, timezone
+
+# Importa tipos para iteradores con progreso.
+from typing import TypeVar
 
 # Importa utilidades de URL estándar del lenguaje.
 from urllib.parse import urlparse
-
-# Importa tipos para iteradores con progreso.
-from typing import Iterable, Iterator, TypeVar
-
 
 # Define una expresión regular conservadora para validar URLs HTTP y HTTPS.
 URL_REGEX = re.compile(r"^https?://[^\s/$.?#].[^\s]*$", re.IGNORECASE)
@@ -97,7 +97,7 @@ def fecha_ejecucion_iso() -> str:
     """
 
     # Obtiene la fecha actual en UTC para evitar discrepancias horarias.
-    return datetime.now(UTC).date().isoformat()
+    return datetime.now(timezone.utc).date().isoformat()
 
 
 # Convierte una URL de dominio en un slug estable para carpetas.

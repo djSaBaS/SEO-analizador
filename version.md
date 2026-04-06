@@ -1,3 +1,10 @@
+## 0.11.5 - 2026-04-06
+- Se corrige la exportación HTML de `reporters/core.py` para eliminar f-strings frágiles incompatibles con Python 3.10/3.11, manteniendo sanitización y escape en todo el render.
+- Se sustituye `datetime.UTC` por `timezone.utc` en utilidades compartidas para garantizar compatibilidad temporal desde Python 3.10.
+- Se formalizan reexports públicos en módulos `__init__` de `analyzers` y `services` para evitar falsos positivos `F401` sin romper compatibilidad legacy.
+- Se ordenan imports y se reduce deuda de estilo en módulos críticos tocados (`analyzer`, `utils`, `services/adapters_factory`) para estabilizar Ruff por capas.
+- Se añade configuración acotada en `ruff.toml` con `per-file-ignores` para `reporters/core.py`, permitiendo limpieza progresiva sin ocultar errores críticos de sintaxis o compatibilidad.
+
 ## 0.11.4 - 2026-04-03
 - Se corrige vulnerabilidad de seguridad en descargas web (`path traversal`) validando que los archivos solicitados pertenezcan a `./salidas` antes de servirlos.
 - Se robustece el hilo de ejecución en background para manejar de forma segura la ausencia concurrente del registro (`EjecucionAuditoria`) sin excepciones no controladas.
