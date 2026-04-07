@@ -2,6 +2,9 @@ import argparse
 from datetime import date, timedelta
 
 from seo_auditor.config import cargar_configuracion
+from seo_auditor.fetcher import extraer_urls_sitemap
+from seo_auditor.integrations.ga4.service import cargar_datos_analytics
+from seo_auditor.integrations.gsc.service import cargar_datos_search_console
 from seo_auditor.services.adapters_factory import crear_adaptadores_auditoria
 from seo_auditor.services.auditoria_service import AuditoriaService, construir_request_desde_cli
 from seo_auditor.utils import es_url_http_valida
@@ -104,6 +107,15 @@ def crear_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _crear_adaptadores_temporales():
+    """Construye adaptadores manteniendo puntos de monkeypatch legacy en CLI."""
+    adaptadores = crear_adaptadores_auditoria()
+    adaptadores.extraer_urls_sitemap = extraer_urls_sitemap
+    adaptadores.cargar_datos_search_console = cargar_datos_search_console
+    adaptadores.cargar_datos_analytics = cargar_datos_analytics
+    return adaptadores
+
+
 def main() -> int:
     parser = crear_parser()
     argumentos = parser.parse_args()
@@ -155,5 +167,5 @@ def main() -> int:
     request = construir_request_desde_cli(
         argumentos, configuracion, modelo_ia, periodo_desde, periodo_hasta, perfil_generacion
     )
-    servicio = AuditoriaService(crear_adaptadores_auditoria())
+    servicio = AuditoriaService(_crear_adaptadores_temporales())
     return servicio.ejecutar(request)
