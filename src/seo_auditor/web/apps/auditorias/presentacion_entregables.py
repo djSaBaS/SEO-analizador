@@ -6,7 +6,6 @@ from pathlib import Path
 # Importa tipos para contratos explícitos de entrada/salida.
 from typing import Any
 
-
 # Define catálogo de metadatos de presentación por identificador técnico.
 CATALOGO_ENTREGABLES: dict[str, dict[str, str]] = {
     "json_tecnico": {"nombre": "JSON técnico", "descripcion": "Datos técnicos completos"},

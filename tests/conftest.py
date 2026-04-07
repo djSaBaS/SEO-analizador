@@ -4,7 +4,6 @@ import sys
 # Importa Path para calcular rutas absolutas de forma portable.
 from pathlib import Path
 
-
 # Calcula la ruta absoluta a la carpeta src del proyecto.
 RUTA_SRC = Path(__file__).resolve().parents[1] / "src"
 

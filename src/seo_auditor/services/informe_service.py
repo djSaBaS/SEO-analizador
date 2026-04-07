@@ -12,6 +12,7 @@ from seo_auditor.documentacion.builders.secciones import construir_jerarquia_vis
 # Importa contrato principal de resultados de auditoría.
 from seo_auditor.models import ResultadoAuditoria
 
+
 # Centraliza la construcción del informe como única fuente semántica.
 class InformeService:
     """Compone el modelo semántico único para Word, PDF y HTML."""
@@ -73,7 +74,9 @@ class InformeService:
         return modelo
 
     # Prepara el paquete integral de informe con modelo semántico y salidas auxiliares.
-    def preparar_informe(self, resultado: ResultadoAuditoria, configuracion: Any | None, incluir_markdown_ia: bool = True) -> dict[str, Any]:
+    def preparar_informe(
+        self, resultado: ResultadoAuditoria, configuracion: Any | None, incluir_markdown_ia: bool = True
+    ) -> dict[str, Any]:
         """Prepara el informe completo priorizando el modelo semántico como núcleo."""
 
         # Obtiene modelo semántico único para todos los formatos finales.

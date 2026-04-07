@@ -9,7 +9,6 @@ import secrets
 # Importa Path para construir rutas de forma portable.
 from pathlib import Path
 
-
 # Calcula la raíz del repositorio desde el archivo actual.
 BASE_DIR = Path(__file__).resolve().parents[4]
 

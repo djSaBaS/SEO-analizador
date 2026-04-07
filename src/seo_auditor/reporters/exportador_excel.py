@@ -1,8 +1,8 @@
 # Módulo puente: reexporta exportar_excel desde documentacion/exportadores.
 from pathlib import Path
 
-from seo_auditor.models import ResultadoAuditoria
 from seo_auditor.documentacion.exportadores.exportador_excel import exportar_excel as _impl
+from seo_auditor.models import ResultadoAuditoria
 
 
 def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:

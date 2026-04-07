@@ -1,17 +1,17 @@
 # Importa utilidades de tipos para construir argumentos simulados.
-from types import SimpleNamespace
 from datetime import date, timedelta
+from types import SimpleNamespace
 
 import pytest
-
-# Importa estructuras del dominio para fabricar resultados de prueba.
-from seo_auditor.models import ResultadoAuditoria, ResultadoRendimiento, ResultadoUrl
 
 # Importa módulo CLI bajo prueba.
 from seo_auditor import cli
 
 # Importa configuración tipada del proyecto.
 from seo_auditor.config import Configuracion
+
+# Importa estructuras del dominio para fabricar resultados de prueba.
+from seo_auditor.models import ResultadoAuditoria, ResultadoRendimiento, ResultadoUrl
 
 
 # Verifica que PageSpeed persista datos y fuente activa en el flujo principal.
@@ -437,7 +437,11 @@ def test_main_omite_gsc_si_se_usa_bandera_no_gsc(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(cli, "analizar_indexacion_rastreo", lambda *args, **kwargs: {})
 
     # Define llamada prohibida para GSC cuando exista --noGSC.
-    monkeypatch.setattr(cli, "cargar_datos_search_console", lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("No debe llamarse GSC con --noGSC")))
+    monkeypatch.setattr(
+        cli,
+        "cargar_datos_search_console",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("No debe llamarse GSC con --noGSC")),
+    )
 
     # Inyecta exportadores como no-op para aislar la prueba.
     monkeypatch.setattr(cli, "exportar_json", lambda *args, **kwargs: None)

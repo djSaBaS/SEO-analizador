@@ -1,25 +1,24 @@
 """Vistas Django para flujo interno de auditorías SEO."""
 
 # Importa datetime para mostrar fechas legibles en dashboard.
-from datetime import datetime, timezone
-
-# Importa utilidades de concurrencia para desacoplar ejecución larga.
-from concurrent.futures import ThreadPoolExecutor
-
 # Importa utilidades del sistema de archivos para recorridos más eficientes.
 import os
 
+# Importa utilidades de concurrencia para desacoplar ejecución larga.
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
+
 # Importa Path para resolver rutas de salida en disco.
 from pathlib import Path
-
-# Importa FileResponse para descargas seguras de entregables.
-from django.http import FileResponse, Http404, HttpRequest, HttpResponse
 
 # Importa configuración Django para rutas absolutas robustas.
 from django.conf import settings
 
 # Importa utilidades de conexión para hilos de trabajo con ORM.
 from django.db import close_old_connections
+
+# Importa FileResponse para descargas seguras de entregables.
+from django.http import FileResponse, Http404, HttpRequest, HttpResponse
 
 # Importa helpers de render y redirección de Django.
 from django.shortcuts import get_object_or_404, redirect, render
@@ -36,11 +35,11 @@ from seo_auditor.web.apps.auditorias.forms import NuevaAuditoriaForm
 # Importa modelo de persistencia de ejecuciones web.
 from seo_auditor.web.apps.auditorias.models import EjecucionAuditoria
 
-# Importa servicios adaptadores de ejecución web.
-from seo_auditor.web.apps.auditorias.services_web import construir_request_desde_formulario, ejecutar_auditoria_web
-
 # Importa utilidades de presentación legible para entregables de UI.
 from seo_auditor.web.apps.auditorias.presentacion_entregables import enriquecer_registros_entregables
+
+# Importa servicios adaptadores de ejecución web.
+from seo_auditor.web.apps.auditorias.services_web import construir_request_desde_formulario, ejecutar_auditoria_web
 
 # Define pool de hilos pequeño para ejecución interna en segundo plano.
 EJECUTOR_AUDITORIAS = ThreadPoolExecutor(max_workers=2, thread_name_prefix="seo_web")
@@ -114,7 +113,19 @@ def _procesar_auditoria_en_segundo_plano(ejecucion_id: int, datos_formulario: di
         ejecucion.mensaje_error = ""
 
         # Persiste cambios finales de ejecución satisfactoria.
-        ejecucion.save(update_fields=["estado", "ruta_salida", "fuentes_activas", "fuentes_fallidas", "fuentes_incompatibles", "resumen_resultado", "entregables", "mensaje_error", "fecha_actualizacion"])
+        ejecucion.save(
+            update_fields=[
+                "estado",
+                "ruta_salida",
+                "fuentes_activas",
+                "fuentes_fallidas",
+                "fuentes_incompatibles",
+                "resumen_resultado",
+                "entregables",
+                "mensaje_error",
+                "fecha_actualizacion",
+            ]
+        )
     except Exception as exc:
         # Intenta recuperar ejecución para marcarla como error cuando aún exista.
         ejecucion_error = EjecucionAuditoria.objects.filter(pk=ejecucion_id).first()

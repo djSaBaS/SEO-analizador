@@ -13,7 +13,6 @@ from seo_auditor.config import Configuracion
 # Importa modelos tipados para transportar datos de GA4.
 from seo_auditor.models import DatosAnalytics, MetricaAnalyticsPagina, ResumenAnalytics
 
-
 # Define umbrales de calidad alta para tráfico/engagement.
 CALIDAD_ALTA_MIN_SESIONES = 30.0
 CALIDAD_ALTA_MAX_REBOTE = 0.45
@@ -174,10 +173,16 @@ def _calcular_resumen_analytics(paginas: list[MetricaAnalyticsPagina]) -> Resume
     conversiones_totales = sum(item.conversiones for item in paginas)
 
     # Calcula rebote medio ponderado por sesiones.
-    rebote_medio = (sum(item.rebote * item.sesiones for item in paginas) / sesiones_totales) if sesiones_totales > 0 else 0.0
+    rebote_medio = (
+        (sum(item.rebote * item.sesiones for item in paginas) / sesiones_totales) if sesiones_totales > 0 else 0.0
+    )
 
     # Calcula duración media ponderada por sesiones.
-    duracion_media = (sum(item.duracion_media * item.sesiones for item in paginas) / sesiones_totales) if sesiones_totales > 0 else 0.0
+    duracion_media = (
+        (sum(item.duracion_media * item.sesiones for item in paginas) / sesiones_totales)
+        if sesiones_totales > 0
+        else 0.0
+    )
 
     # Devuelve resumen agregado y redondeado.
     return ResumenAnalytics(

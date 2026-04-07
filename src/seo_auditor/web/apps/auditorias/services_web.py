@@ -16,7 +16,15 @@ from django.conf import settings
 from seo_auditor.config import cargar_configuracion
 
 # Importa contratos de dominio de auditoría reutilizables.
-from seo_auditor.models import AuditoriaRequest, ConfiguracionCacheAuditoria, ConfiguracionInforme, FlagsIntegracionesAuditoria
+from seo_auditor.models import (
+    AuditoriaRequest,
+    ConfiguracionCacheAuditoria,
+    ConfiguracionInforme,
+    FlagsIntegracionesAuditoria,
+)
+
+# Importa cálculos de priorización usados también por exportadores.
+from seo_auditor.reporters.core import construir_paginas_prioritarias, construir_quick_wins
 
 # Importa fábrica compartida de adaptadores de servicio.
 from seo_auditor.services.adapters_factory import crear_adaptadores_auditoria
@@ -26,9 +34,6 @@ from seo_auditor.services.auditoria_service import AuditoriaService
 
 # Importa catálogo de perfiles contractuales de entregables.
 from seo_auditor.services.entregables_service import ENTREGABLES_BASE_AUDITORIA, PERFILES_GENERACION
-
-# Importa cálculos de priorización usados también por exportadores.
-from seo_auditor.reporters.core import construir_paginas_prioritarias, construir_quick_wins
 
 
 # Construye request de dominio desde datos validados del formulario web.
@@ -84,7 +89,9 @@ def construir_request_desde_formulario(datos: dict[str, Any]) -> AuditoriaReques
     )
 
     # Construye argumentos mínimos legacy requeridos por el servicio.
-    argumentos = SimpleNamespace(comparar="periodo-anterior", provincia="", noGSC=False, testia=False, testga=False, testgsc=False)
+    argumentos = SimpleNamespace(
+        comparar="periodo-anterior", provincia="", noGSC=False, testia=False, testga=False, testgsc=False
+    )
 
     # Construye y devuelve el request contractual del núcleo.
     return AuditoriaRequest(

@@ -76,7 +76,7 @@ def test_construir_prompt_ia_falla_si_no_existe_placeholder() -> None:
     # Verifica error explícito al componer prompt sin placeholder.
     try:
         gemini_client.construir_prompt_ia(plantilla, {"x": 1})
-        assert False, "Se esperaba ValueError al faltar {datos_json}."
+        raise AssertionError("Se esperaba ValueError al faltar {datos_json}.")
     except ValueError as exc:
         # Confirma que el mensaje indique claramente el problema.
         assert "{datos_json}" in str(exc)
@@ -118,7 +118,9 @@ def test_validar_consistencia_resumen_ia_filtra_frases_contradictorias() -> None
     texto = "Aunque no se proporcionan datos específicos de GSC, se detectan oportunidades."
 
     # Aplica validador con contexto de GSC activo.
-    salida = gemini_client.validar_consistencia_resumen_ia(texto, {"gsc_activo": True, "gsc": {"clics_totales": 10, "impresiones_totales": 100}})
+    salida = gemini_client.validar_consistencia_resumen_ia(
+        texto, {"gsc_activo": True, "gsc": {"clics_totales": 10, "impresiones_totales": 100}}
+    )
 
     # Verifica eliminación de la frase incorrecta.
     assert "no se proporcionan datos específicos de gsc" not in salida.lower()
@@ -166,7 +168,9 @@ def test_validar_consistencia_resumen_ia_conserva_texto_sin_gsc() -> None:
         ("roadmap", "roadmap.txt"),
     ],
 )
-def test_resolver_ruta_prompt_ia_mapea_modos_en_prompts(monkeypatch, tmp_path, modo: str, archivo_esperado: str) -> None:
+def test_resolver_ruta_prompt_ia_mapea_modos_en_prompts(
+    monkeypatch, tmp_path, modo: str, archivo_esperado: str
+) -> None:
     """Garantiza que cada modo resuelva su plantilla canónica en `prompts/`."""
 
     # Define carpeta canónica de prompts para la prueba aislada.

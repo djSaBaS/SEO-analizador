@@ -13,19 +13,11 @@ import django
 # Importa cliente de pruebas HTTP de Django.
 from django.test import Client
 
-
 # Define módulo de configuración Django para esta suite.
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "seo_auditor.web.config.settings")
 
 # Inicializa Django para habilitar URLs y formularios.
 django.setup()
-
-# Importa formulario para validaciones unitarias.
-from seo_auditor.web.apps.auditorias.forms import NuevaAuditoriaForm
-
-# Importa adaptador de request para probar contrato web->núcleo.
-from seo_auditor.web.apps.auditorias.services_web import construir_request_desde_formulario
-
 
 # Verifica que el dashboard responde correctamente en GET.
 def test_dashboard_carga_correctamente():
@@ -49,6 +41,9 @@ def test_dashboard_carga_correctamente():
 # Verifica validación de fechas incorrectas en el formulario.
 def test_formulario_rechaza_periodo_invertido():
     """Comprueba que el formulario rechaza fecha fin anterior o igual."""
+
+    # Importa formulario localmente tras bootstrap de Django.
+    from seo_auditor.web.apps.auditorias.forms import NuevaAuditoriaForm
 
     # Define hoy para construir fechas deterministas.
     hoy = date.today()
@@ -75,6 +70,11 @@ def test_formulario_rechaza_periodo_invertido():
 # Verifica construcción de request interno desde formulario validado.
 def test_construccion_request_web_reutiliza_contrato_nucleo():
     """Comprueba que el adaptador web genera un `AuditoriaRequest` coherente."""
+
+    # Importa adaptador localmente tras bootstrap de Django.
+    from seo_auditor.web.apps.auditorias.services_web import (
+        construir_request_desde_formulario,
+    )
 
     # Define fecha actual para construir ventana válida.
     hoy = date.today()
@@ -147,10 +147,14 @@ def test_vista_nueva_auditoria_ejecuta_y_redirige():
     ejecucion_mock.id = 7
 
     # Define lista de entregables serializados para render de detalle.
-    ejecucion_mock.entregables = [{"entregable": "json_tecnico", "estado": "generado", "ruta_final": __file__, "detalle": ""}]
+    ejecucion_mock.entregables = [
+        {"entregable": "json_tecnico", "estado": "generado", "ruta_final": __file__, "detalle": ""}
+    ]
 
     # Define estructura mínima de resumen para plantilla de detalle.
-    ejecucion_mock.resumen_resultado = {"auditoria": {"fecha_ejecucion": hoy.isoformat(), "paginas_prioritarias": [], "quick_wins": []}}
+    ejecucion_mock.resumen_resultado = {
+        "auditoria": {"fecha_ejecucion": hoy.isoformat(), "paginas_prioritarias": [], "quick_wins": []}
+    }
 
     # Define metadatos básicos usados en detalle.
     ejecucion_mock.cliente = "Cliente Demo"
@@ -167,10 +171,13 @@ def test_vista_nueva_auditoria_ejecuta_y_redirige():
     ejecucion_mock.get_estado_display.return_value = "Finalizada"
 
     # Simula encolado asíncrono para evitar ejecución pesada real.
-    with patch("seo_auditor.web.apps.auditorias.views.EjecucionAuditoria.objects") as objetos_mock, patch(
-        "seo_auditor.web.apps.auditorias.views._lanzar_auditoria_en_segundo_plano",
-        return_value=MagicMock(),
-    ) as lanzar_mock:
+    with (
+        patch("seo_auditor.web.apps.auditorias.views.EjecucionAuditoria.objects") as objetos_mock,
+        patch(
+            "seo_auditor.web.apps.auditorias.views._lanzar_auditoria_en_segundo_plano",
+            return_value=MagicMock(),
+        ) as lanzar_mock,
+    ):
         # Configura creación de ejecución en POST.
         objetos_mock.create.return_value = ejecucion_mock
 
@@ -234,10 +241,18 @@ def test_detalle_muestra_prioridades_y_quick_wins_reales():
             "score_contenido": 75.9,
             "resumen_ia": "Resumen de prueba.",
             "paginas_prioritarias": [
-                {"url": "https://ejemplo.com/landing", "prioridad_score": 85.0, "motivos": ["CTR bajo", "alto potencial"]},
+                {
+                    "url": "https://ejemplo.com/landing",
+                    "prioridad_score": 85.0,
+                    "motivos": ["CTR bajo", "alto potencial"],
+                },
             ],
             "quick_wins": [
-                {"url": "https://ejemplo.com/landing", "problemas": ["Meta description corta"], "recomendaciones": ["Ampliar a 140-160 caracteres"]},
+                {
+                    "url": "https://ejemplo.com/landing",
+                    "problemas": ["Meta description corta"],
+                    "recomendaciones": ["Ampliar a 140-160 caracteres"],
+                },
             ],
         }
     }
@@ -323,7 +338,9 @@ def test_descarga_bloquea_path_traversal(tmp_path, monkeypatch):
 
     # Simula ejecución con registro de entregable apuntando fuera de salidas.
     ejecucion_mock = MagicMock()
-    ejecucion_mock.entregables = [{"entregable": "json_tecnico", "estado": "generado", "ruta_final": str(archivo_externo), "detalle": ""}]
+    ejecucion_mock.entregables = [
+        {"entregable": "json_tecnico", "estado": "generado", "ruta_final": str(archivo_externo), "detalle": ""}
+    ]
 
     # Cambia directorio para que `./salidas` apunte al tmp de la prueba.
     monkeypatch.chdir(tmp_path)

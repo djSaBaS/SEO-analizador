@@ -5,12 +5,9 @@ from types import SimpleNamespace
 from seo_auditor.models import (
     AuditoriaRequest,
     AuditoriaResult,
-    ConfiguracionCacheAuditoria,
-    ConfiguracionInforme,
-    FlagsIntegracionesAuditoria,
-    ResumenEjecucion,
     ResultadoAuditoria,
     ResultadoEntregables,
+    ResumenEjecucion,
 )
 from seo_auditor.services.auditoria_service import construir_request_desde_cli
 from seo_auditor.services.entregables_service import PERFILES_GENERACION

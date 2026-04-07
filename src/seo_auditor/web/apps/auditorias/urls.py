@@ -6,7 +6,6 @@ from django.urls import path
 # Importa vistas funcionales de la aplicación.
 from seo_auditor.web.apps.auditorias import views
 
-
 # Define namespace para resolver URLs de forma explícita.
 app_name = "auditorias"
 
