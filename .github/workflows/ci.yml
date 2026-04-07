@@ -297,7 +297,7 @@ jobs:
 
       # Subir el informe XML de cobertura como artefacto descargable.
       - name: Subir artefacto de cobertura
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
 
           # Nombre del artefacto visible en GitHub Actions.
@@ -309,7 +309,7 @@ jobs:
       # Subir la carpeta de resultados de tests si más adelante generas reportes adicionales.
       - name: Guardar resultados adicionales si existen
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
 
           # Nombre visible del artefacto.
