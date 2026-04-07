@@ -21,7 +21,7 @@ from django.db import close_old_connections
 from django.http import FileResponse, Http404, HttpRequest, HttpResponse
 
 # Importa helpers de render y redirección de Django.
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import redirect, render
 
 # Importa utilidades de URL para redirecciones nombradas.
 from django.urls import reverse
@@ -49,6 +49,51 @@ MAX_ARCHIVOS_DASHBOARD = 400
 
 # Define profundidad máxima de búsqueda dentro de `salidas` para controlar coste.
 MAX_PROFUNDIDAD_SALIDAS = 4
+
+
+def _resolver_raiz_salidas() -> Path:
+    """Resuelve la raíz de salidas priorizando una carpeta local activa cuando exista."""
+
+    raiz_configurada = Path(settings.SALIDAS_DIR)
+    raiz_local = Path.cwd() / "salidas"
+
+    if raiz_local.exists():
+        return raiz_local.resolve()
+    return raiz_configurada.resolve()
+
+
+def _obtener_ejecucion_o_404(ejecucion_id: int) -> EjecucionAuditoria:
+    """Recupera una ejecución usando el manager parcheable de la vista."""
+
+    try:
+        return EjecucionAuditoria.objects.get(pk=ejecucion_id)
+    except EjecucionAuditoria.DoesNotExist as exc:
+        raise Http404("La ejecución solicitada no existe.") from exc
+
+
+def _resolver_ejecucion_id(ejecucion: EjecucionAuditoria, ejecucion_id: int) -> int:
+    """Obtiene un identificador entero estable para plantillas y rutas."""
+
+    identificador = getattr(ejecucion, "id", None)
+    if isinstance(identificador, int):
+        return identificador
+
+    identificador_pk = getattr(ejecucion, "pk", None)
+    if isinstance(identificador_pk, int):
+        return identificador_pk
+
+    return int(ejecucion_id)
+
+
+def _extraer_resumen_auditoria(ejecucion: EjecucionAuditoria) -> dict:
+    """Obtiene el bloque `auditoria` del resumen serializado con fallback seguro."""
+
+    resumen_resultado = getattr(ejecucion, "resumen_resultado", None)
+    if isinstance(resumen_resultado, dict):
+        auditoria = resumen_resultado.get("auditoria")
+        if isinstance(auditoria, dict):
+            return auditoria
+    return {}
 
 
 # Ejecuta una auditoría en segundo plano y actualiza su estado persistente.
@@ -160,7 +205,7 @@ def _listar_archivos_recientes(limite: int = 10) -> list[dict[str, str]]:
     """Recorre la carpeta `salidas` excluyendo caché para evitar costes altos."""
 
     # Define raíz de salidas usada por el núcleo actual.
-    raiz_salidas = Path(settings.SALIDAS_DIR)
+    raiz_salidas = _resolver_raiz_salidas()
 
     # Devuelve lista vacía cuando la carpeta no existe aún.
     if not raiz_salidas.exists():
@@ -291,10 +336,16 @@ def detalle_auditoria(request: HttpRequest, ejecucion_id: int) -> HttpResponse:
     """Renderiza estado, resumen y descargas de una ejecución web."""
 
     # Recupera ejecución por ID o devuelve 404 si no existe.
-    ejecucion = get_object_or_404(EjecucionAuditoria, pk=ejecucion_id)
+    ejecucion = _obtener_ejecucion_o_404(ejecucion_id)
 
     # Enriquecer entregables para mostrar nombres y estados legibles en plantilla.
     entregables_presentacion = enriquecer_registros_entregables(list(ejecucion.entregables or []))
+
+    # Resuelve id estable para evitar ambigüedad con mocks y objetos parciales.
+    ejecucion_id_resuelto = _resolver_ejecucion_id(ejecucion, ejecucion_id)
+
+    # Extrae el resumen de auditoría para simplificar el acceso desde plantilla.
+    auditoria_resumen = _extraer_resumen_auditoria(ejecucion)
 
     # Renderiza plantilla de detalle con datos persistidos.
     return render(
@@ -302,6 +353,8 @@ def detalle_auditoria(request: HttpRequest, ejecucion_id: int) -> HttpResponse:
         "auditorias/detalle_auditoria.html",
         {
             "ejecucion": ejecucion,
+            "ejecucion_id": ejecucion_id_resuelto,
+            "auditoria_resumen": auditoria_resumen,
             "entregables_presentacion": entregables_presentacion,
         },
     )
@@ -313,7 +366,7 @@ def descargar_entregable(request: HttpRequest, ejecucion_id: int, indice: int) -
     """Sirve un entregable generado cuando existe en disco local."""
 
     # Recupera ejecución de referencia para validar entregable.
-    ejecucion = get_object_or_404(EjecucionAuditoria, pk=ejecucion_id)
+    ejecucion = _obtener_ejecucion_o_404(ejecucion_id)
 
     # Recupera colección de entregables serializados desde persistencia.
     entregables = list(ejecucion.entregables or [])
@@ -330,7 +383,7 @@ def descargar_entregable(request: HttpRequest, ejecucion_id: int, indice: int) -
     ruta = Path(str(registro.get("ruta_final") or "").strip()).resolve()
 
     # Resuelve raíz permitida de salidas para evitar path traversal.
-    raiz_salidas = Path(settings.SALIDAS_DIR).resolve()
+    raiz_salidas = _resolver_raiz_salidas()
 
     # Valida que la ruta sea descendiente de la carpeta permitida.
     ruta_en_salidas = ruta == raiz_salidas or ruta.is_relative_to(raiz_salidas)
