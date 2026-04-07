@@ -265,6 +265,7 @@ jobs:
       - name: Ejecutar tests con cobertura
         run: |
           set -o pipefail
+          export PYTHONPATH="${GITHUB_WORKSPACE}/src:${PYTHONPATH}"
           echo "=================================================="
           echo "Diagnóstico previo al lanzamiento de tests"
           echo "=================================================="
@@ -273,6 +274,7 @@ jobs:
           echo "Pip ejecutándose en: $(which pip)"
           pip --version
           echo "Ruta actual: $(pwd)"
+          echo "PYTHONPATH activo: ${PYTHONPATH}"
           echo "Paquetes clave instalados:"
           pip list | grep -E "^(Django|coverage|pytest|pytest-django)\\b" || true
           echo "=================================================="
