@@ -1,12 +1,12 @@
 <!-- Extiende layout base para detalle de ejecución. -->
 {% extends "base.html" %}
 <!-- Define título dinámico del detalle de auditoría. -->
-{% block title %}Ejecución #{{ ejecucion.id }} · SEO Auditor{% endblock %}
+{% block title %}Ejecución #{{ ejecucion_id }} · SEO Auditor{% endblock %}
 <!-- Inicia bloque principal de resultado y estado. -->
 {% block content %}
 <!-- Crea tarjeta de estado operativo de ejecución. -->
 <section class="tarjeta">
-    <h2>Ejecución #{{ ejecucion.id }}</h2>
+    <h2>Ejecución #{{ ejecucion_id }}</h2>
     <p><strong>Estado:</strong> {{ ejecucion.get_estado_display }}</p>
     <p><strong>Cliente:</strong> {{ ejecucion.cliente|default:"Sin cliente" }}</p>
     <p><strong>Sitemap:</strong> {{ ejecucion.sitemap }}</p>
@@ -26,7 +26,7 @@
 <!-- Crea tarjeta de resumen ejecutivo mínimo de resultados. -->
 <section class="tarjeta">
     <h2>Resumen ejecutivo</h2>
-    {% with auditoria=ejecucion.resumen_resultado.auditoria %}
+    {% with auditoria=auditoria_resumen %}
         {% if auditoria %}
             <p><strong>Fecha de ejecución:</strong> {{ auditoria.fecha_ejecucion }}</p>
             <p><strong>KPIs principales:</strong> SEO score global {{ auditoria.seo_score_global|default:"No disponible" }}, score técnico {{ auditoria.score_tecnico|default:"No disponible" }}, score contenido {{ auditoria.score_contenido|default:"No disponible" }}</p>
@@ -73,7 +73,7 @@
                         <td>{{ entregable.detalle_mostrable|default:entregable.detalle|default:"-" }}</td>
                         <td>
                             {% if entregable.ruta_final %}
-                                <a href="{% url 'auditorias:descargar' ejecucion.id forloop.counter0 %}">Descargar</a>
+                                <a href="{% url 'auditorias:descargar' ejecucion_id forloop.counter0 %}">Descargar</a>
                             {% else %}
                                 No disponible
                             {% endif %}
