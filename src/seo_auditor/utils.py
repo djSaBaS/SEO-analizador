@@ -1,15 +1,15 @@
 # Importa expresiones regulares para validaciones seguras y explícitas.
 import re
+from collections.abc import Iterable, Iterator
 
 # Importa utilidades de fecha para metadatos reales de ejecución.
 from datetime import UTC, datetime
 
+# Importa tipos para iteradores con progreso.
+from typing import TypeVar
+
 # Importa utilidades de URL estándar del lenguaje.
 from urllib.parse import urlparse
-
-# Importa tipos para iteradores con progreso.
-from typing import Iterable, Iterator, TypeVar
-
 
 # Define una expresión regular conservadora para validar URLs HTTP y HTTPS.
 URL_REGEX = re.compile(r"^https?://[^\s/$.?#].[^\s]*$", re.IGNORECASE)

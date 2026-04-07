@@ -1,0 +1,67 @@
+<!-- Extiende la plantilla base para mantener estructura común. -->
+{% extends "base.html" %}
+<!-- Define título de pestaña para la pantalla inicial. -->
+{% block title %}Dashboard interno · SEO Auditor{% endblock %}
+<!-- Inicia bloque principal de contenido del dashboard. -->
+{% block content %}
+<!-- Crea sección de estado general y acceso rápido. -->
+<section class="tarjeta">
+    <!-- Muestra encabezado principal del panel interno. -->
+    <h2>Estado general</h2>
+    <!-- Explica propósito operativo del dashboard inicial. -->
+    <p>Esta capa interna permite lanzar auditorías, revisar resultados y descargar entregables sin pasar por CLI.</p>
+    <!-- Crea botón de acción principal para nueva ejecución. -->
+    <p><a class="boton" href="{% url 'auditorias:nueva' %}">Lanzar nueva auditoría</a></p>
+</section>
+<!-- Crea sección de ejecuciones recientes para seguimiento. -->
+<section class="tarjeta">
+    <!-- Muestra título de lista de auditorías recientes. -->
+    <h2>Auditorías recientes</h2>
+    <!-- Verifica si existen ejecuciones registradas en persistencia. -->
+    {% if ejecuciones %}
+        <!-- Renderiza tabla resumida de ejecuciones recientes. -->
+        <table>
+            <!-- Define cabecera de columnas de trazabilidad. -->
+            <thead>
+                <tr><th>ID</th><th>Cliente</th><th>Sitemap</th><th>Estado</th><th>Fecha</th><th>Acción</th></tr>
+            </thead>
+            <!-- Inicia cuerpo de la tabla de ejecuciones. -->
+            <tbody>
+                <!-- Itera sobre cada ejecución disponible. -->
+                {% for ejecucion in ejecuciones %}
+                    <!-- Renderiza fila por cada ejecución registrada. -->
+                    <tr>
+                        <td>{{ ejecucion.id }}</td>
+                        <td>{{ ejecucion.cliente|default:"Sin cliente" }}</td>
+                        <td>{{ ejecucion.sitemap }}</td>
+                        <td>{{ ejecucion.get_estado_display }}</td>
+                        <td>{{ ejecucion.fecha_creacion }}</td>
+                        <td><a href="{% url 'auditorias:detalle' ejecucion.id %}">Ver detalle</a></td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    <!-- Muestra mensaje alternativo cuando no hay ejecuciones. -->
+    {% else %}
+        <p>No hay auditorías registradas todavía.</p>
+    {% endif %}
+</section>
+<!-- Crea sección de archivos recientes detectados en salidas. -->
+<section class="tarjeta">
+    <!-- Muestra título del bloque de documentos recientes. -->
+    <h2>Documentos recientes</h2>
+    <!-- Verifica existencia de archivos en la carpeta de salidas. -->
+    {% if archivos_recientes %}
+        <!-- Renderiza listado simple de artefactos recientes. -->
+        <ul>
+            <!-- Itera por cada archivo detectado en disco. -->
+            {% for archivo in archivos_recientes %}
+                <li>{{ archivo.nombre }} · {{ archivo.fecha }}<br><small>{{ archivo.ruta }}</small></li>
+            {% endfor %}
+        </ul>
+    <!-- Muestra mensaje alternativo cuando no hay archivos. -->
+    {% else %}
+        <p>No se han encontrado documentos generados en <code>./salidas</code>.</p>
+    {% endif %}
+</section>
+{% endblock %}

@@ -153,7 +153,9 @@ def test_main_exportador_fallido_no_rompe_orquestacion(monkeypatch, tmp_path) ->
     estado = {"excel": False}
 
     # Inyecta fallo aislado en JSON.
-    monkeypatch.setattr(cli, "exportar_json", lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("fallo json")))
+    monkeypatch.setattr(
+        cli, "exportar_json", lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("fallo json"))
+    )
 
     # Inyecta exportador Excel funcional para comprobar degradación elegante.
     monkeypatch.setattr(cli, "exportar_excel", lambda *_args, **_kwargs: estado.__setitem__("excel", True))

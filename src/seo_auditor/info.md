@@ -9,7 +9,7 @@ Agrupar la lógica de dominio del auditor SEO: análisis, integraciones, orquest
 - `indexacion.py`: lógica de indexabilidad y rastreo.
 - `models.py`: modelos de datos del dominio.
 - `config.py`: configuración y variables de entorno.
-- Subcarpetas especializadas: `analyzers/`, `services/`, `integrations/`, `documentacion/`, `reporters/`, `legacy/`, `cache/`, `utils/`, `fetchers/`.
+- Subcarpetas especializadas: `analyzers/`, `services/`, `integrations/`, `documentacion/`, `reporters/`, `legacy/`, `cache/`, `utils/`, `fetchers/`, `web/`.
 
 ## Responsabilidades
 - Implementar reglas de negocio del producto.

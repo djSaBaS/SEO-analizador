@@ -1,21 +1,19 @@
 # Importa utilidades para parsear URL de forma segura.
-from urllib.parse import urlparse
-
-# Importa cliente HTTP para consultar la API pública de Google.
-import requests
-
 # Importa espera para aplicar backoff simple entre reintentos.
 import time
 
 # Importa serialización segura de dataclass.
 from dataclasses import asdict
+from urllib.parse import urlparse
 
-# Importa modelos de rendimiento tipados.
-from seo_auditor.models import OportunidadRendimiento, ResultadoRendimiento
+# Importa cliente HTTP para consultar la API pública de Google.
+import requests
 
 # Importa utilidades de caché local reutilizable.
 from seo_auditor.cache import construir_clave_cache, escribir_cache, leer_cache
 
+# Importa modelos de rendimiento tipados.
+from seo_auditor.models import OportunidadRendimiento, ResultadoRendimiento
 
 # Define endpoint oficial de PageSpeed Insights v5.
 ENDPOINT_PAGESPEED = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed"
@@ -118,7 +116,9 @@ def _extraer_oportunidades(auditorias: dict, max_oportunidades: int) -> list[Opo
         )
 
     # Ordena oportunidades por severidad y por mayor ahorro implícito.
-    oportunidades_ordenadas = sorted(oportunidades, key=lambda item: {"crítica": 0, "alta": 1, "media": 2, "baja": 3}.get(item.severidad, 4))
+    oportunidades_ordenadas = sorted(
+        oportunidades, key=lambda item: {"crítica": 0, "alta": 1, "media": 2, "baja": 3}.get(item.severidad, 4)
+    )
 
     # Devuelve un subconjunto limitado para evitar ruido.
     return oportunidades_ordenadas[:max_oportunidades]

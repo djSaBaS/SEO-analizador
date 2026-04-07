@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 # Importa tipos estándar para mejorar legibilidad y validación estática.
-from typing import Any, List, Optional
+from typing import Any
 
 
 # Define la estructura de una incidencia SEO detectada durante la auditoría.
@@ -75,49 +75,49 @@ class ResultadoRendimiento:
     estrategia: str
 
     # Guarda el score de rendimiento en escala 0-100.
-    performance_score: Optional[float]
+    performance_score: float | None
 
     # Guarda el score de accesibilidad en escala 0-100.
-    accessibility_score: Optional[float]
+    accessibility_score: float | None
 
     # Guarda el score de buenas prácticas en escala 0-100.
-    best_practices_score: Optional[float]
+    best_practices_score: float | None
 
     # Guarda el score SEO en escala 0-100.
-    seo_score: Optional[float]
+    seo_score: float | None
 
     # Guarda la métrica LCP (laboratorio).
-    lcp: Optional[str]
+    lcp: str | None
 
     # Guarda la métrica CLS (laboratorio).
-    cls: Optional[str]
+    cls: str | None
 
     # Guarda la métrica INP (laboratorio) cuando exista.
-    inp: Optional[str]
+    inp: str | None
 
     # Guarda la métrica FCP (laboratorio).
-    fcp: Optional[str]
+    fcp: str | None
 
     # Guarda la métrica TBT (laboratorio) cuando exista.
-    tbt: Optional[str]
+    tbt: str | None
 
     # Guarda la métrica Speed Index (laboratorio).
-    speed_index: Optional[str]
+    speed_index: str | None
 
     # Guarda la métrica de campo LCP cuando exista.
-    campo_lcp: Optional[str]
+    campo_lcp: str | None
 
     # Guarda la métrica de campo CLS cuando exista.
-    campo_cls: Optional[str]
+    campo_cls: str | None
 
     # Guarda la métrica de campo INP cuando exista.
-    campo_inp: Optional[str]
+    campo_inp: str | None
 
     # Guarda las oportunidades principales detectadas.
-    oportunidades: List[OportunidadRendimiento] = field(default_factory=list)
+    oportunidades: list[OportunidadRendimiento] = field(default_factory=list)
 
     # Guarda un error controlado de consulta cuando ocurra.
-    error: Optional[str] = None
+    error: str | None = None
 
 
 # Define la estructura de datos de una URL auditada.
@@ -152,13 +152,13 @@ class ResultadoUrl:
     meta_description: str
 
     # Guarda la canonical encontrada, si existe.
-    canonical: Optional[str]
+    canonical: str | None
 
     # Indica si la página está marcada como noindex.
     noindex: bool
 
     # Guarda todos los hallazgos detectados para la URL.
-    hallazgos: List[HallazgoSeo] = field(default_factory=list)
+    hallazgos: list[HallazgoSeo] = field(default_factory=list)
 
     # Guarda el número total de palabras del contenido extraído.
     palabras: int = 0
@@ -200,7 +200,7 @@ class ResultadoUrl:
     lazy_load_detectado: bool = False
 
     # Guarda un error controlado si la auditoría de la URL falló.
-    error: Optional[str] = None
+    error: str | None = None
 
 
 # Define métrica agregada de Search Console por página.
@@ -269,7 +269,7 @@ class DatosSearchConsole:
     activo: bool
 
     # Guarda mensaje de error controlado cuando exista.
-    error: Optional[str] = None
+    error: str | None = None
 
     # Guarda propiedad siteUrl consultada.
     site_url: str = ""
@@ -281,19 +281,19 @@ class DatosSearchConsole:
     date_to: str = ""
 
     # Guarda métricas por página.
-    paginas: List[MetricaGscPagina] = field(default_factory=list)
+    paginas: list[MetricaGscPagina] = field(default_factory=list)
 
     # Guarda métricas por query.
-    queries: List[MetricaGscQuery] = field(default_factory=list)
+    queries: list[MetricaGscQuery] = field(default_factory=list)
 
     # Guarda cruce crudo query+page para mapping inicial.
-    filas_query_pagina: List[dict[str, object]] = field(default_factory=list)
+    filas_query_pagina: list[dict[str, object]] = field(default_factory=list)
 
     # Guarda desglose opcional por dispositivo.
-    filas_dispositivo: List[dict[str, object]] = field(default_factory=list)
+    filas_dispositivo: list[dict[str, object]] = field(default_factory=list)
 
     # Guarda desglose opcional por país.
-    filas_pais: List[dict[str, object]] = field(default_factory=list)
+    filas_pais: list[dict[str, object]] = field(default_factory=list)
 
 
 # Define métrica agregada de Google Analytics 4 por página.
@@ -359,7 +359,7 @@ class DatosAnalytics:
     activo: bool
 
     # Guarda mensaje de error controlado cuando exista.
-    error: Optional[str] = None
+    error: str | None = None
 
     # Guarda property id consultado.
     property_id: str = ""
@@ -371,13 +371,13 @@ class DatosAnalytics:
     date_to: str = ""
 
     # Guarda métricas por página.
-    paginas: List[MetricaAnalyticsPagina] = field(default_factory=list)
+    paginas: list[MetricaAnalyticsPagina] = field(default_factory=list)
 
     # Guarda resumen agregado del periodo.
     resumen: ResumenAnalytics = field(default_factory=ResumenAnalytics)
 
     # Guarda hallazgos de cruce GA4 + GSC cuando aplique.
-    cruces_gsc: List[dict[str, object]] = field(default_factory=list)
+    cruces_gsc: list[dict[str, object]] = field(default_factory=list)
 
 
 # Define una recomendación operativa de gestión de indexación por URL.
@@ -417,7 +417,7 @@ class ResultadoAuditoria:
     total_urls: int
 
     # Guarda los resultados por URL.
-    resultados: List[ResultadoUrl]
+    resultados: list[ResultadoUrl]
 
     # Guarda el nombre del cliente inferido o definido.
     cliente: str
@@ -429,13 +429,16 @@ class ResultadoAuditoria:
     gestor: str
 
     # Guarda las fuentes realmente activas en la ejecución.
-    fuentes_activas: List[str] = field(default_factory=lambda: ["sitemap", "rastreo_tecnico", "html"])
+    fuentes_activas: list[str] = field(default_factory=lambda: ["sitemap", "rastreo_tecnico", "html"])
 
     # Guarda fuentes que se intentaron usar pero fallaron en ejecución.
-    fuentes_fallidas: List[str] = field(default_factory=list)
+    fuentes_fallidas: list[str] = field(default_factory=list)
+
+    # Guarda fuentes omitidas por incompatibilidad de dominio.
+    fuentes_incompatibles: list[str] = field(default_factory=list)
 
     # Guarda los resultados de rendimiento obtenidos desde PageSpeed.
-    rendimiento: List[ResultadoRendimiento] = field(default_factory=list)
+    rendimiento: list[ResultadoRendimiento] = field(default_factory=list)
 
     # Guarda estado por URL y estrategia cuando PageSpeed falla o devuelve datos parciales.
     pagespeed_estado: dict[str, dict[str, str]] = field(default_factory=dict)
@@ -444,28 +447,32 @@ class ResultadoAuditoria:
     indexacion_rastreo: dict[str, object] = field(default_factory=dict)
 
     # Guarda decisiones de gestión de indexación inteligente por URL.
-    gestion_indexacion: List[DecisionIndexacion] = field(default_factory=list)
+    gestion_indexacion: list[DecisionIndexacion] = field(default_factory=list)
 
     # Guarda score técnico agregado en escala 0-100.
-    score_tecnico: Optional[float] = None
+    score_tecnico: float | None = None
 
     # Guarda score de contenido agregado en escala 0-100.
-    score_contenido: Optional[float] = None
+    score_contenido: float | None = None
 
     # Guarda score de rendimiento agregado en escala 0-100.
-    score_rendimiento: Optional[float] = None
+    score_rendimiento: float | None = None
 
     # Guarda SEO score global agregado en escala 0-100.
-    seo_score_global: Optional[float] = None
+    seo_score_global: float | None = None
 
     # Guarda datos opcionales autenticados de Search Console.
-    search_console: DatosSearchConsole = field(default_factory=lambda: DatosSearchConsole(activo=False, error="No configurado"))
+    search_console: DatosSearchConsole = field(
+        default_factory=lambda: DatosSearchConsole(activo=False, error="No configurado")
+    )
 
     # Guarda datos opcionales autenticados de Google Analytics 4.
-    analytics: DatosAnalytics = field(default_factory=lambda: DatosAnalytics(activo=False, error="Analytics no configurado"))
+    analytics: DatosAnalytics = field(
+        default_factory=lambda: DatosAnalytics(activo=False, error="Analytics no configurado")
+    )
 
     # Guarda el informe narrativo opcional generado por IA.
-    resumen_ia: Optional[str] = None
+    resumen_ia: str | None = None
 
     # Guarda fecha inicial global del periodo analizado.
     periodo_date_from: str = ""
@@ -531,7 +538,7 @@ class ConfiguracionInforme:
     carpeta_salida: str = "./salidas"
 
     # Lista de entregables solicitados por el perfil.
-    entregables_solicitados: List[str] = field(default_factory=list)
+    entregables_solicitados: list[str] = field(default_factory=list)
 
 
 # Define el contrato normalizado de entrada de una auditoría.
@@ -629,16 +636,16 @@ class ResultadoEntregables:
     """
 
     # Lista de identificadores de entregables exportados.
-    generados: List[str] = field(default_factory=list)
+    generados: list[str] = field(default_factory=list)
 
     # Lista de entregables omitidos con motivo.
-    omitidos: List[str] = field(default_factory=list)
+    omitidos: list[str] = field(default_factory=list)
 
     # Lista de errores no fatales detectados en exportación.
-    errores_no_fatales: List[str] = field(default_factory=list)
+    errores_no_fatales: list[str] = field(default_factory=list)
 
     # Registro estructurado por entregable para consumo de CLI/web.
-    registros: List[RegistroEntregable] = field(default_factory=list)
+    registros: list[RegistroEntregable] = field(default_factory=list)
 
 
 # Define un resumen ejecutivo de la ejecución para trazabilidad operativa.
@@ -655,10 +662,13 @@ class ResumenEjecucion:
     total_urls_analizadas: int = 0
 
     # Guarda fuentes activas efectivas en la ejecución.
-    fuentes_activas: List[str] = field(default_factory=list)
+    fuentes_activas: list[str] = field(default_factory=list)
 
     # Guarda fuentes que fallaron durante la ejecución.
-    fuentes_fallidas: List[str] = field(default_factory=list)
+    fuentes_fallidas: list[str] = field(default_factory=list)
+
+    # Guarda fuentes omitidas por incompatibilidad de dominio.
+    fuentes_incompatibles: list[str] = field(default_factory=list)
 
     # Indica si se aplicó invalidación de caché.
     cache_invalidada: bool = False

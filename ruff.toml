@@ -1,0 +1,18 @@
+# Longitud máxima de línea permitida.
+line-length = 120
+
+# Versión objetivo de Python.
+target-version = "py310"
+
+[lint]
+# Reglas activas (errores, estilo, imports, buenas prácticas).
+select = ["E", "F", "I", "UP", "B"]
+
+# Reglas ignoradas (puedes ajustar después).
+ignore = []
+
+[lint.per-file-ignores]
+# Mantiene control progresivo en el núcleo legacy sin ocultar errores de sintaxis o compatibilidad.
+"src/seo_auditor/reporters/core.py" = ["E501", "I001"]
+# Evita tocar migraciones auto-generadas de Django para no introducir riesgos mecánicos.
+"src/seo_auditor/web/apps/**/migrations/*.py" = ["E501"]

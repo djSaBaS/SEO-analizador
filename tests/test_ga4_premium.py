@@ -1,5 +1,4 @@
 # Importa utilidades de fecha para validaciones deterministas.
-from datetime import date
 
 # Importa módulo GA4 premium bajo prueba.
 from seo_auditor import ga4_premium

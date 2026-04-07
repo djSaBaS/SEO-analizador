@@ -7,7 +7,6 @@ from dataclasses import dataclass
 # Importa la carga automática del archivo .env cuando exista.
 from dotenv import load_dotenv
 
-
 # Carga variables del archivo .env de forma transparente y segura.
 load_dotenv()
 
@@ -89,6 +88,9 @@ class Configuracion:
 
     # Guarda el máximo de filas por consulta GA4.
     ga_row_limit: int
+
+    # Guarda la URL/dominio esperado de GA4 para validación de coherencia.
+    ga_site_url: str = ""
 
 
 # Carga y valida la configuración desde entorno.
@@ -205,4 +207,6 @@ def cargar_configuracion() -> Configuracion:
         ga_date_to=os.getenv("GA_DATE_TO", "").strip(),
         # Convierte límite de filas de GA4 a entero.
         ga_row_limit=int(ga_row_limit_texto),
+        # Carga URL/dominio esperado de GA4 para validación de coherencia.
+        ga_site_url=os.getenv("GA_SITE_URL", "").strip(),
     )

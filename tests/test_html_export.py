@@ -1,6 +1,6 @@
 # Importa Path para manejar archivos temporales.
-from pathlib import Path
 import re
+from pathlib import Path
 
 # Importa modelos de dominio para construir auditoría sintética.
 from seo_auditor.models import DatosAnalytics, HallazgoSeo, ResultadoAuditoria, ResultadoUrl

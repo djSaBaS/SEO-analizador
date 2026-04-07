@@ -1,8 +1,7 @@
 # Importa serialización JSON para persistencia ligera.
-import json
-
 # Importa hash estable para claves de caché.
 import hashlib
+import json
 
 # Importa utilidades de tiempo para TTL.
 import time

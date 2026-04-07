@@ -3,7 +3,6 @@ import re
 
 from seo_auditor.models import ResultadoAuditoria
 
-
 # Define jerarquía fija obligatoria del informe final.
 JERARQUIA_INFORME = [
     "Resumen ejecutivo",
@@ -71,7 +70,14 @@ def construir_secciones_desde_ia(texto_ia: str | None) -> list[dict[str, object]
         if not linea.strip():
             continue
 
-        if re.match(r"^(\d+[\).]\s*)?(resumen|kpis|hallazgos|quick wins|acciones técnicas|acciones de contenido|rendimiento|roadmap)", linea.lower()):
+        patron_titulo = (
+            r"^(\d+[\).]\s*)?(resumen|kpis|hallazgos|quick wins|"
+            r"acciones técnicas|acciones de contenido|rendimiento|roadmap)"
+        )
+        if re.match(
+            patron_titulo,
+            linea.lower(),
+        ):
             if seccion_actual["items"]:
                 secciones.append(seccion_actual)
             titulo = re.sub(r"^\d+[\).]\s*", "", linea).strip().title()

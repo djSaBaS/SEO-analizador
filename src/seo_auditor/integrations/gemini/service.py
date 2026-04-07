@@ -14,10 +14,10 @@ from seo_auditor.cache import construir_clave_cache, escribir_cache, leer_cache
 from seo_auditor.models import ResultadoAuditoria
 
 # Define la carpeta principal del nuevo sistema modular de prompts.
-RUTA_CARPETA_PROMPTS = Path(__file__).resolve().parents[2] / "prompts"
+RUTA_CARPETA_PROMPTS = Path(__file__).resolve().parents[4] / "prompts"
 
 # Define carpeta heredada para compatibilidad retroactiva.
-RUTA_CARPETA_PROMPTS_LEGACY = Path(__file__).resolve().parents[2] / "Prompt"
+RUTA_CARPETA_PROMPTS_LEGACY = Path(__file__).resolve().parents[4] / "Prompt"
 
 # Define la ruta heredada original del prompt único editable.
 RUTA_PROMPT_UNICO_LEGACY = RUTA_CARPETA_PROMPTS_LEGACY / "consulta_ia_prompt.txt"
@@ -65,44 +65,14 @@ METRICAS_PAGESPEED_VALIDAS = (
 # Cachea el módulo Gemini una vez resuelto para evitar import dinámico repetitivo.
 _MODULO_GENAI = None
 
-
-# Resuelve el módulo de Gemini de forma perezosa para evitar fallos en import global.
-def _obtener_modulo_gemini():
-    """Devuelve el módulo de Gemini con carga opcional y caché local de proceso."""
-
-    global _MODULO_GENAI
-
-    # Reutiliza módulo previamente resuelto en este proceso.
-    if _MODULO_GENAI is not None:
-        return _MODULO_GENAI
-
-    try:
-        # Usa import local idiomático para dependencias opcionales.
-        from google import genai as modulo_genai
-    except ModuleNotFoundError as exc:
-        # Solo transforma ausencia del paquete objetivo; conserva errores transitivos reales.
-        if exc.name not in {"google", "google.genai"}:
-            raise
-        raise RuntimeError(
-            "Dependencia opcional no disponible: instala `google-genai` para habilitar la integración Gemini."
-        ) from exc
-
-    _MODULO_GENAI = modulo_genai
-    return _MODULO_GENAI
-
-
-# Resuelve el cliente de Google Gemini de forma perezosa para evitar fallos en import global.
-def _crear_cliente_gemini(api_key: str):
-    """Crea un cliente de Gemini resolviendo la dependencia en tiempo de uso."""
-
-    return _obtener_modulo_gemini().Client(api_key=api_key)
-
-
-# Define fallback interno alineado 1:1 con el archivo editable del repositorio.
-PROMPT_IA_FALLBACK = """Actúa como consultor SEO senior de agencia, especializado en crecimiento orgánico basado en datos reales.
-Tu objetivo no es describir datos, sino analizarlos, cruzarlos y priorizar acciones que generen impacto directo en visibilidad, tráfico y negocio.
+# Conserva una copia literal mínima del prompt general para contingencias de lectura.
+PROMPT_IA_FALLBACK_LITERAL = """Actúa como consultor SEO senior de agencia,
+especializado en crecimiento orgánico basado en datos reales.
+Tu objetivo no es describir datos, sino analizarlos, cruzarlos y priorizar acciones
+que generen impacto directo en visibilidad, tráfico y negocio.
 Redacta en español profesional, natural y claro.
-Puedes usar emojis de forma moderada y estratégica para mejorar la legibilidad, especialmente en títulos y elementos clave, pero sin abusar.
+Puedes usar emojis de forma moderada y estratégica para mejorar la legibilidad,
+especialmente en títulos y elementos clave, pero sin abusar.
 No uses Markdown ni símbolos como **, ### o ---.
 Usa únicamente los datos proporcionados. No inventes información ni menciones herramientas no activas.
 
@@ -121,7 +91,8 @@ Debes cruzar información entre:
 - Google Search Console
 
 REGLAS DE CONSISTENCIA OBLIGATORIAS (NO INCUMPLIR):
-- Lee y respeta estas banderas del JSON: gsc_activo, pagespeed_activo, fuentes_activas, fuentes_fallidas, usar_seccion_gsc.
+- Lee y respeta estas banderas del JSON: gsc_activo, pagespeed_activo,
+  fuentes_activas, fuentes_fallidas, usar_seccion_gsc.
 - Usa también contexto_control como fuente prioritaria de verificación.
 - Si gsc_activo=true o "search_console" aparece en fuentes_activas:
   - está prohibido afirmar que faltan datos de GSC/Search Console.
@@ -197,6 +168,54 @@ Dividir en:
 Datos de auditoría en JSON:
 {datos_json}
 """
+
+
+# Resuelve el módulo de Gemini de forma perezosa para evitar fallos en import global.
+def _obtener_modulo_gemini():
+    """Devuelve el módulo de Gemini con carga opcional y caché local de proceso."""
+
+    global _MODULO_GENAI
+
+    # Reutiliza módulo previamente resuelto en este proceso.
+    if _MODULO_GENAI is not None:
+        return _MODULO_GENAI
+
+    try:
+        # Usa import local idiomático para dependencias opcionales.
+        from google import genai as modulo_genai
+    except ModuleNotFoundError as exc:
+        # Solo transforma ausencia del paquete objetivo; conserva errores transitivos reales.
+        if exc.name not in {"google", "google.genai"}:
+            raise
+        raise RuntimeError(
+            "Dependencia opcional no disponible: instala `google-genai` para habilitar la integración Gemini."
+        ) from exc
+
+    _MODULO_GENAI = modulo_genai
+    return _MODULO_GENAI
+
+
+# Resuelve el cliente de Google Gemini de forma perezosa para evitar fallos en import global.
+def _crear_cliente_gemini(api_key: str):
+    """Crea un cliente de Gemini resolviendo la dependencia en tiempo de uso."""
+
+    return _obtener_modulo_gemini().Client(api_key=api_key)
+
+
+def _cargar_prompt_fallback() -> str:
+    """Obtiene el prompt general canónico y usa copia literal si el archivo no está disponible."""
+
+    ruta_prompt_general = RUTA_CARPETA_PROMPTS / MAPA_PROMPTS_POR_MODO[MODO_PROMPT_POR_DEFECTO]
+    try:
+        if ruta_prompt_general.is_file():
+            return ruta_prompt_general.read_text(encoding="utf-8")
+    except OSError:
+        pass
+    return PROMPT_IA_FALLBACK_LITERAL
+
+
+# Define fallback interno alineado con el archivo editable canónico del repositorio.
+PROMPT_IA_FALLBACK = _cargar_prompt_fallback()
 
 
 # Resuelve ruta de prompt por modo con fallback a informe general.
@@ -312,7 +331,9 @@ def construir_contexto_ia(resultado: ResultadoAuditoria, max_muestras: int) -> d
             # Filtra incidencias de esfuerzo bajo y potencial relevante.
             if hallazgo.esfuerzo == "Bajo" and hallazgo.impacto in {"Muy alto", "Alto", "Medio"}:
                 # Añade la incidencia al conjunto de quick wins.
-                quick_wins.append({"url": item.url, "problema": hallazgo.descripcion, "recomendacion": hallazgo.recomendacion})
+                quick_wins.append(
+                    {"url": item.url, "problema": hallazgo.descripcion, "recomendacion": hallazgo.recomendacion}
+                )
 
     # Resume resultados de rendimiento para minimizar tokens.
     resumen_rendimiento = []
@@ -352,7 +373,8 @@ def construir_contexto_ia(resultado: ResultadoAuditoria, max_muestras: int) -> d
 
     # Detecta filas de PageSpeed con métricas reales y sin errores de ejecución.
     pagespeed_con_metricas_validas = any(
-        any(getattr(item, metrica) is not None for metrica in METRICAS_PAGESPEED_VALIDAS) and not item.error for item in resultado.rendimiento
+        any(getattr(item, metrica) is not None for metrica in METRICAS_PAGESPEED_VALIDAS) and not item.error
+        for item in resultado.rendimiento
     )
 
     # Marca PageSpeed activo solo cuando hay métricas útiles o fuente validada por CLI.
@@ -387,8 +409,13 @@ def construir_contexto_ia(resultado: ResultadoAuditoria, max_muestras: int) -> d
         "total_urls": resultado.total_urls,
         "total_incidencias": sum(contador_problemas.values()),
         "distribucion_severidad": dict(contador_severidad),
-        "top_problemas": [{"problema": problema, "cantidad": cantidad} for problema, cantidad in contador_problemas.most_common(max_muestras)],
-        "top_urls_afectadas": [{"url": url, "incidencias": incidencias} for url, incidencias in top_urls[:max_muestras]],
+        "top_problemas": [
+            {"problema": problema, "cantidad": cantidad}
+            for problema, cantidad in contador_problemas.most_common(max_muestras)
+        ],
+        "top_urls_afectadas": [
+            {"url": url, "incidencias": incidencias} for url, incidencias in top_urls[:max_muestras]
+        ],
         "muestras_representativas": [
             {
                 "url": item.url,
@@ -411,6 +438,7 @@ def construir_contexto_ia(resultado: ResultadoAuditoria, max_muestras: int) -> d
             "global": resultado.seo_score_global,
         },
     }
+
 
 # Normaliza contradicciones del texto IA respecto a disponibilidad real de GSC.
 def validar_consistencia_resumen_ia(texto: str, datos_contexto: dict) -> str:

@@ -28,3 +28,6 @@ pytest -q
 ## Organización por fase
 - Fase 2 cerrada (2026-03-31): la suite se reorganiza en `tests/unit/` y `tests/integration/` como estructura canónica.
 - Se mantienen rutas legacy en `tests/` para compatibilidad temporal mientras se completa la transición.
+
+- Cobertura web interna en `tests/web/` (vistas Django, formulario y adaptador web->servicios).
+- Cobertura de coherencia de dominio entre sitemap y fuentes externas en pruebas unitarias de servicios.

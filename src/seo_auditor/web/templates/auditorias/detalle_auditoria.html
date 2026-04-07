@@ -1,0 +1,89 @@
+<!-- Extiende layout base para detalle de ejecución. -->
+{% extends "base.html" %}
+<!-- Define título dinámico del detalle de auditoría. -->
+{% block title %}Ejecución #{{ ejecucion_id }} · SEO Auditor{% endblock %}
+<!-- Inicia bloque principal de resultado y estado. -->
+{% block content %}
+<!-- Crea tarjeta de estado operativo de ejecución. -->
+<section class="tarjeta">
+    <h2>Ejecución #{{ ejecucion_id }}</h2>
+    <p><strong>Estado:</strong> {{ ejecucion.get_estado_display }}</p>
+    <p><strong>Cliente:</strong> {{ ejecucion.cliente|default:"Sin cliente" }}</p>
+    <p><strong>Sitemap:</strong> {{ ejecucion.sitemap }}</p>
+    <p><strong>Gestor:</strong> {{ ejecucion.gestor }}</p>
+    <p><strong>Periodo:</strong> {{ ejecucion.fecha_inicio }} → {{ ejecucion.fecha_fin }}</p>
+    <p><strong>Fuentes activas:</strong> {{ ejecucion.fuentes_activas|join:", "|default:"Sin fuentes activas" }}</p>
+    <p><strong>Fuentes fallidas:</strong> {{ ejecucion.fuentes_fallidas|join:", "|default:"Sin fuentes fallidas" }}</p>
+    <p><strong>Fuentes incompatibles:</strong> {{ ejecucion.fuentes_incompatibles|join:" | "|default:"Sin incompatibilidades detectadas" }}</p>
+    {% if ejecucion.ruta_salida %}<p><strong>Ruta salida:</strong> {{ ejecucion.ruta_salida }}</p>{% endif %}
+    {% if ejecucion.mensaje_error %}<p class="error"><strong>Error:</strong> {{ ejecucion.mensaje_error }}</p>{% endif %}
+    {% if ejecucion.estado == "en_proceso" %}
+        <p><em>La auditoría se está ejecutando en segundo plano. Esta vista se refresca automáticamente cada 5 segundos.</em></p>
+        <script>setTimeout(function () { window.location.reload(); }, 5000);</script>
+    {% endif %}
+
+</section>
+<!-- Crea tarjeta de resumen ejecutivo mínimo de resultados. -->
+<section class="tarjeta">
+    <h2>Resumen ejecutivo</h2>
+    {% with auditoria=auditoria_resumen %}
+        {% if auditoria %}
+            <p><strong>Fecha de ejecución:</strong> {{ auditoria.fecha_ejecucion }}</p>
+            <p><strong>KPIs principales:</strong> SEO score global {{ auditoria.seo_score_global|default:"No disponible" }}, score técnico {{ auditoria.score_tecnico|default:"No disponible" }}, score contenido {{ auditoria.score_contenido|default:"No disponible" }}</p>
+            <p><strong>Resumen IA:</strong> {{ auditoria.resumen_ia|default:"No disponible"|truncatewords:80 }}</p>
+            <h3>Páginas prioritarias</h3>
+            <ul>
+                {% for pagina in auditoria.paginas_prioritarias|slice:":5" %}
+                    <li>
+                        {{ pagina.url }} · score {{ pagina.prioridad_score|default:"-" }}
+                        {% if pagina.motivos %}<br><small>Motivos: {{ pagina.motivos|join:", " }}</small>{% endif %}
+                    </li>
+                {% empty %}
+                    <li>No se han detectado páginas prioritarias.</li>
+                {% endfor %}
+            </ul>
+            <h3>Quick wins</h3>
+            <ul>
+                {% for quick in auditoria.quick_wins|slice:":5" %}
+                    <li>
+                        {{ quick.url }}
+                        {% if quick.problemas %}<br><small>Problemas: {{ quick.problemas|join:" | " }}</small>{% endif %}
+                        {% if quick.recomendaciones %}<br><small>Acciones: {{ quick.recomendaciones|join:" | " }}</small>{% endif %}
+                    </li>
+                {% empty %}
+                    <li>No se han detectado quick wins.</li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>Esta ejecución no contiene un resultado detallado aún.</p>
+        {% endif %}
+    {% endwith %}
+</section>
+<!-- Crea tarjeta de descargas de entregables generados. -->
+<section class="tarjeta">
+    <h2>Descargas</h2>
+    {% if entregables_presentacion %}
+        <table>
+            <thead><tr><th>Entregable</th><th>Estado</th><th>Detalle</th><th>Acción</th></tr></thead>
+            <tbody>
+                {% for entregable in entregables_presentacion %}
+                    <tr>
+                        <td>{{ entregable.nombre_amigable|default:entregable.entregable }}</td>
+                        <td>{{ entregable.estado_legible|default:entregable.estado }}</td>
+                        <td>{{ entregable.detalle_mostrable|default:entregable.detalle|default:"-" }}</td>
+                        <td>
+                            {% if entregable.ruta_final %}
+                                <a href="{% url 'auditorias:descargar' ejecucion_id forloop.counter0 %}">Descargar</a>
+                            {% else %}
+                                No disponible
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>No hay entregables registrados para esta ejecución.</p>
+    {% endif %}
+</section>
+{% endblock %}

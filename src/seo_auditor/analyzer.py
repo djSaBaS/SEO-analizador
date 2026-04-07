@@ -4,8 +4,8 @@ Deprecated: usar `seo_auditor.core.assembler` y `seo_auditor.analyzers.*`.
 """
 
 from seo_auditor.analyzers import tecnico_analyzer as _tecnico
-from seo_auditor.core.assembler import auditar_urls
 from seo_auditor.analyzers.tecnico_analyzer import *  # noqa: F401,F403
+from seo_auditor.core.assembler import auditar_urls as auditar_urls
 
 # Reexport explícito de helpers privados usados por la suite histórica.
 _calcular_metricas_contenido = _tecnico._calcular_metricas_contenido

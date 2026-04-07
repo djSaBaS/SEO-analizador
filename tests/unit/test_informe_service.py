@@ -17,7 +17,9 @@ def test_informe_service_filtra_secciones_por_fuentes() -> None:
         resumen_ia="",
     )
     servicio = InformeService()
-    modelo = servicio.construir_modelo_documental(resultado, configuracion=SimpleNamespace(ga_enabled=False, gemini_api_key=""))
+    modelo = servicio.construir_modelo_documental(
+        resultado, configuracion=SimpleNamespace(ga_enabled=False, gemini_api_key="")
+    )
     titulos = [seccion.get("titulo") for seccion in modelo["secciones"]]
     assert titulos[0] == "Portada"
     assert "Visibilidad orgánica real" not in titulos

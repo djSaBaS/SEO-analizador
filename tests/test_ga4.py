@@ -1,11 +1,11 @@
 # Importa utilidades de fecha para validaciones deterministas.
 from datetime import date, timedelta
 
-# Importa configuración tipada del proyecto.
-from seo_auditor.config import Configuracion
-
 # Importa módulo GA4 bajo prueba.
 from seo_auditor import ga4
+
+# Importa configuración tipada del proyecto.
+from seo_auditor.config import Configuracion
 
 
 # Construye configuración base para pruebas de GA4.

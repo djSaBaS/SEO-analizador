@@ -2,9 +2,9 @@
 
 # Importa utilidades de sistema para recorrer directorios de forma eficiente.
 import os
+
 # Importa utilidades para manejo robusto de rutas.
 from pathlib import Path
-
 
 # Define directorios internos que no forman parte de la estructura documental del proyecto.
 DIRECTORIOS_EXCLUIDOS = {
@@ -73,9 +73,7 @@ def encontrar_carpetas_sin_info(raiz: Path) -> list[Path]:
         carpeta = Path(carpeta_actual)
         # Excluye directorios in-place para podar el recorrido en profundidad.
         directorios[:] = [
-            nombre_directorio
-            for nombre_directorio in directorios
-            if not segmento_ignorado(nombre_directorio)
+            nombre_directorio for nombre_directorio in directorios if not segmento_ignorado(nombre_directorio)
         ]
         # Omite la raíz porque este control aplica a carpetas del proyecto, no al repositorio completo.
         if carpeta == raiz:

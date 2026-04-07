@@ -18,13 +18,16 @@ Código fuente principal del proyecto.
 - `seo_auditor/ga4_premium.py`: generación del informe dedicado GA4 premium (HTML/PDF/Excel).
 - `seo_auditor/gemini_client.py`: integración IA para narrativa y validación de conectividad.
 - `seo_auditor/cache.py`: caché local con TTL e invalidación.
-- `seo_auditor/utils.py`: utilidades generales (fechas, URLs, slug, progreso).
+- `seo_auditor/utils/`: paquete de utilidades generales (fechas, URLs, slug, progreso) como fuente única para evitar duplicidad/import shadowing.
 - `seo_auditor/reporters/`: paquete modular de exportación documental; `core.py` concentra lógica común y cada exportador vive en su propio módulo (`exportador_word.py`, `exportador_pdf.py`, `exportador_html.py`, `exportador_excel.py`, `exportador_json.py`, `exportador_markdown.py`) para mantener responsabilidades separadas sin romper la CLI.
 - `seo_auditor/services/informe_service.py`: composición semántica del informe como fuente única para Word/PDF/HTML con reglas condicionales por fuentes (GSC/GA4/IA).
 - Contrato documental interno: `exportar_markdown_ia` genera `*_ia.md` solo para revisión editorial interna; DOCX/PDF/HTML deben renderizar siempre desde `construir_modelo_semantico_informe`.
 - La plantilla HTML usa clases semánticas (`.cabecera`, `.meta`, `.kpi-card`, `.prioridad`, `.tabla-ejecutiva`) con tipografía escalada y tablas premium portables sin dependencias JavaScript.
+- El render HTML central (`reporters/core.py`) prioriza compatibilidad Python 3.10+ evitando f-strings anidados frágiles y reutilizando helper interno de sanitización para mantener seguridad y legibilidad.
 
 ## Notas de mantenimiento
 - El flujo admite degradación elegante: si una fuente externa falla, el proceso general continúa.
 - La salida separa capa ejecutiva y capa técnica para facilitar lectura por perfiles no técnicos y técnicos.
 - La priorización de páginas dispone de una función explicable (`calcular_score_prioridad_pagina`) preparada para evolucionar a un motor SEO multi-componente.
+
+- `seo_auditor/web/`: primera capa web interna con Django (dashboard, formulario, estado y descargas) conectada al núcleo de servicios.

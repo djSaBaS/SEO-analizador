@@ -269,3 +269,133 @@ pytest -q
 
 ## Versionado
 Consulta el historial de cambios en [`version.md`](./version.md).
+
+
+## Capa web interna (Django)
+Esta fase incorpora una primera interfaz web **interna/local** que reutiliza los servicios ya consolidados (`AuditoriaService`, `EntregablesService`, contratos `AuditoriaRequest/AuditoriaResult`) sin duplicar lógica de negocio.
+
+### Qué incluye en esta fase
+- Dashboard interno con ejecuciones recientes y documentos detectados en `./salidas`.
+- Formulario web para lanzar auditorías con parámetros clave (sitemap, cliente, gestor, periodo, IA, modo, PageSpeed, perfil de entregables).
+- Vista de estado/resultado con resumen operativo, fuentes activas/fallidas, KPIs básicos y bloques de páginas prioritarias/quick wins.
+- Descarga de entregables generados cuando el archivo existe en disco.
+- Persistencia mínima en Django (`EjecucionAuditoria`) para registrar metadatos de ejecución sin sobredimensionar la plataforma.
+- La vista web de detalle consume ahora prioridades reales del motor (`páginas prioritarias` y `quick wins`) usando la misma lógica de construcción que los exportadores.
+- Se valida coherencia de dominio entre sitemap auditado y fuentes (GSC/GA4/PageSpeed URL manual): las fuentes incompatibles se excluyen y quedan trazadas en ejecución.
+
+### Guía completa de puesta en marcha web (desde cero)
+
+#### 1) Requisitos previos
+- Python **3.11 o superior**.
+- Estar situado en la **raíz del repositorio** (carpeta que contiene `README.md`, `requirements.txt` y `src/`).
+- Tener `.env` preparado si quieres activar integraciones (GSC/GA4/PageSpeed/IA).
+
+Comando para comprobar versión de Python:
+```bash
+python --version
+```
+
+#### 2) Crear y activar entorno virtual
+
+##### Windows CMD
+```bat
+cd C:\ruta\a\SEO-analizador
+python -m venv .venv
+.venv\Scripts\activate.bat
+```
+
+##### Windows PowerShell
+```powershell
+cd C:\ruta\a\SEO-analizador
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+```
+
+##### Linux / macOS
+```bash
+cd /ruta/a/SEO-analizador
+python -m venv .venv
+source .venv/bin/activate
+```
+
+#### 3) Instalar dependencias
+```bash
+pip install -r requirements.txt
+```
+
+#### 4) Configurar variables de entorno Django
+
+Variables recomendadas en desarrollo local:
+- `DJANGO_DEBUG=true`
+- `DJANGO_SECRET_KEY=<valor_largo_aleatorio>`
+
+Generar una clave segura desde Python:
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(50))"
+```
+
+Ejemplo en Linux/macOS:
+```bash
+export DJANGO_DEBUG=true
+export DJANGO_SECRET_KEY="pega_aqui_la_clave_generada"
+```
+
+Ejemplo en Windows CMD:
+```bat
+set DJANGO_DEBUG=true
+set DJANGO_SECRET_KEY=pega_aqui_la_clave_generada
+```
+
+Ejemplo en Windows PowerShell:
+```powershell
+$env:DJANGO_DEBUG = "true"
+$env:DJANGO_SECRET_KEY = "pega_aqui_la_clave_generada"
+```
+
+> El proyecto carga `.env` mediante `python-dotenv`, así que también puedes guardar estas variables en un archivo `.env` en la raíz.
+
+#### 5) Aplicar migraciones
+Desde la **raíz del repositorio**:
+```bash
+python src/seo_auditor/web/manage.py migrate
+```
+
+#### 6) Arrancar servidor de desarrollo
+Desde la **raíz del repositorio**:
+```bash
+python src/seo_auditor/web/manage.py runserver
+```
+
+URL esperada:
+- `http://127.0.0.1:8000/`
+
+> Alternativa si estás dentro de `src/seo_auditor/web/`: `python manage.py runserver`.
+
+### Solución de problemas comunes (web)
+
+#### Error: `ModuleNotFoundError: No module named 'seo_auditor'`
+- Causa habitual: ejecutar fuera de la raíz o sin bootstrap correcto.
+- Solución recomendada:
+  1. Sitúate en la raíz del repositorio.
+  2. Activa el entorno virtual.
+  3. Ejecuta `python src/seo_auditor/web/manage.py runserver`.
+
+#### Error por `DJANGO_SECRET_KEY` no definida
+- Si `DJANGO_DEBUG=false`, la clave es obligatoria.
+- Define `DJANGO_SECRET_KEY` en entorno o `.env` y vuelve a ejecutar.
+
+#### Entorno virtual no activo
+- Verifica que el prompt muestre `(.venv)`.
+- Repite el comando de activación según tu sistema (CMD/PowerShell/Linux).
+
+#### Dependencias no encontradas
+- Ejecuta nuevamente `pip install -r requirements.txt` dentro del entorno virtual activo.
+
+#### Descarga rechazada de un entregable
+- La descarga de entregables solo permite archivos dentro de `./salidas` por seguridad.
+- Si el archivo fue movido fuera de esa carpeta, vuelve a generar la auditoría o restaura la estructura de salida.
+
+### Limitaciones actuales de esta fase
+- Ejecución en segundo plano con `ThreadPoolExecutor` local y refresco básico en pantalla de detalle (sin cola distribuida ni workers externos).
+- Interfaz orientada a uso interno técnico.
+- Persistencia ligera centrada en trazabilidad de ejecuciones, no en multiusuario avanzado.

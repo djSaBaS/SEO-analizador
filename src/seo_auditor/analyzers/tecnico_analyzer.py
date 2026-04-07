@@ -1,8 +1,12 @@
 # Importa el analizador HTML para tipado explícito.
-from bs4 import BeautifulSoup
+# Importa utilidades dinámicas para dependencias opcionales.
+import importlib
 
-# Importa utilidades estándar para normalización robusta de URL.
-from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
+# Importa utilidades para comprobar disponibilidad de módulos opcionales.
+import importlib.util
+
+# Importa expresiones regulares para tokenización estable.
+import re
 
 # Importa contador para reglas transversales del conjunto auditado.
 from collections import Counter
@@ -10,14 +14,10 @@ from collections import Counter
 # Importa hash para deduplicación aproximada de contenido.
 from hashlib import sha1
 
-# Importa expresiones regulares para tokenización estable.
-import re
+# Importa utilidades estándar para normalización robusta de URL.
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
-# Importa utilidades dinámicas para dependencias opcionales.
-import importlib
-
-# Importa utilidades para comprobar disponibilidad de módulos opcionales.
-import importlib.util
+from bs4 import BeautifulSoup
 
 # Importa funciones de obtención de HTML.
 from seo_auditor.fetcher import obtener_metadatos_html
@@ -27,7 +27,6 @@ from seo_auditor.models import HallazgoSeo, ResultadoAuditoria, ResultadoUrl
 
 # Importa utilidades para clasificación interna y progreso.
 from seo_auditor.utils import inferir_tipo_url, iterar_con_progreso
-
 
 # Resuelve disponibilidad real de trafilatura en tiempo de ejecución.
 TRAFILATURA_DISPONIBLE = importlib.util.find_spec("trafilatura") is not None
@@ -47,18 +46,51 @@ def clasificar_hallazgo(tipo: str, descripcion: str) -> dict[str, str]:
 
     # Define reglas ordenadas desde casos más críticos a menos críticos.
     reglas = [
-        ("5xx", {"severidad": "crítica", "area": "Infraestructura", "impacto": "Muy alto", "esfuerzo": "Medio", "prioridad": "P1"}),
+        (
+            "5xx",
+            {
+                "severidad": "crítica",
+                "area": "Infraestructura",
+                "impacto": "Muy alto",
+                "esfuerzo": "Medio",
+                "prioridad": "P1",
+            },
+        ),
         ("4xx", {"severidad": "alta", "area": "Indexación", "impacto": "Alto", "esfuerzo": "Bajo", "prioridad": "P1"}),
-        ("redirección", {"severidad": "alta", "area": "Arquitectura", "impacto": "Alto", "esfuerzo": "Bajo", "prioridad": "P1"}),
-        ("slash final", {"severidad": "baja", "area": "Arquitectura", "impacto": "Bajo", "esfuerzo": "Bajo", "prioridad": "P3"}),
-        ("canonical realmente incoherente", {"severidad": "alta", "area": "Indexación", "impacto": "Alto", "esfuerzo": "Medio", "prioridad": "P1"}),
-        ("canonical potencialmente incoherente", {"severidad": "media", "area": "Indexación", "impacto": "Medio", "esfuerzo": "Medio", "prioridad": "P2"}),
-        ("canonical con diferencia menor normalizable", {"severidad": "baja", "area": "Indexación", "impacto": "Bajo", "esfuerzo": "Bajo", "prioridad": "P3"}),
-        ("noindex", {"severidad": "alta", "area": "Indexación", "impacto": "Alto", "esfuerzo": "Bajo", "prioridad": "P1"}),
+        (
+            "redirección",
+            {"severidad": "alta", "area": "Arquitectura", "impacto": "Alto", "esfuerzo": "Bajo", "prioridad": "P1"},
+        ),
+        (
+            "slash final",
+            {"severidad": "baja", "area": "Arquitectura", "impacto": "Bajo", "esfuerzo": "Bajo", "prioridad": "P3"},
+        ),
+        (
+            "canonical realmente incoherente",
+            {"severidad": "alta", "area": "Indexación", "impacto": "Alto", "esfuerzo": "Medio", "prioridad": "P1"},
+        ),
+        (
+            "canonical potencialmente incoherente",
+            {"severidad": "media", "area": "Indexación", "impacto": "Medio", "esfuerzo": "Medio", "prioridad": "P2"},
+        ),
+        (
+            "canonical con diferencia menor normalizable",
+            {"severidad": "baja", "area": "Indexación", "impacto": "Bajo", "esfuerzo": "Bajo", "prioridad": "P3"},
+        ),
+        (
+            "noindex",
+            {"severidad": "alta", "area": "Indexación", "impacto": "Alto", "esfuerzo": "Bajo", "prioridad": "P1"},
+        ),
         ("title", {"severidad": "alta", "area": "Contenido", "impacto": "Alto", "esfuerzo": "Bajo", "prioridad": "P2"}),
-        ("meta description", {"severidad": "media", "area": "Contenido", "impacto": "Medio", "esfuerzo": "Bajo", "prioridad": "P2"}),
+        (
+            "meta description",
+            {"severidad": "media", "area": "Contenido", "impacto": "Medio", "esfuerzo": "Bajo", "prioridad": "P2"},
+        ),
         ("h1", {"severidad": "media", "area": "Contenido", "impacto": "Medio", "esfuerzo": "Bajo", "prioridad": "P2"}),
-        ("canonical", {"severidad": "media", "area": "Indexación", "impacto": "Medio", "esfuerzo": "Bajo", "prioridad": "P2"}),
+        (
+            "canonical",
+            {"severidad": "media", "area": "Indexación", "impacto": "Medio", "esfuerzo": "Bajo", "prioridad": "P2"},
+        ),
         ("menor", {"severidad": "baja", "area": "Calidad", "impacto": "Bajo", "esfuerzo": "Bajo", "prioridad": "P3"}),
     ]
 
@@ -115,7 +147,11 @@ def _extraer_texto_limpio(html_texto: str, html: BeautifulSoup) -> str:
     """
 
     # Intenta extraer contenido principal con trafilatura cuando esté disponible.
-    texto_extraido = trafilatura.extract(html_texto, include_links=False, include_images=False, output_format="txt") if trafilatura else None
+    texto_extraido = (
+        trafilatura.extract(html_texto, include_links=False, include_images=False, output_format="txt")
+        if trafilatura
+        else None
+    )
 
     # Devuelve texto extraído cuando exista contenido útil.
     if isinstance(texto_extraido, str) and texto_extraido.strip():
@@ -162,7 +198,9 @@ def _calcular_metricas_contenido(texto_limpio: str, html_texto: str) -> dict[str
         calidad = "baja"
 
     # Construye hash estable para deduplicación aproximada.
-    hash_contenido = sha1(re.sub(r"\s+", " ", texto_limpio.lower()).strip().encode("utf-8")).hexdigest() if texto_limpio else ""
+    hash_contenido = (
+        sha1(re.sub(r"\s+", " ", texto_limpio.lower()).strip().encode("utf-8")).hexdigest() if texto_limpio else ""
+    )
 
     # Devuelve métricas consolidadas de contenido.
     return {
@@ -375,7 +413,10 @@ def auditar_url(url: str, timeout: int) -> ResultadoUrl:
                     crear_hallazgo(
                         tipo="indexación",
                         descripcion="La URL redirecciona solo para normalizar slash final.",
-                        recomendacion="Unificar enlazado interno y sitemap con la versión final para reducir saltos innecesarios.",
+                        recomendacion=(
+                            "Unificar enlazado interno y sitemap con la versión final "
+                            "para reducir saltos innecesarios."
+                        ),
                     )
                 )
             else:
@@ -415,7 +456,10 @@ def auditar_url(url: str, timeout: int) -> ResultadoUrl:
                 crear_hallazgo(
                     tipo="contenido",
                     descripcion="Title demasiado largo y con riesgo de truncado en resultados.",
-                    recomendacion="Reducir title a un rango orientativo de 15-60 caracteres priorizando keyword principal.",
+                    recomendacion=(
+                        "Reducir title a un rango orientativo de 15-60 caracteres "
+                        "priorizando keyword principal."
+                    ),
                 )
             )
 
@@ -504,7 +548,10 @@ def auditar_url(url: str, timeout: int) -> ResultadoUrl:
                     crear_hallazgo(
                         tipo="indexación",
                         descripcion="Canonical con diferencia menor normalizable respecto a URL auditada/final.",
-                        recomendacion="Unificar formato de canonical (slash final, host y esquema) para consistencia técnica.",
+                        recomendacion=(
+                            "Unificar formato de canonical (slash final, host y esquema) "
+                            "para consistencia técnica."
+                        ),
                     )
                 )
 
@@ -526,7 +573,10 @@ def auditar_url(url: str, timeout: int) -> ResultadoUrl:
                     crear_hallazgo(
                         tipo="indexación",
                         descripcion="Canonical realmente incoherente respecto a la URL final indexable.",
-                        recomendacion="Alinear canonical con la URL canónica estratégica y corregir enlazado interno relacionado.",
+                        recomendacion=(
+                            "Alinear canonical con la URL canónica estratégica y corregir "
+                            "enlazado interno relacionado."
+                        ),
                     )
                 )
 
@@ -695,7 +745,9 @@ def auditar_url(url: str, timeout: int) -> ResultadoUrl:
 
 
 # Construye el resultado global a partir de una colección de URLs.
-def auditar_urls(sitemap: str, urls: list[str], timeout: int, cliente: str, fecha_ejecucion: str, gestor: str) -> ResultadoAuditoria:
+def auditar_urls(
+    sitemap: str, urls: list[str], timeout: int, cliente: str, fecha_ejecucion: str, gestor: str
+) -> ResultadoAuditoria:
     """
     Ejecuta la auditoría SEO básica de varias URLs.
     """
@@ -712,7 +764,9 @@ def auditar_urls(sitemap: str, urls: list[str], timeout: int, cliente: str, fech
     contador_titles = Counter(item.title.strip().lower() for item in resultados if item.title.strip())
 
     # Inicializa contadores de metas para detectar duplicados globales.
-    contador_metas = Counter(item.meta_description.strip().lower() for item in resultados if item.meta_description.strip())
+    contador_metas = Counter(
+        item.meta_description.strip().lower() for item in resultados if item.meta_description.strip()
+    )
 
     # Recorre resultados para marcar duplicidades on-page entre URLs.
     for item in resultados:
@@ -750,18 +804,30 @@ def auditar_urls(sitemap: str, urls: list[str], timeout: int, cliente: str, fech
                 crear_hallazgo(
                     tipo="contenido",
                     descripcion="Duplicidad aproximada de contenido detectada entre URLs auditadas.",
-                    recomendacion="Diferenciar intención y copy por URL o consolidar mediante canonical/redirect cuando proceda.",
+                    recomendacion=(
+                        "Diferenciar intención y copy por URL o consolidar mediante "
+                        "canonical/redirect cuando proceda."
+                    ),
                 )
             )
 
     # Calcula score técnico base por incidencias de áreas técnicas.
-    incidencias_tecnicas = sum(1 for item in resultados for hallazgo in item.hallazgos if hallazgo.area in {"Infraestructura", "Indexación", "Arquitectura"})
+    incidencias_tecnicas = sum(
+        1
+        for item in resultados
+        for hallazgo in item.hallazgos
+        if hallazgo.area in {"Infraestructura", "Indexación", "Arquitectura"}
+    )
 
     # Calcula score técnico en escala 0-100.
     score_tecnico = round(max(5.0, 100.0 - (incidencias_tecnicas / max(1, len(resultados))) * 8.0), 1)
 
     # Calcula score de contenido desde calidad media por URL.
-    score_contenido = round(sum({"alta": 92.0, "media": 72.0, "baja": 45.0}.get(item.calidad_contenido, 45.0) for item in resultados) / max(1, len(resultados)), 1)
+    score_contenido = round(
+        sum({"alta": 92.0, "media": 72.0, "baja": 45.0}.get(item.calidad_contenido, 45.0) for item in resultados)
+        / max(1, len(resultados)),
+        1,
+    )
 
     # Inicializa score de rendimiento con fallback neutral.
     score_rendimiento = 70.0

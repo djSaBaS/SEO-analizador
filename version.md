@@ -1,3 +1,51 @@
+## 0.11.6 - 2026-04-06
+- Se elimina la duplicidad ambigua entre `src/seo_auditor/utils.py` y `src/seo_auditor/utils/__init__.py`, consolidando utilidades en el paquete `utils/` como fuente única.
+- Se retira la supresión `F841` en `ruff.toml` para `reporters/core.py` y se corrigen variables locales no usadas detectadas en el dashboard Excel.
+- Se mantiene la estrategia de limpieza progresiva en `core.py` solo para `E501` e `I001`, sin ocultar posibles errores de lógica por variables no utilizadas.
+
+## 0.11.5 - 2026-04-06
+- Se corrige la exportación HTML de `reporters/core.py` para eliminar f-strings frágiles incompatibles con Python 3.10/3.11, manteniendo sanitización y escape en todo el render.
+- Se sustituye `datetime.UTC` por `timezone.utc` en utilidades compartidas para garantizar compatibilidad temporal desde Python 3.10.
+- Se formalizan reexports públicos en módulos `__init__` de `analyzers` y `services` para evitar falsos positivos `F401` sin romper compatibilidad legacy.
+- Se ordenan imports y se reduce deuda de estilo en módulos críticos tocados (`analyzer`, `utils`, `services/adapters_factory`) para estabilizar Ruff por capas.
+- Se añade configuración acotada en `ruff.toml` con `per-file-ignores` para `reporters/core.py`, permitiendo limpieza progresiva sin ocultar errores críticos de sintaxis o compatibilidad.
+
+## 0.11.4 - 2026-04-03
+- Se corrige vulnerabilidad de seguridad en descargas web (`path traversal`) validando que los archivos solicitados pertenezcan a `./salidas` antes de servirlos.
+- Se robustece el hilo de ejecución en background para manejar de forma segura la ausencia concurrente del registro (`EjecucionAuditoria`) sin excepciones no controladas.
+- Se optimiza el listado de documentos recientes en dashboard sustituyendo recorrido recursivo completo por `os.walk` con poda de `.cache`, límite de profundidad y tope de escaneo.
+- Se amplían pruebas web con escenario de bloqueo de descarga fuera de `./salidas`.
+
+## 0.11.3 - 2026-04-03
+- Se corrige la visualización web de `Páginas prioritarias` y `Quick wins` en detalle de auditoría para consumir datos reales del motor (misma base de cálculo que exportadores).
+- Se incorpora servicio reutilizable `coherencia_fuentes_service.py` con normalización robusta de dominios (`https`, `www`, `sc-domain:`) y validación de coherencia sitemap↔fuentes.
+- `AuditoriaService` excluye fuentes incompatibles por dominio en GSC, GA4 (cuando `GA_SITE_URL` está definido) y PageSpeed con URL manual externa al dominio auditado.
+- Se añade trazabilidad de incompatibilidades en contratos de salida (`ResultadoAuditoria` y `ResumenEjecucion`) y persistencia web (`fuentes_incompatibles`).
+- Se actualiza la vista web de detalle para mostrar fuentes incompatibles de forma explícita.
+- Se amplían pruebas unitarias y web para cubrir: normalización/coherencia de dominios, exclusión de fuentes incompatibles y render de prioridades/quick wins con datos reales.
+
+## 0.11.2 - 2026-04-03
+- Se corrige definitivamente el bootstrap de `src/seo_auditor/web/manage.py` resolviendo de forma robusta la ruta `src` para evitar `ModuleNotFoundError: No module named 'seo_auditor'` al arrancar Django.
+- Se añaden funciones internas `_resolver_ruta_src` y `_asegurar_src_en_syspath` con validación explícita de estructura para mejorar mantenibilidad y diagnóstico.
+- Se amplía `README.md` con guía práctica completa de puesta en marcha web desde cero (CMD, PowerShell y Linux), incluyendo entorno virtual, dependencias, variables Django, arranque y troubleshooting.
+- Se añaden pruebas en `tests/web/test_manage_bootstrap.py` para cubrir el bootstrap de `manage.py` y evitar regresiones de importación.
+- Se actualizan `info.md` de carpetas afectadas de la capa web para reflejar reglas de seguridad/arranque y mantenimiento.
+
+## 0.11.1 - 2026-04-02
+- Se corrige la restricción de dependencia a `Django>=5.1.0,<6.0.0` para evitar fallos de instalación por versión no publicada.
+- Se ajusta `manage.py` para inyectar la ruta `src` en `sys.path`, garantizando que los comandos `python src/seo_auditor/web/manage.py ...` funcionen en checkout limpio.
+- Se elimina la `SECRET_KEY` hardcodeada en settings: ahora se usa variable de entorno y fallback efímero solo en `DEBUG=true`; en `DEBUG=false` se exige clave explícita.
+- Se mejora rendimiento del dashboard excluyendo `.cache` del listado de documentos recientes y se actualiza API de fechas a `datetime.fromtimestamp(..., tz=timezone.utc)`.
+- Se desacopla la ejecución de auditoría del request web mediante `ThreadPoolExecutor` en segundo plano para evitar timeouts de petición.
+- Se amplían pruebas web con cobertura de exclusión de caché en documentos recientes y validación del envío asíncrono.
+
+## 0.11.0 - 2026-04-02
+- Se implementa la primera capa web interna con Django en `src/seo_auditor/web/` con dashboard, formulario de nueva auditoría, detalle de ejecución y descargas de entregables.
+- Se añade persistencia mínima en Django (`EjecucionAuditoria`) para registrar metadatos de ejecución, estado, fuentes activas/fallidas y rutas de salida sin sobredimensionar la plataforma.
+- Se incorpora `services/adapters_factory.py` para que CLI y web compartan el mismo cableado de `AuditoriaService`, evitando duplicidad de lógica de integración.
+- Se amplía documentación (`README.md`, `src/info.md`, `src/seo_auditor/info.md`, `src/seo_auditor/services/info.md`) y se añade `info.md` en carpetas web y de pruebas creadas.
+- Se añaden pruebas base en `tests/web/test_web_auditorias.py` para vistas, validación de formulario y construcción del request interno web.
+
 ## 0.10.28 - 2026-04-01
 - Se atienden comentarios de revisión centralizando expectativas de entregables en tests mediante imports de `ENTREGABLES_BASE_AUDITORIA` y `PERFILES_GENERACION` desde `services/entregables_service.py`, evitando duplicidad con lógica productiva.
 - Se actualiza `README.md` con comando exacto para generar el informe completo del último mes (marzo 2026), más ejemplo con cálculo automático de fechas en Linux/macOS.

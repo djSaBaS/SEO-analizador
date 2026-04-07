@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from seo_auditor.models import (
     AuditoriaRequest,
@@ -13,22 +14,27 @@ from seo_auditor.models import (
     ConfiguracionInforme,
     FlagsIntegracionesAuditoria,
     ResultadoAuditoria,
-    ResumenEjecucion,
     ResultadoEntregables,
     ResultadoRendimiento,
+    ResumenEjecucion,
+)
+from seo_auditor.services.coherencia_fuentes_service import (
+    construir_detalle_incompatibilidad,
+    dominios_coherentes,
 )
 from seo_auditor.services.entregables_service import (
     ENTREGABLES_BASE_AUDITORIA,
+    PERFILES_GENERACION,
     EntregablesAdapters,
     EntregablesService,
     ModeloEntregables,
-    PERFILES_GENERACION,
 )
 
 
 @dataclass(slots=True)
 class AuditoriaAdapters:
     """Dependencias inyectables para facilitar migración y compatibilidad."""
+
     extraer_urls_sitemap: Callable[..., list[str]]
     auditar_urls: Callable[..., Any]
     analizar_indexacion_rastreo: Callable[..., Any]
@@ -51,6 +57,82 @@ class AuditoriaAdapters:
     slug_dominio_desde_url: Callable[[str], str]
     inferir_cliente_desde_slug: Callable[[str], str]
     ejecutar_pagespeed: Callable[..., list[ResultadoRendimiento]]
+    resolver_cliente_informe_ga4: Callable[[str | None, str | None], str]
+
+    @classmethod
+    def desde_componentes(
+        cls,
+        fuentes: AuditoriaFuentesAdapters,
+        exportadores: AuditoriaExportadoresAdapters,
+        utilidades: AuditoriaUtilidadesAdapters,
+    ) -> AuditoriaAdapters:
+        """Construye el adaptador principal desde componentes más cohesionados."""
+
+        return cls(
+            extraer_urls_sitemap=fuentes.extraer_urls_sitemap,
+            auditar_urls=fuentes.auditar_urls,
+            analizar_indexacion_rastreo=fuentes.analizar_indexacion_rastreo,
+            generar_gestion_indexacion_inteligente=fuentes.generar_gestion_indexacion_inteligente,
+            cargar_datos_search_console=fuentes.cargar_datos_search_console,
+            cargar_datos_analytics=fuentes.cargar_datos_analytics,
+            generar_resumen_ia=fuentes.generar_resumen_ia,
+            generar_informe_ga4_premium=fuentes.generar_informe_ga4_premium,
+            detectar_home=fuentes.detectar_home,
+            invalidar_cache=fuentes.invalidar_cache,
+            exportar_json=exportadores.exportar_json,
+            exportar_excel=exportadores.exportar_excel,
+            exportar_word=exportadores.exportar_word,
+            exportar_pdf=exportadores.exportar_pdf,
+            exportar_html=exportadores.exportar_html,
+            exportar_markdown_ia=exportadores.exportar_markdown_ia,
+            iterar_con_progreso=utilidades.iterar_con_progreso,
+            es_url_http_valida=utilidades.es_url_http_valida,
+            fecha_ejecucion_iso=utilidades.fecha_ejecucion_iso,
+            slug_dominio_desde_url=utilidades.slug_dominio_desde_url,
+            inferir_cliente_desde_slug=utilidades.inferir_cliente_desde_slug,
+            ejecutar_pagespeed=fuentes.ejecutar_pagespeed,
+            resolver_cliente_informe_ga4=utilidades.resolver_cliente_informe_ga4,
+        )
+
+
+@dataclass(slots=True)
+class AuditoriaFuentesAdapters:
+    """Dependencias de adquisición de datos y ejecución de integraciones."""
+
+    extraer_urls_sitemap: Callable[..., list[str]]
+    auditar_urls: Callable[..., Any]
+    analizar_indexacion_rastreo: Callable[..., Any]
+    generar_gestion_indexacion_inteligente: Callable[..., Any]
+    cargar_datos_search_console: Callable[..., Any]
+    cargar_datos_analytics: Callable[..., Any]
+    generar_resumen_ia: Callable[..., str]
+    generar_informe_ga4_premium: Callable[..., dict[str, Any]]
+    detectar_home: Callable[..., str]
+    invalidar_cache: Callable[..., int]
+    ejecutar_pagespeed: Callable[..., list[ResultadoRendimiento]]
+
+
+@dataclass(slots=True)
+class AuditoriaExportadoresAdapters:
+    """Dependencias de salida documental para entregables."""
+
+    exportar_json: Callable[..., Any]
+    exportar_excel: Callable[..., Any]
+    exportar_word: Callable[..., Any]
+    exportar_pdf: Callable[..., Any]
+    exportar_html: Callable[..., Any]
+    exportar_markdown_ia: Callable[..., Any]
+
+
+@dataclass(slots=True)
+class AuditoriaUtilidadesAdapters:
+    """Utilidades transversales de validación, fechas y normalización."""
+
+    iterar_con_progreso: Callable[..., Any]
+    es_url_http_valida: Callable[[str], bool]
+    fecha_ejecucion_iso: Callable[[], str]
+    slug_dominio_desde_url: Callable[[str], str]
+    inferir_cliente_desde_slug: Callable[[str], str]
     resolver_cliente_informe_ga4: Callable[[str | None, str | None], str]
 
 
@@ -118,14 +200,78 @@ class AuditoriaService:
             return 1
 
     def _ejecutar_testgsc(self, configuracion: Any) -> int:
-        pistas = [(["no existe archivo de credenciales"], ["revisa GSC_CREDENTIALS_FILE; la ruta debe apuntar a un JSON de service account accesible."]), (["falta gsc_site_url"], ["define GSC_SITE_URL (ej.: sc-domain:midominio.com o https://www.midominio.com/)."]), (["insufficient", "forbidden", "403"], ["la service account no tiene permisos en la propiedad de Search Console."])]
-        return self._ejecutar_prueba_conectividad("testgsc", "Google Search Console", configuracion, self.adapters.cargar_datos_search_console, "No se pudo validar la conexión con Search Console.", pistas, lambda datos: f"site_url={datos.site_url or configuracion.gsc_site_url} | periodo={datos.date_from}..{datos.date_to} | filas_paginas={len(datos.paginas)} | filas_queries={len(datos.queries)}")
+        pistas = [
+            (
+                ["no existe archivo de credenciales"],
+                ["revisa GSC_CREDENTIALS_FILE; la ruta debe apuntar a un JSON de service account accesible."],
+            ),
+            (
+                ["falta gsc_site_url"],
+                ["define GSC_SITE_URL (ej.: sc-domain:midominio.com o https://www.midominio.com/)."],
+            ),
+            (
+                ["insufficient", "forbidden", "403"],
+                ["la service account no tiene permisos en la propiedad de Search Console."],
+            ),
+        ]
+        return self._ejecutar_prueba_conectividad(
+            "testgsc",
+            "Google Search Console",
+            configuracion,
+            self.adapters.cargar_datos_search_console,
+            "No se pudo validar la conexión con Search Console.",
+            pistas,
+            lambda datos: (
+                f"site_url={datos.site_url or configuracion.gsc_site_url} "
+                f"| periodo={datos.date_from}..{datos.date_to} "
+                f"| filas_paginas={len(datos.paginas)} "
+                f"| filas_queries={len(datos.queries)}"
+            ),
+        )
 
     def _ejecutar_testga(self, configuracion: Any) -> int:
-        pistas = [(["no existe archivo de credenciales"], ["revisa GA_CREDENTIALS_FILE; debe apuntar a un JSON de service account accesible."]), (["falta ga_property_id"], ["define GA_PROPERTY_ID con el identificador numérico de la propiedad GA4."]), (["ga_property_id debe ser numérico"], ["elimina prefijos como 'properties/' y deja solo dígitos (ej.: 123456789)."]), (["403", "sufficient permissions"], ["la service account no tiene acceso a la propiedad GA4.", "añade el email de la service account como Viewer/Analyst en Administrar acceso de la propiedad."])]
-        return self._ejecutar_prueba_conectividad("testga", "Google Analytics 4", configuracion, self.adapters.cargar_datos_analytics, "No se pudo validar la conexión con Google Analytics 4.", pistas, lambda datos: f"property_id={datos.property_id or configuracion.ga_property_id} | periodo={datos.date_from}..{datos.date_to} | filas_paginas={len(datos.paginas)}")
+        pistas = [
+            (
+                ["no existe archivo de credenciales"],
+                ["revisa GA_CREDENTIALS_FILE; debe apuntar a un JSON de service account accesible."],
+            ),
+            (["falta ga_property_id"], ["define GA_PROPERTY_ID con el identificador numérico de la propiedad GA4."]),
+            (
+                ["ga_property_id debe ser numérico"],
+                ["elimina prefijos como 'properties/' y deja solo dígitos (ej.: 123456789)."],
+            ),
+            (
+                ["403", "sufficient permissions"],
+                [
+                    "la service account no tiene acceso a la propiedad GA4.",
+                    "añade el email de la service account como Viewer/Analyst en Administrar acceso de la propiedad.",
+                ],
+            ),
+        ]
+        return self._ejecutar_prueba_conectividad(
+            "testga",
+            "Google Analytics 4",
+            configuracion,
+            self.adapters.cargar_datos_analytics,
+            "No se pudo validar la conexión con Google Analytics 4.",
+            pistas,
+            lambda datos: (
+                f"property_id={datos.property_id or configuracion.ga_property_id} "
+                f"| periodo={datos.date_from}..{datos.date_to} "
+                f"| filas_paginas={len(datos.paginas)}"
+            ),
+        )
 
-    def _ejecutar_prueba_conectividad(self, nombre_modo: str, nombre_servicio: str, configuracion: Any, funcion_carga: Callable[[Any], Any], mensaje_error_defecto: str, pistas_error: list[tuple[list[str], list[str]]], formatear_exito: Callable[[Any], str]) -> int:
+    def _ejecutar_prueba_conectividad(
+        self,
+        nombre_modo: str,
+        nombre_servicio: str,
+        configuracion: Any,
+        funcion_carga: Callable[[Any], Any],
+        mensaje_error_defecto: str,
+        pistas_error: list[tuple[list[str], list[str]]],
+        formatear_exito: Callable[[Any], str],
+    ) -> int:
         print(f"[{nombre_modo}] Validando conexión con {nombre_servicio}...")
         try:
             datos = funcion_carga(configuracion)
@@ -150,7 +296,16 @@ class AuditoriaService:
         cliente = self.adapters.resolver_cliente_informe_ga4(request.cliente, request.sitemap)
         carpeta_salida = carpeta_base / "ga4_premium" / self.adapters.fecha_ejecucion_iso()
         print("[GA4 Premium] Generando informe premium en HTML/PDF/Excel...")
-        salida = self.adapters.generar_informe_ga4_premium(request.configuracion, carpeta_salida, cliente, request.gestor, request.periodo_desde, request.periodo_hasta, argumentos.comparar if argumentos else "periodo-anterior", argumentos.provincia if argumentos else "")
+        salida = self.adapters.generar_informe_ga4_premium(
+            request.configuracion,
+            carpeta_salida,
+            cliente,
+            request.gestor,
+            request.periodo_desde,
+            request.periodo_hasta,
+            argumentos.comparar if argumentos else "periodo-anterior",
+            argumentos.provincia if argumentos else "",
+        )
         if not salida.get("activo", False):
             print(f"[GA4 Premium] Aviso: {salida.get('error', 'No se pudo generar el informe.')}")
             return 0
@@ -174,7 +329,9 @@ class AuditoriaService:
             print(f"[cache] Entradas eliminadas: {self.adapters.invalidar_cache(carpeta_cache)}")
 
         carpeta_salida = carpeta_base / slug / fecha
-        entregables_perfil = informe.entregables_solicitados or PERFILES_GENERACION.get(informe.perfil_generacion, ENTREGABLES_BASE_AUDITORIA)
+        entregables_perfil = informe.entregables_solicitados or PERFILES_GENERACION.get(
+            informe.perfil_generacion, ENTREGABLES_BASE_AUDITORIA
+        )
 
         print(f"[perfil] Ejecutando perfil de generación: {informe.perfil_generacion}")
         print("[1/6] Extrayendo URLs del sitemap...")
@@ -186,111 +343,169 @@ class AuditoriaService:
             return self._resultado_solo_codigo(1)
 
         print(f"[2/6] Auditando {len(urls)} URLs...")
-        resultado = self.adapters.auditar_urls(request.sitemap, urls, configuracion.http_timeout, cliente, fecha, request.gestor)
+        resultado = self.adapters.auditar_urls(
+            request.sitemap, urls, configuracion.http_timeout, cliente, fecha, request.gestor
+        )
         resultado.periodo_date_from = request.periodo_desde
         resultado.periodo_date_to = request.periodo_hasta
-        resultado.indexacion_rastreo = self.adapters.analizar_indexacion_rastreo(request.sitemap, urls, configuracion.http_timeout)
+        resultado.indexacion_rastreo = self.adapters.analizar_indexacion_rastreo(
+            request.sitemap, urls, configuracion.http_timeout
+        )
         resultado.gestion_indexacion = self.adapters.generar_gestion_indexacion_inteligente(resultado.resultados)
 
         self._ejecutar_fuentes(request, resultado, urls, carpeta_cache)
-        resultado_entregables = self._exportar_entregables(request, resultado, carpeta_salida, fecha, entregables_perfil)
+        resultado_entregables = self._exportar_entregables(
+            request, resultado, carpeta_salida, fecha, entregables_perfil
+        )
 
         resumen = ResumenEjecucion(
             codigo_salida=0,
             total_urls_analizadas=len(urls),
             fuentes_activas=list(resultado.fuentes_activas),
             fuentes_fallidas=list(resultado.fuentes_fallidas),
+            fuentes_incompatibles=list(resultado.fuentes_incompatibles),
             cache_invalidada=cache.invalidar_antes_de_ejecutar,
         )
         return AuditoriaResult(auditoria=resultado, entregables=resultado_entregables, resumen_ejecucion=resumen)
 
-    def _ejecutar_fuentes(self, request: AuditoriaRequest, resultado: Any, urls: list[str], carpeta_cache: Path) -> None:
+    def _ejecutar_fuentes(
+        self, request: AuditoriaRequest, resultado: Any, urls: list[str], carpeta_cache: Path
+    ) -> None:
         integraciones = request.integraciones
         configuracion = request.configuracion
+        dominio_auditado = request.sitemap
 
         max_urls = request.max_pagepsi_urls if request.max_pagepsi_urls > 0 else configuracion.max_pagepsi_urls
         timeout = request.pagepsi_timeout if request.pagepsi_timeout > 0 else configuracion.pagespeed_timeout
-        reintentos = request.pagepsi_reintentos if request.pagepsi_reintentos >= 0 else configuracion.pagespeed_reintentos
+        reintentos = (
+            request.pagepsi_reintentos if request.pagepsi_reintentos >= 0 else configuracion.pagespeed_reintentos
+        )
         cache_ttl = request.cache.ttl_segundos if request.cache.ttl_segundos > 0 else configuracion.cache_ttl_segundos
 
         if integraciones.usar_pagespeed and configuracion.pagespeed_api_key:
-            urls_ps = self._resolver_urls_pagespeed(request, urls, max_urls)
-            resultado.rendimiento = self.adapters.ejecutar_pagespeed(urls_ps, configuracion.pagespeed_api_key, timeout, reintentos, carpeta_cache / "pagespeed", cache_ttl)
-            estado_pagespeed: dict[str, dict[str, str]] = {}
-            for item in resultado.rendimiento:
-                estado_pagespeed.setdefault(item.url, {})
-                estado_pagespeed[item.url][item.estrategia] = item.error or "ok"
-            resultado.pagespeed_estado = estado_pagespeed
-            scores_validos = [item.performance_score for item in resultado.rendimiento if isinstance(item.performance_score, (int, float))]
-            if scores_validos:
-                resultado.score_rendimiento = round(sum(scores_validos) / len(scores_validos), 1)
-                resultado.seo_score_global = round(
-                    (float(resultado.score_tecnico or 0.0) * 0.4)
-                    + (float(resultado.score_contenido or 0.0) * 0.4)
-                    + (float(resultado.score_rendimiento or 0.0) * 0.2),
-                    1,
+            if request.pagepsi_url and not dominios_coherentes(dominio_auditado, request.pagepsi_url):
+                detalle_pagespeed = construir_detalle_incompatibilidad(
+                    "pagespeed", request.pagepsi_url, dominio_auditado
                 )
-            hay_metricas_validas = any(
-                (
-                    item.performance_score is not None
-                    or item.accessibility_score is not None
-                    or item.best_practices_score is not None
-                    or item.seo_score is not None
-                    or item.lcp is not None
-                    or item.cls is not None
-                    or item.inp is not None
-                    or item.fcp is not None
-                    or item.tbt is not None
-                    or item.speed_index is not None
+                if detalle_pagespeed not in resultado.fuentes_incompatibles:
+                    resultado.fuentes_incompatibles.append(detalle_pagespeed)
+                print(f"Aviso: {detalle_pagespeed}")
+            else:
+                urls_ps = self._resolver_urls_pagespeed(request, urls, max_urls)
+                resultado.rendimiento = self.adapters.ejecutar_pagespeed(
+                    urls_ps,
+                    configuracion.pagespeed_api_key,
+                    timeout,
+                    reintentos,
+                    carpeta_cache / "pagespeed",
+                    cache_ttl,
                 )
-                and not item.error
-                for item in resultado.rendimiento
-            )
-            if hay_metricas_validas:
-                if "pagespeed" not in resultado.fuentes_activas:
-                    resultado.fuentes_activas.append("pagespeed")
-            elif "pagespeed" not in resultado.fuentes_fallidas:
-                resultado.fuentes_fallidas.append("pagespeed")
+                estado_pagespeed: dict[str, dict[str, str]] = {}
+                for item in resultado.rendimiento:
+                    estado_pagespeed.setdefault(item.url, {})
+                    estado_pagespeed[item.url][item.estrategia] = item.error or "ok"
+                resultado.pagespeed_estado = estado_pagespeed
+                scores_validos = [
+                    item.performance_score
+                    for item in resultado.rendimiento
+                    if isinstance(item.performance_score, (int, float))
+                ]
+                if scores_validos:
+                    resultado.score_rendimiento = round(sum(scores_validos) / len(scores_validos), 1)
+                    resultado.seo_score_global = round(
+                        (float(resultado.score_tecnico or 0.0) * 0.4)
+                        + (float(resultado.score_contenido or 0.0) * 0.4)
+                        + (float(resultado.score_rendimiento or 0.0) * 0.2),
+                        1,
+                    )
+                hay_metricas_validas = any(
+                    (
+                        item.performance_score is not None
+                        or item.accessibility_score is not None
+                        or item.best_practices_score is not None
+                        or item.seo_score is not None
+                        or item.lcp is not None
+                        or item.cls is not None
+                        or item.inp is not None
+                        or item.fcp is not None
+                        or item.tbt is not None
+                        or item.speed_index is not None
+                    )
+                    and not item.error
+                    for item in resultado.rendimiento
+                )
+                if hay_metricas_validas:
+                    if "pagespeed" not in resultado.fuentes_activas:
+                        resultado.fuentes_activas.append("pagespeed")
+                elif "pagespeed" not in resultado.fuentes_fallidas:
+                    resultado.fuentes_fallidas.append("pagespeed")
 
         if integraciones.usar_search_console:
-            try:
-                datos = self.adapters.cargar_datos_search_console(configuracion)
-                resultado.search_console = datos
-                resultado.gestion_indexacion = self.adapters.generar_gestion_indexacion_inteligente(resultado.resultados, datos.paginas)
-                if datos.activo and (datos.paginas or datos.queries):
-                    if "search_console" not in resultado.fuentes_activas:
-                        resultado.fuentes_activas.append("search_console")
-                elif "search_console" not in resultado.fuentes_fallidas:
-                    resultado.fuentes_fallidas.append("search_console")
-            except Exception as exc:
-                if "search_console" not in resultado.fuentes_fallidas:
-                    resultado.fuentes_fallidas.append("search_console")
-                print(f"Aviso: fallo no bloqueante en Search Console: {exc}")
+            site_url_gsc = getattr(configuracion, "gsc_site_url", "")
+            if site_url_gsc and not dominios_coherentes(dominio_auditado, site_url_gsc):
+                detalle_gsc = construir_detalle_incompatibilidad("search_console", site_url_gsc, dominio_auditado)
+                if detalle_gsc not in resultado.fuentes_incompatibles:
+                    resultado.fuentes_incompatibles.append(detalle_gsc)
+                print(f"Aviso: {detalle_gsc}")
+            else:
+                try:
+                    datos = self.adapters.cargar_datos_search_console(configuracion)
+                    resultado.search_console = datos
+                    resultado.gestion_indexacion = self.adapters.generar_gestion_indexacion_inteligente(
+                        resultado.resultados, datos.paginas
+                    )
+                    if datos.activo and (datos.paginas or datos.queries):
+                        if "search_console" not in resultado.fuentes_activas:
+                            resultado.fuentes_activas.append("search_console")
+                    elif "search_console" not in resultado.fuentes_fallidas:
+                        resultado.fuentes_fallidas.append("search_console")
+                except Exception as exc:
+                    if "search_console" not in resultado.fuentes_fallidas:
+                        resultado.fuentes_fallidas.append("search_console")
+                    print(f"Aviso: fallo no bloqueante en Search Console: {exc}")
         else:
             print("[3.5/6] Search Console omitido por contrato de ejecución.")
 
         if integraciones.usar_analytics:
-            try:
-                resultado.analytics = self.adapters.cargar_datos_analytics(configuracion)
-                if resultado.analytics.activo and resultado.analytics.paginas:
-                    if "analytics" not in resultado.fuentes_activas:
-                        resultado.fuentes_activas.append("analytics")
-                elif "analytics" not in resultado.fuentes_fallidas:
-                    resultado.fuentes_fallidas.append("analytics")
-            except Exception as exc:
-                if "analytics" not in resultado.fuentes_fallidas:
-                    resultado.fuentes_fallidas.append("analytics")
-                print(f"Aviso: fallo no bloqueante en Analytics: {exc}")
-
+            dominio_ga4_configurado = getattr(configuracion, "ga_site_url", "")
+            if dominio_ga4_configurado and not dominios_coherentes(dominio_auditado, dominio_ga4_configurado):
+                detalle_ga4 = construir_detalle_incompatibilidad("analytics", dominio_ga4_configurado, dominio_auditado)
+                if detalle_ga4 not in resultado.fuentes_incompatibles:
+                    resultado.fuentes_incompatibles.append(detalle_ga4)
+                print(f"Aviso: {detalle_ga4}")
+            else:
+                try:
+                    resultado.analytics = self.adapters.cargar_datos_analytics(configuracion)
+                    if resultado.analytics.activo and resultado.analytics.paginas:
+                        if "analytics" not in resultado.fuentes_activas:
+                            resultado.fuentes_activas.append("analytics")
+                    elif "analytics" not in resultado.fuentes_fallidas:
+                        resultado.fuentes_fallidas.append("analytics")
+                except Exception as exc:
+                    if "analytics" not in resultado.fuentes_fallidas:
+                        resultado.fuentes_fallidas.append("analytics")
+                    print(f"Aviso: fallo no bloqueante en Analytics: {exc}")
         if integraciones.usar_ia:
             try:
-                resultado.resumen_ia = self.adapters.generar_resumen_ia(resultado, configuracion.gemini_api_key, request.modelo_ia, request.max_muestras_ia, request.informe.modo if request.informe.modo in {"completo", "resumen", "quickwins", "gsc", "roadmap"} else "completo", carpeta_cache / "ia", cache_ttl)
+                resultado.resumen_ia = self.adapters.generar_resumen_ia(
+                    resultado,
+                    configuracion.gemini_api_key,
+                    request.modelo_ia,
+                    request.max_muestras_ia,
+                    request.informe.modo
+                    if request.informe.modo in {"completo", "resumen", "quickwins", "gsc", "roadmap"}
+                    else "completo",
+                    carpeta_cache / "ia",
+                    cache_ttl,
+                )
                 if "ia" not in resultado.fuentes_activas:
                     resultado.fuentes_activas.append("ia")
             except Exception as exc:
                 resultado.resumen_ia = f"No se pudo generar el informe con IA: {exc}"
 
-    def _exportar_entregables(self, request: AuditoriaRequest, resultado: Any, carpeta_salida: Path, fecha: str, entregables_perfil: list[str]) -> ResultadoEntregables:
+    def _exportar_entregables(
+        self, request: AuditoriaRequest, resultado: Any, carpeta_salida: Path, fecha: str, entregables_perfil: list[str]
+    ) -> ResultadoEntregables:
         print("[5/6] Exportando entregables profesionales...")
         modelo_documental = ModeloEntregables(
             carpeta_base_salida=Path(request.informe.carpeta_salida or "./salidas"),

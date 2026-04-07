@@ -603,6 +603,17 @@ def construir_filas_quick_wins(resultado: ResultadoAuditoria) -> list[dict]:
     return filas
 
 
+# Construye quick wins accionables como función pública reutilizable.
+def construir_quick_wins(resultado: ResultadoAuditoria, limite: int = 7) -> list[dict[str, object]]:
+    """Calcula quick wins consolidados para consumo de web, CLI y exportadores."""
+
+    # Obtiene filas base combinadas para priorización.
+    filas = construir_filas_quick_wins(resultado)
+
+    # Devuelve quick wins ordenados aplicando el algoritmo canónico interno.
+    return _construir_quick_wins(filas, limite=limite)
+
+
 # Devuelve color de tarjeta según impacto para salida visual coherente.
 def _color_por_impacto(impacto: str) -> str:
     """Asigna un color sobrio por nivel de impacto."""
@@ -2724,18 +2735,6 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     # Calcula métricas de dashboard.
     metricas = calcular_metricas(resultado)
 
-    # Calcula scores medios mobile y desktop desde ejecuciones únicas.
-    scores_mobile = [item.performance_score for item in resultado.rendimiento if item.estrategia == "mobile" and isinstance(item.performance_score, (int, float))]
-
-    # Calcula scores de desktop desde ejecuciones únicas.
-    scores_desktop = [item.performance_score for item in resultado.rendimiento if item.estrategia == "desktop" and isinstance(item.performance_score, (int, float))]
-
-    # Obtiene media mobile segura.
-    score_medio_mobile = round(sum(scores_mobile) / len(scores_mobile), 1) if scores_mobile else 0.0
-
-    # Obtiene media desktop segura.
-    score_medio_desktop = round(sum(scores_desktop) / len(scores_desktop), 1) if scores_desktop else 0.0
-
     # Resuelve periodo efectivo con helper común para evitar duplicación.
     periodo_desde, periodo_hasta = _resolver_periodo_analizado(resultado)
 
@@ -2750,9 +2749,6 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
     hoja_dashboard["A2"] = f"Cliente: {resultado.cliente} | Fecha: {resultado.fecha_ejecucion} | Periodo: {periodo_texto}"
     hoja_dashboard["A2"].font = Font(size=11, color="4B5563")
 
-    # Calcula total de oportunidades de rendimiento.
-    total_oportunidades = len([fila for fila in filas_rendimiento if fila.get("oportunidad")])
-
     # Calcula total de incidencias críticas.
     incidencias_criticas = metricas["severidades"].get("crítica", 0)
 
@@ -2764,27 +2760,6 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
 
     # Calcula total de incidencias bajas.
     incidencias_bajas = metricas["severidades"].get("baja", 0)
-
-    # Calcula porcentaje de URLs con incidencias.
-    porcentaje_urls_con_incidencia = round(((metricas["total_urls"] - metricas["urls_sanas"]) / max(1, metricas["total_urls"])) * 100.0, 1)
-
-    # Calcula porcentaje de incidencias marcadas como resueltas en tracking.
-    incidencias_resueltas = len([fila for fila in filas if str(fila.get("resuelto", "")).strip().lower() == "sí"])
-
-    # Calcula porcentaje real de incidencias resueltas.
-    porcentaje_resueltas = round((incidencias_resueltas / max(1, metricas["total_incidencias"])) * 100.0, 1)
-
-    # Cuenta imágenes sin alt dentro del detalle técnico.
-    total_imagenes_sin_alt = len([fila for fila in filas if "imágenes sin atributo alt" in str(fila.get("problema", "")).lower()])
-
-    # Cuenta titles demasiado largos dentro del detalle técnico.
-    total_titles_largos = len([fila for fila in filas if "title demasiado largo" in str(fila.get("problema", "")).lower()])
-
-    # Cuenta metas vacías dentro del detalle técnico.
-    total_metas_vacias = len([fila for fila in filas if "no tiene meta description" in str(fila.get("problema", "")).lower()])
-
-    # Cuenta páginas con problemas de H1.
-    total_h1_problematico = len([fila for fila in filas if "h1" in str(fila.get("problema", "")).lower()])
 
     # Obtiene métricas GSC centralizadas para evitar duplicación.
     metricas_gsc = metricas.get("gsc", {}) if isinstance(metricas.get("gsc", {}), dict) else {}
@@ -2803,9 +2778,6 @@ def exportar_excel(resultado: ResultadoAuditoria, path_salida: Path) -> Path:
 
     # Obtiene posición media de GSC desde métrica centralizada.
     posicion_media_gsc = float(metricas_gsc.get("posicion_media", 0.0))
-
-    # Cuenta páginas con oportunidad real por GSC.
-    total_oportunidades_gsc = len(filas_oportunidades_gsc)
 
     # Obtiene sesiones totales de Analytics desde métrica centralizada.
     sesiones_totales_analytics = float(metricas_analytics.get("sesiones_totales", 0.0))
@@ -4021,7 +3993,18 @@ def exportar_html(resultado: ResultadoAuditoria, path_salida: Path, modelo_seman
     textos_secciones = modelo.get("textos_base", {}).get("secciones", {})
 
     # Obtiene filas de incidencias para el detalle técnico final.
-    filas_ordenadas = sorted(construir_filas(resultado), key=lambda fila: (_peso_severidad(str(fila.get("severidad", "informativa"))), str(fila.get("url", ""))))
+    filas_ordenadas = sorted(
+        construir_filas(resultado),
+        key=lambda fila: (
+            _peso_severidad(str(fila.get("severidad", "informativa"))),
+            str(fila.get("url", "")),
+        ),
+    )
+
+    # Centraliza sanitización y escape para evitar cadenas frágiles.
+    def _texto_html(valor: Any) -> str:
+        # Devuelve un texto seguro para insertarlo en HTML.
+        return escape(sanitizar_texto_final_exportable(str(valor), formato="html"))
 
     # Inicializa render de secciones semánticas.
     secciones_html: list[str] = []
@@ -4036,47 +4019,57 @@ def exportar_html(resultado: ResultadoAuditoria, path_salida: Path, modelo_seman
         bloques_html: list[str] = []
         resumenes = _resolver_bloque_render(seccion, "resumen_ejecutivo", "parrafos")
         if resumenes:
-            bloques_html.append("<ul>" + "".join(f"<li>{escape(sanitizar_texto_final_exportable(str(linea), formato='html'))}</li>" for linea in resumenes) + "</ul>")
+            items_resumen = "".join(f"<li>{_texto_html(linea)}</li>" for linea in resumenes)
+            bloques_html.append(f"<ul>{items_resumen}</ul>")
         for prioridad in _resolver_bloque_render(seccion, "prioridades", "tarjetas"):
             if isinstance(prioridad, dict):
                 listas = "".join(
-                    f"<p><b>{escape(sanitizar_texto_final_exportable(str(lista.get('titulo', '')), formato='html'))}</b></p><ul>{''.join(f'<li>{escape(sanitizar_texto_final_exportable(str(item), formato='html'))}</li>' for item in lista.get('items', [])[:LIMITE_ITEMS_LISTA_NARRATIVA])}</ul>"
+                    (
+                        f"<p><b>{_texto_html(lista.get('titulo', ''))}</b></p>"
+                        f"<ul>{''.join(f'<li>{_texto_html(item)}</li>' for item in lista.get('items', [])[:LIMITE_ITEMS_LISTA_NARRATIVA])}</ul>"
+                    )
                     for lista in prioridad.get("listas", [])
                 )
                 items_simples = "".join(
-                    f"<li>{escape(sanitizar_texto_final_exportable(str(item), formato='html'))}</li>"
+                    f"<li>{_texto_html(item)}</li>"
                     for item in prioridad.get("items", [])[:LIMITE_ITEMS_LISTA_NARRATIVA]
                 )
                 lista_items = f"<ul>{items_simples}</ul>" if items_simples else ""
                 tarjeta_prioridad = (
                     f"<article class=\"prioridad\">"
-                    f"<h3>{escape(sanitizar_texto_final_exportable(str(prioridad.get('titulo', '')), formato='html'))}</h3>"
-                    f"<p>{escape(sanitizar_texto_final_exportable(str(prioridad.get('subtitulo', '')), formato='html'))}</p>"
+                    f"<h3>{_texto_html(prioridad.get('titulo', ''))}</h3>"
+                    f"<p>{_texto_html(prioridad.get('subtitulo', ''))}</p>"
                     f"{listas}{lista_items}"
                     f"</article>"
                 )
                 bloques_html.append(tarjeta_prioridad)
                 bloques_prioritarios_html.append(tarjeta_prioridad)
         for tabla in _resolver_bloque_render(seccion, "tablas_detalle", "tablas"):
-            columnas = "".join(f"<th>{escape(sanitizar_texto_final_exportable(str(columna), formato='html'))}</th>" for columna in tabla.get("columnas", []))
-            filas = "".join(f"<tr>{''.join(f'<td>{escape(sanitizar_texto_final_exportable(str(valor), formato='html'))}</td>' for valor in fila)}</tr>" for fila in tabla.get("filas", []))
+            columnas = "".join(f"<th>{_texto_html(columna)}</th>" for columna in tabla.get("columnas", []))
+            filas = "".join(
+                f"<tr>{''.join(f'<td>{_texto_html(valor)}</td>' for valor in fila)}</tr>"
+                for fila in tabla.get("filas", [])
+            )
             colspan = max(1, len(tabla.get("columnas", [])))
+            fila_fallback = f'<tr><td colspan="{colspan}">No disponible</td></tr>'
             bloques_html.append(
-                f"<h3>{escape(sanitizar_texto_final_exportable(str(tabla.get('titulo', 'Tabla')), formato='html'))}</h3>"
+                f"<h3>{_texto_html(tabla.get('titulo', 'Tabla'))}</h3>"
                 f"<div class=\"tabla-ejecutiva tabla-sticky-opcional\">"
                 f"<table><thead><tr>{columnas}</tr></thead>"
-                f"<tbody>{filas or f'<tr><td colspan=\"{colspan}\">No disponible</td></tr>'}</tbody></table>"
+                f"<tbody>{filas or fila_fallback}</tbody></table>"
                 f"</div>"
             )
         if seccion.get("notas"):
-            bloques_html.append("".join(f"<p>{escape(sanitizar_texto_final_exportable(str(nota), formato='html'))}</p>" for nota in seccion.get("notas", [])))
-        secciones_html.append(f"<section class=\"bloque seccion-secundaria\"><h2>{escape(sanitizar_texto_final_exportable(str(seccion['titulo']), formato='html'))}</h2>{''.join(bloques_html)}</section>")
+            bloques_html.append("".join(f"<p>{_texto_html(nota)}</p>" for nota in seccion.get("notas", [])))
+        secciones_html.append(
+            f"<section class=\"bloque seccion-secundaria\"><h2>{_texto_html(seccion['titulo'])}</h2>{''.join(bloques_html)}</section>"
+        )
 
     # Construye rejilla de prioridades y quick wins.
     prioridades_html = "".join(bloques_prioritarios_html) or (
         "<article class=\"prioridad\">"
-        f"<h3>{escape(sanitizar_texto_final_exportable(str(textos_secciones.get('prioridades_quick_wins_vacio_titulo', 'No disponible')), formato='html'))}</h3>"
-        f"<p>{escape(sanitizar_texto_final_exportable(str(textos_secciones.get('prioridades_quick_wins_vacio_descripcion', 'No hay quick wins detectados en esta ejecución.')), formato='html'))}</p>"
+        f"<h3>{_texto_html(textos_secciones.get('prioridades_quick_wins_vacio_titulo', 'No disponible'))}</h3>"
+        f"<p>{_texto_html(textos_secciones.get('prioridades_quick_wins_vacio_descripcion', 'No hay quick wins detectados en esta ejecución.'))}</p>"
         "</article>"
     )
 
@@ -4125,18 +4118,18 @@ def exportar_html(resultado: ResultadoAuditoria, path_salida: Path, modelo_seman
 <body>
   <div class="contenedor">
   <section class="cabecera">
-    <h1>{escape(sanitizar_texto_final_exportable(str(portada['titulo']), formato='html'))}</h1>
-    <p>{escape(sanitizar_texto_final_exportable(str(portada['subtitulo']), formato='html'))}</p>
+    <h1>{_texto_html(portada['titulo'])}</h1>
+    <p>{_texto_html(portada['subtitulo'])}</p>
     <div class="meta">
     <div class="meta-ejecutiva">
       <div class="metadatos">
-        {''.join(f'<div><b>{escape(sanitizar_texto_final_exportable(str(etiqueta), formato="html"))}:</b> {escape(sanitizar_texto_final_exportable(str(valor), formato="html"))}</div>' for etiqueta, valor in portada["filas_metadatos"])}
+        {''.join(f'<div><b>{_texto_html(etiqueta)}:</b> {_texto_html(valor)}</div>' for etiqueta, valor in portada["filas_metadatos"])}
       </div>
-      <div class="periodo-destacado">{escape(sanitizar_texto_final_exportable(str(portada["periodo_analizado"]), formato="html"))}</div>
+      <div class="periodo-destacado">{_texto_html(portada["periodo_analizado"])}</div>
     </div>
     </div>
   </section>
-  <h2>{escape(sanitizar_texto_final_exportable(str(textos_secciones.get("kpis_ejecutivos_titulo", "KPIs ejecutivos")), formato='html'))}</h2>
+  <h2>{_texto_html(textos_secciones.get("kpis_ejecutivos_titulo", "KPIs ejecutivos"))}</h2>
   <div class="kpis">
     <div class="kpi-card"><b>Total URLs</b><br><strong>{metricas["total_urls"]}</strong></div>
     <div class="kpi-card"><b>Total incidencias</b><br><strong>{metricas["total_incidencias"]}</strong></div>
@@ -4145,23 +4138,30 @@ def exportar_html(resultado: ResultadoAuditoria, path_salida: Path, modelo_seman
     <div class="kpi-card"><b>Score SEO</b><br><strong>{metricas["score"]}</strong></div>
   </div>
   <section class="bloque">
-    <h2>{escape(sanitizar_texto_final_exportable(str(textos_secciones.get("prioridades_quick_wins_titulo", "Prioridades y quick wins")), formato='html'))}</h2>
+    <h2>{_texto_html(textos_secciones.get("prioridades_quick_wins_titulo", "Prioridades y quick wins"))}</h2>
     <div class="prioridades-grid">{prioridades_html}</div>
   </section>
   {''.join(secciones_html)}
-  <h2>{escape(sanitizar_texto_final_exportable(str(textos_secciones.get("incidencias_detalle_titulo", "Incidencias técnicas (detalle)")), formato='html'))}</h2>
+  <h2>{_texto_html(textos_secciones.get("incidencias_detalle_titulo", "Incidencias técnicas (detalle)"))}</h2>
   <div class="tabla-ejecutiva tabla-sticky-opcional">
   <table>
-    <thead><tr>{''.join(f"<th>{escape(sanitizar_texto_final_exportable(str(columna), formato='html'))}</th>" for columna in textos_secciones.get("incidencias_detalle_columnas", ["URL", "Severidad", "Área", "Problema", "Recomendación"]))}</tr></thead>
+    <thead><tr>{''.join(f"<th>{_texto_html(columna)}</th>" for columna in textos_secciones.get("incidencias_detalle_columnas", ["URL", "Severidad", "Área", "Problema", "Recomendación"]))}</tr></thead>
     <tbody>
       {''.join(
-        f"<tr style='background:{_color_pastel_severidad(str(fila.get('severidad','informativa')))}'>"
-        f"<td>{escape(sanitizar_texto_final_exportable(str(fila.get('url','')), formato="html"))}</td>"
-        f"<td>{escape(sanitizar_texto_final_exportable(str(fila.get('severidad','')), formato="html"))}</td>"
-        f"<td>{escape(sanitizar_texto_final_exportable(str(fila.get('area','')), formato="html"))}</td>"
-        f"<td>{escape(sanitizar_texto_final_exportable(str(fila.get('problema','')), formato="html"))}</td>"
-        f"<td>{escape(sanitizar_texto_final_exportable(str(fila.get('recomendacion','')), formato="html"))}</td>"
-        f"</tr>"
+        "<tr style='background:{color}'>"
+        "<td>{url}</td>"
+        "<td>{severidad}</td>"
+        "<td>{area}</td>"
+        "<td>{problema}</td>"
+        "<td>{recomendacion}</td>"
+        "</tr>".format(
+            color=_color_pastel_severidad(str(fila.get('severidad', 'informativa'))),
+            url=_texto_html(fila.get('url', '')),
+            severidad=_texto_html(fila.get('severidad', '')),
+            area=_texto_html(fila.get('area', '')),
+            problema=_texto_html(fila.get('problema', '')),
+            recomendacion=_texto_html(fila.get('recomendacion', '')),
+        )
         for fila in filas_ordenadas[:120]
       )}
     </tbody>
