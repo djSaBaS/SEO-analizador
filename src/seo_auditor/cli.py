@@ -5,15 +5,33 @@ from seo_auditor.analyzer import auditar_urls
 from seo_auditor.cache import invalidar_cache
 from seo_auditor.config import cargar_configuracion
 from seo_auditor.fetcher import extraer_urls_sitemap
-from seo_auditor.indexacion import analizar_indexacion_rastreo, generar_gestion_indexacion_inteligente
+from seo_auditor.indexacion import (
+    analizar_indexacion_rastreo,
+    generar_gestion_indexacion_inteligente,
+)
 from seo_auditor.integrations.ga4.premium_service import generar_informe_ga4_premium
 from seo_auditor.integrations.ga4.service import cargar_datos_analytics
 from seo_auditor.integrations.gemini.service import generar_resumen_ia
 from seo_auditor.integrations.gsc.service import cargar_datos_search_console
 from seo_auditor.integrations.pagespeed.service import detectar_home
-from seo_auditor.reporters import exportar_excel, exportar_html, exportar_json, exportar_markdown_ia, exportar_pdf, exportar_word
-from seo_auditor.services.adapters_factory import _ejecutar_pagespeed, _resolver_cliente_informe_ga4, crear_adaptadores_auditoria
-from seo_auditor.services.auditoria_service import AuditoriaAdapters, AuditoriaService, construir_request_desde_cli
+from seo_auditor.reporters import (
+    exportar_excel,
+    exportar_html,
+    exportar_json,
+    exportar_markdown_ia,
+    exportar_pdf,
+    exportar_word,
+)
+from seo_auditor.services.adapters_factory import (
+    _ejecutar_pagespeed,
+    _resolver_cliente_informe_ga4,
+    crear_adaptadores_auditoria,
+)
+from seo_auditor.services.auditoria_service import (
+    AuditoriaAdapters,
+    AuditoriaService,
+    construir_request_desde_cli,
+)
 from seo_auditor.utils import (
     es_url_http_valida,
     fecha_ejecucion_iso,
