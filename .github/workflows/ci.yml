@@ -277,8 +277,10 @@ jobs:
           pip list | grep -E "^(Django|coverage|pytest|pytest-django)\\b" || true
           echo "=================================================="
           echo "Ejecutando tests con pytest + coverage..."
+          set +e
           coverage run -m pytest -vv --maxfail=1 --durations=20 2>&1 | tee pytest-output.log
           estado_tests=${PIPESTATUS[0]}
+          set -e
           echo "Código de salida de pytest: ${estado_tests}"
           if [ "${estado_tests}" -ne 0 ]; then
             echo "Fallo detectado durante pytest. Mostrando últimas 200 líneas del log:"
