@@ -12,7 +12,7 @@ class NuevaAuditoriaForm(forms.Form):
     """Recoge parámetros de auditoría y valida reglas de negocio básicas."""
 
     # Define campo sitemap obligatorio con validación de URL.
-    sitemap = forms.URLField(label="Sitemap", max_length=600)
+    sitemap = forms.URLField(label="Sitemap", max_length=600, assume_scheme="https")
 
     # Define campo opcional de cliente para portada y trazabilidad.
     cliente = forms.CharField(label="Cliente", max_length=200, required=False)
@@ -43,7 +43,12 @@ class NuevaAuditoriaForm(forms.Form):
     )
 
     # Define campo opcional de URL concreta para PageSpeed.
-    pagepsi_url = forms.URLField(label="URL concreta PageSpeed", required=False, max_length=600)
+    pagepsi_url = forms.URLField(
+        label="URL concreta PageSpeed",
+        required=False,
+        max_length=600,
+        assume_scheme="https",
+    )
 
     # Define bandera para forzar perfil completo de entregables.
     generar_todo = forms.BooleanField(label="Generar todos los documentos", required=False)
