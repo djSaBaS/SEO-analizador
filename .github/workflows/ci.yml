@@ -264,8 +264,27 @@ jobs:
       # Ejecutar pytest con cobertura y generar informes.
       - name: Ejecutar tests con cobertura
         run: |
-          echo "Ejecutando tests con pytest..."
-          coverage run -m pytest -v
+          set -o pipefail
+          echo "=================================================="
+          echo "Diagnóstico previo al lanzamiento de tests"
+          echo "=================================================="
+          echo "Python ejecutándose en: $(which python)"
+          python --version
+          echo "Pip ejecutándose en: $(which pip)"
+          pip --version
+          echo "Ruta actual: $(pwd)"
+          echo "Paquetes clave instalados:"
+          pip list | grep -E "^(Django|coverage|pytest|pytest-django)\\b" || true
+          echo "=================================================="
+          echo "Ejecutando tests con pytest + coverage..."
+          coverage run -m pytest -vv --maxfail=1 --durations=20 2>&1 | tee pytest-output.log
+          estado_tests=${PIPESTATUS[0]}
+          echo "Código de salida de pytest: ${estado_tests}"
+          if [ "${estado_tests}" -ne 0 ]; then
+            echo "Fallo detectado durante pytest. Mostrando últimas 200 líneas del log:"
+            tail -n 200 pytest-output.log || true
+            exit "${estado_tests}"
+          fi
           echo "Generando informe XML de cobertura..."
           coverage xml -o coverage.xml
           echo "Generando informe textual de cobertura..."
@@ -296,6 +315,7 @@ jobs:
           path: |
             .pytest_cache
             coverage.xml
+            pytest-output.log
 
           # No fallar si alguna ruta no existe.
           if-no-files-found: ignore
