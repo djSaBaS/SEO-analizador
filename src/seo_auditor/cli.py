@@ -1,13 +1,26 @@
 import argparse
 from datetime import date, timedelta
 
+from seo_auditor.analyzer import auditar_urls
+from seo_auditor.cache import invalidar_cache
 from seo_auditor.config import cargar_configuracion
 from seo_auditor.fetcher import extraer_urls_sitemap
+from seo_auditor.indexacion import analizar_indexacion_rastreo, generar_gestion_indexacion_inteligente
+from seo_auditor.integrations.ga4.premium_service import generar_informe_ga4_premium
 from seo_auditor.integrations.ga4.service import cargar_datos_analytics
+from seo_auditor.integrations.gemini.service import generar_resumen_ia
 from seo_auditor.integrations.gsc.service import cargar_datos_search_console
-from seo_auditor.services.adapters_factory import crear_adaptadores_auditoria
-from seo_auditor.services.auditoria_service import AuditoriaService, construir_request_desde_cli
-from seo_auditor.utils import es_url_http_valida
+from seo_auditor.integrations.pagespeed.service import detectar_home
+from seo_auditor.reporters import exportar_excel, exportar_html, exportar_json, exportar_markdown_ia, exportar_pdf, exportar_word
+from seo_auditor.services.adapters_factory import _ejecutar_pagespeed, _resolver_cliente_informe_ga4, crear_adaptadores_auditoria
+from seo_auditor.services.auditoria_service import AuditoriaAdapters, AuditoriaService, construir_request_desde_cli
+from seo_auditor.utils import (
+    es_url_http_valida,
+    fecha_ejecucion_iso,
+    inferir_cliente_desde_slug,
+    iterar_con_progreso,
+    slug_dominio_desde_url,
+)
 
 GESTOR_POR_DEFECTO = "Juan Antonio Sánchez Plaza"
 
@@ -107,12 +120,32 @@ def crear_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _crear_adaptadores_temporales():
+def _crear_adaptadores_temporales() -> AuditoriaAdapters:
     """Construye adaptadores manteniendo puntos de monkeypatch legacy en CLI."""
     adaptadores = crear_adaptadores_auditoria()
     adaptadores.extraer_urls_sitemap = extraer_urls_sitemap
+    adaptadores.auditar_urls = auditar_urls
+    adaptadores.analizar_indexacion_rastreo = analizar_indexacion_rastreo
+    adaptadores.generar_gestion_indexacion_inteligente = generar_gestion_indexacion_inteligente
     adaptadores.cargar_datos_search_console = cargar_datos_search_console
     adaptadores.cargar_datos_analytics = cargar_datos_analytics
+    adaptadores.generar_resumen_ia = generar_resumen_ia
+    adaptadores.generar_informe_ga4_premium = generar_informe_ga4_premium
+    adaptadores.detectar_home = detectar_home
+    adaptadores.invalidar_cache = invalidar_cache
+    adaptadores.exportar_json = exportar_json
+    adaptadores.exportar_excel = exportar_excel
+    adaptadores.exportar_word = exportar_word
+    adaptadores.exportar_pdf = exportar_pdf
+    adaptadores.exportar_html = exportar_html
+    adaptadores.exportar_markdown_ia = exportar_markdown_ia
+    adaptadores.iterar_con_progreso = iterar_con_progreso
+    adaptadores.es_url_http_valida = es_url_http_valida
+    adaptadores.fecha_ejecucion_iso = fecha_ejecucion_iso
+    adaptadores.slug_dominio_desde_url = slug_dominio_desde_url
+    adaptadores.inferir_cliente_desde_slug = inferir_cliente_desde_slug
+    adaptadores.ejecutar_pagespeed = _ejecutar_pagespeed
+    adaptadores.resolver_cliente_informe_ga4 = _resolver_cliente_informe_ga4
     return adaptadores
 
 
